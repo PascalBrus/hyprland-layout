@@ -54,6 +54,12 @@ namespace threecol {
 
         void                                               syncArea();
 
+        // The model's id for `target`, if it is one of this workspace's tiles.
+        std::optional<WindowId>                            idOf(const SP<Layout::ITarget>& target) const;
+
+        // The tile the model calls `id`, if it is still alive.
+        SP<Layout::ITarget>                                targetOf(WindowId id) const;
+
         // The workspace this instance lays out, if it has one yet.
         PHLWORKSPACE                                       workspace() const;
 

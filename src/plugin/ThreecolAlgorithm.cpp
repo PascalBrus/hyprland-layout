@@ -4,6 +4,7 @@
 #include "plugin/SavedDividers.hpp"
 #include "plugin/SettingsReporting.hpp"
 
+#include <hyprland/src/config/shared/actions/ConfigActions.hpp>
 #include <hyprland/src/config/shared/workspace/WorkspaceRuleManager.hpp>
 
 #include <hyprland/src/desktop/state/FocusState.hpp>
@@ -44,6 +45,16 @@ namespace threecol {
             if (Layout::edgeLeft(corner))
                 return Layout::edgeTop(corner) ? Corner::TopLeft : Corner::BottomLeft;
             return Layout::edgeTop(corner) ? Corner::TopRight : Corner::BottomRight;
+        }
+
+        std::optional<Direction> toDirection(Math::eDirection dir) {
+            switch (dir) {
+                case Math::DIRECTION_LEFT: return Direction::Left;
+                case Math::DIRECTION_RIGHT: return Direction::Right;
+                case Math::DIRECTION_UP: return Direction::Up;
+                case Math::DIRECTION_DOWN: return Direction::Down;
+                default: return std::nullopt;
+            }
         }
 
         // Every live instance, so a config reload can reach them all.
@@ -139,7 +150,7 @@ namespace threecol {
     }
 
     void CThreecolAlgorithm::newTarget(SP<Layout::ITarget> target) {
-        if (std::ranges::any_of(m_targets, [&](const auto& entry) { return entry.second.lock() == target; }))
+        if (idOf(target))
             return;
 
         const WindowId id          = m_nextId++;
@@ -174,8 +185,8 @@ namespace threecol {
         if (!workspace || Fullscreen::controller()->hasFullscreen(workspace, std::nullopt))
             return;
 
-        const auto it = std::ranges::find_if(m_targets, [&](const auto& entry) { return entry.second.lock() == target; });
-        if (it == m_targets.end())
+        const auto id = idOf(target);
+        if (!id)
             return;
 
         const bool refreshed = refreshModel();
@@ -183,10 +194,10 @@ namespace threecol {
         // A mouse drag is saved on release; anything else right away.
         if (mouseResizing(target)) {
             m_dragWorkspace = workspace;
-            resized         = m_model.dragResize(it->first, Δ.x, Δ.y, toCorner(corner));
+            resized         = m_model.dragResize(*id, Δ.x, Δ.y, toCorner(corner));
         } else {
             const auto before = m_model.dividers();
-            resized           = m_model.resizeWindow(it->first, Δ.x, Δ.y, toCorner(corner));
+            resized           = m_model.resizeWindow(*id, Δ.x, Δ.y, toCorner(corner));
             if (resized)
                 keepDividersIfChanged(before);
         }
@@ -223,12 +234,52 @@ namespace threecol {
         }
     }
 
-    void CThreecolAlgorithm::swapTargets(SP<Layout::ITarget>, SP<Layout::ITarget>) {
-        // Swaps come in a later ticket.
+    std::optional<WindowId> CThreecolAlgorithm::idOf(const SP<Layout::ITarget>& target) const {
+        const auto it = std::ranges::find_if(m_targets, [&](const auto& entry) { return entry.second.lock() == target; });
+        return it == m_targets.end() ? std::nullopt : std::optional{it->first};
     }
 
-    void CThreecolAlgorithm::moveTargetInDirection(SP<Layout::ITarget>, Math::eDirection, bool) {
-        // Moves come in a later ticket.
+    SP<Layout::ITarget> CThreecolAlgorithm::targetOf(WindowId id) const {
+        const auto it = std::ranges::find_if(m_targets, [&](const auto& entry) { return entry.first == id; });
+        return it == m_targets.end() ? nullptr : it->second.lock();
+    }
+
+    void CThreecolAlgorithm::swapTargets(SP<Layout::ITarget> a, SP<Layout::ITarget> b) {
+        // Hyprland recalculates after a swap.
+        const auto idA = idOf(a);
+        const auto idB = idOf(b);
+        if (idA && idB) {
+            refreshModel();
+            const bool wasResizing = m_model.resizing();
+            m_model.swapWindows(*idA, *idB);
+            keepDividersIfDragEnded(wasResizing);
+            return;
+        }
+        // Only one is ours, e.g. a swap across workspaces or with a floating
+        // window: the other takes its place.
+        for (auto& [id, target] : m_targets) {
+            if (idA && id == *idA)
+                target = b;
+            else if (idB && id == *idB)
+                target = a;
+        }
+    }
+
+    void CThreecolAlgorithm::moveTargetInDirection(SP<Layout::ITarget> t, Math::eDirection dir, bool) {
+        // The same move as `move <dir>`. The window moves, not focus, so
+        // `silent` changes nothing: focus stays on it either way.
+        const auto workspace = this->workspace();
+        const auto id        = idOf(t);
+        const auto direction = toDirection(dir);
+        if (!workspace || !id || !direction || Fullscreen::controller()->hasFullscreen(workspace, std::nullopt))
+            return;
+
+        const bool refreshed   = refreshModel();
+        const bool wasResizing = m_model.resizing();
+        const bool moved       = m_model.move(*id, *direction);
+        keepDividersIfDragEnded(wasResizing);
+        if (moved || refreshed)
+            recalculate();
     }
 
     SP<Layout::ITarget> CThreecolAlgorithm::getNextCandidate(SP<Layout::ITarget> old) {
@@ -236,8 +287,7 @@ namespace threecol {
         if (!old || !hint || hint->closed.lock() != old)
             return nullptr; // Hyprland falls back to another tiled window.
 
-        const auto it = std::ranges::find_if(m_targets, [&](const auto& entry) { return entry.first == hint->next; });
-        return it == m_targets.end() ? nullptr : it->second.lock();
+        return targetOf(hint->next);
     }
 
     Config::ErrorResult CThreecolAlgorithm::layoutMsg(const std::string_view& sv) {
@@ -247,25 +297,36 @@ namespace threecol {
             return {};
 
         // A focused window must be one of this workspace's tiles: nothing
-        // applies to a floating one. With nothing focused, only reset does.
+        // applies to a floating one. With nothing focused, only reset and
+        // focusmaster do.
         std::optional<WindowId> focused;
         if (const auto window = Desktop::focusState()->window(); window && window->m_workspace == workspace) {
             if (Fullscreen::controller()->isFullscreen(window))
                 return {};
-            const auto target = window->layoutTarget();
-            const auto it     = std::ranges::find_if(m_targets, [&](const auto& entry) { return entry.second.lock() == target; });
-            if (it == m_targets.end())
+            focused = idOf(window->layoutTarget());
+            // focusmaster needs no focused tile, so it works from a floating window too.
+            if (!focused && sv != "focusmaster")
                 return {};
-            focused = it->first;
         }
 
-        const bool refreshed = refreshModel();
-        const auto before    = m_model.dividers();
-        const bool changed   = m_model.layoutMessage(sv, focused);
-        if (changed)
+        const bool refreshed   = refreshModel();
+        const auto before      = m_model.dividers();
+        const bool wasResizing = m_model.resizing();
+        const auto result      = m_model.layoutMessage(sv, focused);
+        // A change mid-drag ends it, saving like a release.
+        if (wasResizing && !m_model.resizing())
+            keepDividers();
+        else if (result.changed)
             keepDividersIfChanged(before);
-        if (changed || refreshed)
+        if (result.changed || refreshed)
             recalculate();
+
+        // After placing, so the cursor warps to where the window now is.
+        if (result.focus && result.focus != focused) {
+            // Focusing a window of this workspace can't fail in a way to report.
+            if (const auto target = targetOf(*result.focus); target && target->window())
+                static_cast<void>(Config::Actions::focus(target->window()));
+        }
         return {};
     }
 

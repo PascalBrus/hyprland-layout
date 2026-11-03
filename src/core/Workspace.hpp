@@ -38,6 +38,20 @@ namespace threecol {
     // cursor is in. None when no cursor is involved, e.g. a bind or hyprctl.
     enum class Corner { None, TopLeft, TopRight, BottomLeft, BottomRight };
 
+    // A direction for focus and moves: l, r along the Chain, u, d inside a zone.
+    enum class Direction { Left, Right, Up, Down };
+
+    // What a layout message did: whether the layout changed, and the window
+    // to focus, if focus should go somewhere.
+    struct MessageResult {
+        bool                    changed = false;
+        std::optional<WindowId> focus   = std::nullopt;
+
+        explicit operator bool() const {
+            return changed;
+        }
+    };
+
     // The threecol layout of one workspace: which Zone and Row each window is
     // in, and the rectangle that gives it.
     class Workspace {
@@ -71,13 +85,35 @@ namespace threecol {
 
         // A layout message from the user; `focused` is the focused window.
         // Unknown messages, or ones that don't apply, do nothing. Returns
-        // whether the layout changed.
+        // whether the layout changed and where focus goes.
         //
         // `resize wider` / `resize narrower` move the focused zone's Dividers;
         // `resize taller` / `resize shorter` change the focused Left or Stack
         // Row's height, the other Rows giving way in proportion; `reset` puts the
         // Dividers back to the settings and makes the Rows equal.
-        bool                layoutMessage(std::string_view message, std::optional<WindowId> focused);
+        //
+        // `focus l` / `focus r` walk the Chain, stopping at its ends and
+        // skipping empty zones; `focus u` / `focus d` move inside Left or the
+        // Stack, never leaving the zone. `focusmaster` focuses Master, with or
+        // without a focused window. `move l|r|u|d` moves the focused window as
+        // `move` does, focus staying on it. `swapwithmaster` swaps the focused
+        // window with Master, the old Master taking its Row, or moves it into
+        // a Hole; it does nothing on Master.
+        MessageResult       layoutMessage(std::string_view message, std::optional<WindowId> focused);
+
+        // Moves `id` one step along the Chain (`Left`, `Right`) or inside its
+        // zone (`Up`, `Down`), stopping at the Chain's ends and the zone's
+        // edges. It swaps only when there is no room: with an occupied
+        // Master, the bottom Row of a full Left, or a neighbouring Row in the
+        // same zone. Otherwise it moves: into a Hole or empty Stack, to the
+        // bottom of a Left below its Row limit, or from Master to the top of
+        // the Stack, leaving a Hole. A moved window takes its new Row's
+        // height. Returns whether the layout changed.
+        bool                move(WindowId id, Direction direction);
+
+        // `a` and `b` trade places, each taking the other's Row, as asked
+        // for outright, e.g. by Hyprland's swap. Returns whether they did.
+        bool                swapWindows(WindowId a, WindowId b);
 
         // A resize of `id`'s tile by `dx`, `dy` pixels.
         //
@@ -139,7 +175,27 @@ namespace threecol {
         // The Zone `id` is in, or nothing if it isn't on this workspace.
         std::optional<Zone>     zoneOf(WindowId id) const;
 
-        bool                    applyLayoutMessage(std::string_view message, std::optional<WindowId> focused);
+        MessageResult           applyLayoutMessage(std::string_view message, std::optional<WindowId> focused);
+
+        // The next window from `id` along the Chain, one way or the other.
+        std::optional<WindowId> chainNeighbour(WindowId id, bool right) const;
+
+        // The Row above or below `id` in its zone; nothing on Master.
+        std::optional<WindowId> rowNeighbour(WindowId id, bool down) const;
+
+        bool                    applyMove(WindowId id, Direction direction);
+
+        // Where `id` is kept: Master or its Row. Nothing if it isn't here.
+        WindowId*               slotOf(WindowId id);
+
+        // `a` and `b` trade places, each taking the other's Row.
+        void                    swapPlaces(WindowId a, WindowId b);
+
+        // `id` leaves its place under the close rules.
+        void                    takeOut(WindowId id);
+
+        // `id` swaps with Master, or moves into a Master Hole.
+        void                    toMaster(WindowId id);
         bool                    resize(Zone zone, double by);
         bool                    resizeRow(WindowId id, double by);
 
