@@ -6,7 +6,7 @@
 #include <format>
 #include <limits>
 #include <optional>
-#include <utility>
+#include <tuple>
 
 namespace threecol {
 
@@ -40,16 +40,25 @@ namespace threecol {
             return name.empty() ? std::string{"a workspace"} : std::format("workspace {}", name);
         }
 
+        // Which widths came from the workspace's layout_opts.
+        struct SOverridden {
+            bool left  = false;
+            bool stack = false;
+        };
+
         // Makes the widths fit the limits: Left and Stack at least min_width,
         // and Master at least min_master_width. When both can't hold, Master
         // keeps its minimum and Left and Stack shrink in proportion.
-        // `prefix` starts each warning ("" for global values, so every
-        // workspace warns the same).
-        void makeWidthsFit(Settings& settings, const std::string& prefix, std::vector<std::string>& warnings) {
-            for (auto [key, width] : {std::pair{"left_width", &settings.leftWidth}, std::pair{"stack_width", &settings.stackWidth}}) {
+        // A warning names the workspace only when its own layout_opts caused
+        // it, so a global problem reads the same on every workspace.
+        void makeWidthsFit(Settings& settings, SOverridden overridden, std::string_view workspaceName, std::vector<std::string>& warnings) {
+            const auto prefix = [&](bool fromLayoutOpts) { return fromLayoutOpts ? workspaceLabel(workspaceName) + ": " : std::string{}; };
+
+            for (auto [key, width, fromLayoutOpts] :
+                 {std::tuple{"left_width", &settings.leftWidth, overridden.left}, std::tuple{"stack_width", &settings.stackWidth, overridden.stack}}) {
                 if (*width >= settings.minWidth)
                     continue;
-                warnings.push_back(std::format("{}{} {} is below min_width {}; using {}", prefix, key, *width, settings.minWidth, settings.minWidth));
+                warnings.push_back(std::format("{}{} {} is below min_width {}; using {}", prefix(fromLayoutOpts), key, *width, settings.minWidth, settings.minWidth));
                 *width = settings.minWidth;
             }
 
@@ -60,8 +69,8 @@ namespace threecol {
 
             const double left  = settings.leftWidth * room / sum;
             const double stack = settings.stackWidth * room / sum;
-            warnings.push_back(std::format("{}left_width {} and stack_width {} leave Master less than min_master_width {}; using {:.3g} and {:.3g}", prefix,
-                                           settings.leftWidth, settings.stackWidth, settings.minMasterWidth, left, stack));
+            warnings.push_back(std::format("{}left_width {} and stack_width {} leave Master less than min_master_width {}; using {:.3g} and {:.3g}",
+                                           prefix(overridden.left || overridden.stack), settings.leftWidth, settings.stackWidth, settings.minMasterWidth, left, stack));
             settings.leftWidth  = left;
             settings.stackWidth = stack;
         }
@@ -72,34 +81,42 @@ namespace threecol {
         ResolvedSettings resolved{.settings = global, .warnings = {}};
         auto&            settings = resolved.settings;
 
-        const auto       ignore = [&](const std::string& key, const std::string& text, std::string_view expected, std::string globalValue) {
+        const auto       warnIgnored = [&](const std::string& key, const std::string& text, std::string_view expected, std::string globalValue) {
             resolved.warnings.push_back(std::format("{}: layout_opts {} = \"{}\" is not {}; using {}", workspaceLabel(workspaceName), key, text, expected, globalValue));
         };
 
-        bool widthOverridden = false;
+        SOverridden overridden;
         for (const auto& [key, text] : opts) {
             if (key == "left_width" || key == "stack_width") {
                 double& width = key == "left_width" ? settings.leftWidth : settings.stackWidth;
                 if (const auto value = parseWidth(text)) {
-                    width           = *value;
-                    widthOverridden = true;
+                    width = *value;
+                    (key == "left_width" ? overridden.left : overridden.stack) = true;
                 } else
-                    ignore(key, text, "a number from 0 to 1", std::format("{}", width));
+                    warnIgnored(key, text, "a number from 0 to 1", std::format("{}", width));
             } else if (key == "left_rows") {
                 if (const auto value = parseRowLimit(text))
                     settings.leftRows = *value;
                 else
-                    ignore(key, text, "a whole number of at least 1", std::format("{}", settings.leftRows));
+                    warnIgnored(key, text, "a whole number of at least 1", std::format("{}", settings.leftRows));
             } else
                 resolved.warnings.push_back(std::format("{}: unknown layout_opts key \"{}\", ignored", workspaceLabel(workspaceName), key));
         }
 
-        makeWidthsFit(settings, widthOverridden ? workspaceLabel(workspaceName) + ": " : "", resolved.warnings);
+        makeWidthsFit(settings, overridden, workspaceName, resolved.warnings);
 
         return resolved;
     }
 
-    std::optional<std::string> settingsNotice(const std::vector<std::string>& warnings) {
+    void SettingsReport::configLoaded() {
+        m_shown.clear();
+    }
+
+    std::optional<std::string> SettingsReport::notice(const std::vector<std::string>& warnings) {
+        const auto isShown = [this](const std::string& warning) { return std::ranges::find(m_shown, warning) != m_shown.end(); };
+        if (std::ranges::all_of(warnings, isShown))
+            return std::nullopt;
+
         std::vector<std::string_view> listed;
         std::string                   notice = "[threecol] settings ignored or adjusted:";
         for (const auto& warning : warnings) {
@@ -107,9 +124,9 @@ namespace threecol {
                 continue;
             listed.push_back(warning);
             notice += "\n- " + warning;
+            if (!isShown(warning))
+                m_shown.push_back(warning);
         }
-        if (listed.empty())
-            return std::nullopt;
         return notice;
     }
 

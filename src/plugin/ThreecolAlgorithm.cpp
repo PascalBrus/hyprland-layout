@@ -1,9 +1,9 @@
 #include "plugin/ThreecolAlgorithm.hpp"
 
 #include "plugin/Config.hpp"
+#include "plugin/SettingsReporting.hpp"
 
 #include <hyprland/src/config/shared/workspace/WorkspaceRuleManager.hpp>
-#include <hyprland/src/debug/log/Logger.hpp>
 
 #include <hyprland/src/layout/algorithm/Algorithm.hpp>
 #include <hyprland/src/layout/space/Space.hpp>
@@ -50,10 +50,8 @@ namespace threecol {
 
     std::vector<std::string> applySettingsToAllWorkspaces() {
         std::vector<std::string> warnings;
-        for (auto* instance : g_instances) {
-            instance->m_settingsLogged = true;
+        for (auto* instance : g_instances)
             std::ranges::move(instance->applySettings(), std::back_inserter(warnings));
-        }
         return warnings;
     }
 
@@ -110,11 +108,9 @@ namespace threecol {
         });
 
         syncArea();
-        const auto warnings = applySettings();
-        if (!std::exchange(m_settingsLogged, true)) {
-            for (const auto& warning : warnings)
-                LOG(Log::WARN, "[threecol] {}", warning);
-        }
+        applySettings();
+        if (!std::exchange(m_settingsChecked, true))
+            reportSettingsLater();
 
         for (const auto& [id, weak] : m_targets) {
             if (const auto rect = m_model.rectOf(id))

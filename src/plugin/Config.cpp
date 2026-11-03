@@ -27,6 +27,10 @@ namespace threecol {
             SP<CBoolValue>  persist;
         } g_values;
 
+        // False until every value is registered. An unregistered value never
+        // reads the config, so until then the defaults are used.
+        bool g_registered = false;
+
         SP<CFloatValue> fraction(const char* name, const char* description, double def) {
             return makeShared<CFloatValue>(name, description, def, Config::Values::SFloatValueOptions{.min = 0, .max = 1, .refresh = REFRESH_LAYOUTS});
         }
@@ -54,11 +58,12 @@ namespace threecol {
         bool ok = true;
         for (const auto& value : all)
             ok = HyprlandAPI::addConfigValueV2(handle, value) && ok;
+        g_registered = ok;
         return ok;
     }
 
     Settings globalSettings() {
-        if (!g_values.leftWidth)
+        if (!g_registered)
             return DEFAULTS;
 
         return {

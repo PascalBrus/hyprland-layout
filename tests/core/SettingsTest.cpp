@@ -9,7 +9,7 @@
 using threecol::LayoutOpts;
 using threecol::Rect;
 using threecol::Settings;
-using threecol::settingsNotice;
+using threecol::SettingsReport;
 using threecol::WindowId;
 using threecol::Workspace;
 
@@ -190,15 +190,17 @@ TEST(Settings, AGlobalWidthMadeToFitGivesTheSameWarningOnEveryWorkspace) {
     EXPECT_EQ(warningsA, warningsB);
 }
 
-TEST(SettingsNotice, OneConfigLoadGivesOneNoticeListingEachProblemOnce) {
+TEST(SettingsReport, OneConfigLoadGivesOneNoticeListingEachProblemOnce) {
     const Settings global{.leftWidth = 0.5, .stackWidth = 0.5};
     Workspace      a{AREA};
     Workspace      b{AREA};
+    SettingsReport report;
 
     std::vector<std::string> warnings = a.setSettings(global, LayoutOpts{{"typo", "1"}}, "1");
     std::ranges::copy(b.setSettings(global, {}, "2"), std::back_inserter(warnings));
 
-    const auto notice = settingsNotice(warnings);
+    report.configLoaded();
+    const auto notice = report.notice(warnings);
 
     ASSERT_TRUE(notice);
     EXPECT_NE(notice->find("typo"), std::string::npos);
@@ -207,8 +209,63 @@ TEST(SettingsNotice, OneConfigLoadGivesOneNoticeListingEachProblemOnce) {
     EXPECT_EQ(notice->find("min_master_width", fit + 1), std::string::npos) << *notice;
 }
 
-TEST(SettingsNotice, NoProblemsGiveNoNotice) {
-    Workspace ws{AREA};
+TEST(SettingsReport, NoProblemsGiveNoNotice) {
+    Workspace      ws{AREA};
+    SettingsReport report;
 
-    EXPECT_FALSE(settingsNotice(ws.setSettings(Settings{}, LayoutOpts{{"left_width", "0.3"}}, "1")));
+    report.configLoaded();
+
+    EXPECT_FALSE(report.notice(ws.setSettings(Settings{}, LayoutOpts{{"left_width", "0.3"}}, "1")));
+}
+
+TEST(SettingsReport, ProblemsAlreadyShownForThisConfigLoadAreNotShownAgain) {
+    Workspace      ws{AREA};
+    SettingsReport report;
+    const auto     warnings = ws.setSettings(Settings{}, LayoutOpts{{"typo", "1"}}, "1");
+
+    report.configLoaded();
+    ASSERT_TRUE(report.notice(warnings));
+
+    // Hyprland can announce the same load more than once; a later workspace
+    // can bring the same global problem.
+    EXPECT_FALSE(report.notice(warnings));
+}
+
+TEST(SettingsReport, AWorkspaceCreatedLaterWithANewProblemGivesANotice) {
+    Workspace      first{AREA};
+    Workspace      later{AREA};
+    SettingsReport report;
+    auto           warnings = first.setSettings(Settings{}, LayoutOpts{{"typo", "1"}}, "1");
+
+    report.configLoaded();
+    report.notice(warnings);
+    std::ranges::copy(later.setSettings(Settings{}, LayoutOpts{{"left_rows", "0"}}, "2"), std::back_inserter(warnings));
+    const auto notice = report.notice(warnings);
+
+    ASSERT_TRUE(notice);
+    EXPECT_NE(notice->find("left_rows"), std::string::npos);
+}
+
+TEST(SettingsReport, EveryConfigLoadShowsItsProblemsAgain) {
+    Workspace      ws{AREA};
+    SettingsReport report;
+    const auto     warnings = ws.setSettings(Settings{}, LayoutOpts{{"typo", "1"}}, "1");
+
+    report.configLoaded();
+    report.notice(warnings);
+    report.configLoaded();
+
+    EXPECT_TRUE(report.notice(warnings));
+}
+
+TEST(Settings, AGlobalProblemIsNotPinnedOnAWorkspaceThatOverridesAnotherWidth) {
+    const Settings global{.stackWidth = 0.05, .minWidth = 0.1};
+    Workspace      plain{AREA};
+    Workspace      overriding{AREA};
+
+    const auto     warningsPlain      = plain.setSettings(global, {}, "1");
+    const auto     warningsOverriding = overriding.setSettings(global, LayoutOpts{{"left_width", "0.3"}}, "web");
+
+    // Only the global stack_width is too small; both workspaces report it alike.
+    EXPECT_EQ(warningsPlain, warningsOverriding);
 }

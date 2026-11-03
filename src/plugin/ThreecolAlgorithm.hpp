@@ -48,9 +48,9 @@ namespace threecol {
         };
         std::optional<SFocusAfterClose>                    m_focusAfterClose;
 
-        // Logs this workspace's settings problems once; after that they are
-        // reported on config reload.
-        bool                                               m_settingsLogged = false;
+        // Whether this workspace has asked for its settings to be checked.
+        // After that, config reloads check them.
+        bool                                               m_settingsChecked = false;
 
         void                                               syncArea();
 
@@ -62,7 +62,7 @@ namespace threecol {
     };
 
     // Re-reads the settings on every threecol workspace and returns all their
-    // warnings. Used on config reload.
+    // warnings.
     std::vector<std::string> applySettingsToAllWorkspaces();
 
 }

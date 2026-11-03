@@ -36,8 +36,20 @@ namespace threecol {
     // values. `workspaceName` names the workspace in warnings.
     ResolvedSettings resolveSettings(const Settings& global, const LayoutOpts& opts, std::string_view workspaceName);
 
-    // The one notification for a config load: every warning gathered from the
-    // workspaces, each listed once. Nothing if there were none.
-    std::optional<std::string> settingsNotice(const std::vector<std::string>& warnings);
+    // Decides when settings problems reach the user: one notification per
+    // config load, listing each problem once. Within a load it stays quiet
+    // unless a new problem shows up, e.g. on a workspace created later.
+    class SettingsReport {
+      public:
+        // A config load: its problems are shown again, even if unchanged.
+        void                       configLoaded();
+
+        // Every workspace's current warnings. Returns the notification to show,
+        // or nothing if there's nothing new to tell.
+        std::optional<std::string> notice(const std::vector<std::string>& warnings);
+
+      private:
+        std::vector<std::string> m_shown; // since the last config load
+    };
 
 }
