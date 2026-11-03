@@ -47,7 +47,8 @@ if(THREECOL_TESTS)
         tests/core/CloseRulesTest.cpp
         tests/core/SettingsTest.cpp
         tests/core/KeyboardResizeTest.cpp
-        tests/core/DividerStoreTest.cpp)
+        tests/core/DividerStoreTest.cpp
+        tests/core/MouseResizeTest.cpp)
     target_link_libraries(threecol_tests PRIVATE threecol_core GTest::gtest_main)
     gtest_discover_tests(threecol_tests)
 

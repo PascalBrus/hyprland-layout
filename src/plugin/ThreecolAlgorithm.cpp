@@ -8,6 +8,7 @@
 
 #include <hyprland/src/desktop/state/FocusState.hpp>
 #include <hyprland/src/desktop/view/window/Window.hpp>
+#include <hyprland/src/layout/LayoutManager.hpp>
 #include <hyprland/src/layout/algorithm/Algorithm.hpp>
 #include <hyprland/src/layout/space/Space.hpp>
 #include <hyprland/src/layout/target/Target.hpp>
@@ -29,6 +30,22 @@ namespace threecol {
             return {rect.x, rect.y, rect.w, rect.h};
         }
 
+        // Whether `target` is being resized with a mouse bind. Hyprland's
+        // trackpad resize gesture passes a corner too, but never releases.
+        bool mouseResizing(const SP<Layout::ITarget>& target) {
+            const auto& drag = g_layoutManager->dragController();
+            const auto  mode = drag->mode();
+            return drag->target() == target && (mode == MBIND_RESIZE || mode == MBIND_RESIZE_BLOCK_RATIO || mode == MBIND_RESIZE_FORCE_RATIO);
+        }
+
+        Corner toCorner(Layout::eRectCorner corner) {
+            if (corner == Layout::CORNER_NONE)
+                return Corner::None;
+            if (Layout::edgeLeft(corner))
+                return Layout::edgeTop(corner) ? Corner::TopLeft : Corner::BottomLeft;
+            return Layout::edgeTop(corner) ? Corner::TopRight : Corner::BottomRight;
+        }
+
         // Every live instance, so a config reload can reach them all.
         std::vector<CThreecolAlgorithm*> g_instances;
 
@@ -36,10 +53,14 @@ namespace threecol {
 
     CThreecolAlgorithm::CThreecolAlgorithm() : m_model(Rect{}) {
         g_instances.push_back(this);
+        m_onDragEnded = g_layoutManager->dragController()->m_events.ended.listen([this] { dragEnded(); });
     }
 
     CThreecolAlgorithm::~CThreecolAlgorithm() {
         std::erase(g_instances, this);
+        // Gone mid-drag, e.g. the layout changed: save the sizes so far.
+        if (const auto workspace = m_dragWorkspace.lock(); workspace && m_model.resizing())
+            saveDividers(workspace, m_model.dividers());
     }
 
     PHLWORKSPACE CThreecolAlgorithm::workspace() const {
@@ -80,7 +101,9 @@ namespace threecol {
         if (!workspace)
             return;
 
-        m_model.setDividers(savedDividers(workspace));
+        // Mid-drag, the model's Dividers are newer than the saved ones.
+        if (!m_model.resizing())
+            m_model.setDividers(savedDividers(workspace));
     }
 
     void CThreecolAlgorithm::keepDividers() {
@@ -88,13 +111,26 @@ namespace threecol {
             saveDividers(workspace, m_model.dividers());
     }
 
+    void CThreecolAlgorithm::keepDividersIfDragEnded(bool wasResizing) {
+        if (wasResizing && !m_model.resizing())
+            keepDividers();
+    }
+
+    void CThreecolAlgorithm::dragEnded() {
+        const bool wasResizing = m_model.resizing();
+        m_model.endResize();
+        keepDividersIfDragEnded(wasResizing);
+    }
+
     void CThreecolAlgorithm::newTarget(SP<Layout::ITarget> target) {
         if (std::ranges::any_of(m_targets, [&](const auto& entry) { return entry.second.lock() == target; }))
             return;
 
-        const WindowId id = m_nextId++;
+        const WindowId id          = m_nextId++;
+        const bool     wasResizing = m_model.resizing();
         m_targets.emplace_back(id, target);
         m_model.addWindow(id);
+        keepDividersIfDragEnded(wasResizing);
         recalculate();
     }
 
@@ -108,14 +144,36 @@ namespace threecol {
             return;
 
         m_focusAfterClose.reset();
+        const bool wasResizing = m_model.resizing();
         if (const auto next = m_model.removeWindow(it->first))
             m_focusAfterClose = SFocusAfterClose{target, *next};
+        keepDividersIfDragEnded(wasResizing);
         m_targets.erase(it);
         recalculate();
     }
 
-    void CThreecolAlgorithm::resizeTarget(const Vector2D&, SP<Layout::ITarget>, Layout::eRectCorner) {
-        // Resizing comes in a later ticket.
+    void CThreecolAlgorithm::resizeTarget(const Vector2D& Δ, SP<Layout::ITarget> target, Layout::eRectCorner corner) {
+        // Hidden tiles aren't resized under a fullscreen or maximised window.
+        const auto workspace = this->workspace();
+        if (!workspace || Fullscreen::controller()->hasFullscreen(workspace, std::nullopt))
+            return;
+
+        const auto it = std::ranges::find_if(m_targets, [&](const auto& entry) { return entry.second.lock() == target; });
+        if (it == m_targets.end())
+            return;
+
+        refreshModel();
+        // A mouse drag is saved on release; anything else right away.
+        if (mouseResizing(target)) {
+            m_dragWorkspace = workspace;
+            if (!m_model.dragResize(it->first, Δ.x, toCorner(corner)))
+                return;
+        } else {
+            if (!m_model.resizeWindow(it->first, Δ.x, toCorner(corner)))
+                return;
+            keepDividers();
+        }
+        recalculate();
     }
 
     void CThreecolAlgorithm::recalculate(Layout::eRecalculateReason) {
@@ -128,12 +186,14 @@ namespace threecol {
         }
 
         // Forget targets that died without a removeTarget, so they don't hold a zone.
+        const bool wasResizing = m_model.resizing();
         std::erase_if(m_targets, [this](const auto& entry) {
             if (!entry.second.expired())
                 return false;
             m_model.removeWindow(entry.first);
             return true;
         });
+        keepDividersIfDragEnded(wasResizing);
 
         refreshModel();
         if (!std::exchange(m_settingsChecked, true))

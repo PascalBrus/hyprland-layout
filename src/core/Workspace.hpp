@@ -33,6 +33,10 @@ namespace threecol {
         friend bool operator==(const Dividers&, const Dividers&) = default;
     };
 
+    // The corner of a window being resized, from which part of the window the
+    // cursor is in. None when no cursor is involved, e.g. a bind or hyprctl.
+    enum class Corner { None, TopLeft, TopRight, BottomLeft, BottomRight };
+
     // The threecol layout of one workspace: which Zone and Row each window is
     // in, and the rectangle that gives it.
     class Workspace {
@@ -69,6 +73,27 @@ namespace threecol {
         // whether the Dividers changed.
         bool                layoutMessage(std::string_view message, std::optional<WindowId> focused);
 
+        // A resize of `id`'s tile by `dx` pixels. A Left window moves
+        // Left|Master and a Stack window Master|Stack. Master moves the Divider
+        // on the grabbed half, or Master|Stack with no corner. Each stops at
+        // its limits. Returns whether the Dividers changed.
+        //
+        // dragResize is one tick of a mouse drag: the Divider is chosen at
+        // press, and sits where the cursor's travel since press puts it.
+        // resizeWindow is a one-off, e.g. from a bind, hyprctl or a trackpad
+        // gesture, which never releases.
+        bool                dragResize(WindowId id, double dx, Corner corner);
+        bool                resizeWindow(WindowId id, double dx, Corner corner = Corner::None);
+
+        // The mouse was released: the drag ends, keeping its sizes. The next
+        // drag chooses its Divider again.
+        void                endResize();
+
+        // Whether a mouse drag is in progress. A drag ends early, keeping its
+        // sizes, if the grabbed window leaves, a window joins its zone, or a
+        // layout message changes the Dividers.
+        bool                resizing() const;
+
         // The Dividers set by resizing, to keep for this workspace; nothing if
         // they follow the settings. A new instance takes them back with
         // setDividers. They win over the settings until reset, clamped to
@@ -94,7 +119,31 @@ namespace threecol {
         // The Zone `id` is in, or nothing if it isn't on this workspace.
         std::optional<Zone>     zoneOf(WindowId id) const;
 
+        bool                    applyLayoutMessage(std::string_view message, std::optional<WindowId> focused);
         bool                    resize(Zone zone, double by);
+
+        enum class Divider { LeftMaster, MasterStack };
+
+        // A mouse resize in progress: the window grabbed, the Divider it
+        // moves, the Dividers at press and the cursor's travel since, in
+        // pixels. A drag that ended early is kept, over, until release, so its
+        // later ticks don't start a new one.
+        struct Gesture {
+            WindowId id;
+            Divider  divider;
+            Dividers atPress;
+            double   travel = 0;
+            bool     over   = false;
+        };
+        std::optional<Gesture>  m_gesture;
+
+        static Divider          dividerFor(Zone zone, Corner corner);
+
+        // Keeps `dividers` if they differ from the ones in use.
+        bool                    setResized(const Dividers& dividers);
+
+        // `from` with `divider` moved `px` pixels right, within its limits.
+        Dividers                moveDivider(Divider divider, Dividers from, double px) const;
 
         // The Zone the next added window takes under Fill order.
         Zone                    nextZone() const;

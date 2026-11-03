@@ -34,7 +34,11 @@ namespace threecol {
         if (rectOf(id))
             return;
 
-        switch (nextZone()) {
+        const Zone zone = nextZone();
+        if (m_gesture && zoneOf(m_gesture->id) == zone)
+            m_gesture->over = true;
+
+        switch (zone) {
             case Zone::Master: m_master = id; break;
             case Zone::Left: m_left = id; break;
             case Zone::Stack: m_stack.push_back(id); break;
@@ -56,6 +60,10 @@ namespace threecol {
         const auto it      = std::ranges::find(windows, id);
         if (it == windows.end())
             return std::nullopt;
+
+        // No more ticks come for a window that left.
+        if (m_gesture && m_gesture->id == id)
+            m_gesture.reset();
 
         if (m_master == id)
             m_master.reset();
@@ -124,6 +132,14 @@ namespace threecol {
     }
 
     bool Workspace::layoutMessage(std::string_view message, std::optional<WindowId> focused) {
+        const bool changed = applyLayoutMessage(message, focused);
+        // A drag's later ticks would undo the change.
+        if (changed && m_gesture)
+            m_gesture->over = true;
+        return changed;
+    }
+
+    bool Workspace::applyLayoutMessage(std::string_view message, std::optional<WindowId> focused) {
         if (message == "reset")
             return std::exchange(m_dividers, std::nullopt).has_value();
 
@@ -177,6 +193,79 @@ namespace threecol {
             return false;
         m_dividers = dividers;
         return true;
+    }
+
+    namespace {
+
+        // `width` clamped to [smallest, largest]; smallest wins if they cross.
+        double within(double width, double smallest, double largest) {
+            return std::max(smallest, std::min(width, largest));
+        }
+
+        bool isLeft(Corner corner) {
+            return corner == Corner::TopLeft || corner == Corner::BottomLeft;
+        }
+
+    }
+
+    Workspace::Divider Workspace::dividerFor(Zone zone, Corner corner) {
+        switch (zone) {
+            case Zone::Left: return Divider::LeftMaster;
+            case Zone::Stack: return Divider::MasterStack;
+            // The grabbed half is the side of the nearer Divider. With no
+            // corner, the right one, as Hyprland grows a window to the right.
+            case Zone::Master: return isLeft(corner) ? Divider::LeftMaster : Divider::MasterStack;
+        }
+        return Divider::MasterStack;
+    }
+
+    Dividers Workspace::moveDivider(Divider divider, Dividers from, double px) const {
+        auto& [left, stack]   = from;
+        const double by       = px / m_area.w;
+        const double minWidth = m_settings.minWidth;
+        const double room     = 1 - m_settings.minMasterWidth;
+        switch (divider) {
+            case Divider::LeftMaster: left = within(left + by, minWidth, room - stack); break;
+            case Divider::MasterStack: stack = within(stack - by, minWidth, room - left); break;
+        }
+        return from;
+    }
+
+    bool Workspace::dragResize(WindowId id, double dx, Corner corner) {
+        const auto zone = zoneOf(id);
+        if (!zone || m_area.w <= 0)
+            return false;
+        if (m_gesture && m_gesture->over)
+            return false;
+
+        if (!m_gesture || m_gesture->id != id)
+            m_gesture = Gesture{id, dividerFor(*zone, corner), currentDividers()};
+        m_gesture->travel += dx;
+        // Measured from press, so the Divider follows again as soon as the
+        // cursor comes back from past a limit.
+        return setResized(moveDivider(m_gesture->divider, m_gesture->atPress, m_gesture->travel));
+    }
+
+    bool Workspace::resizeWindow(WindowId id, double dx, Corner corner) {
+        const auto zone = zoneOf(id);
+        if (!zone || m_area.w <= 0)
+            return false;
+        return setResized(moveDivider(dividerFor(*zone, corner), currentDividers(), dx));
+    }
+
+    bool Workspace::setResized(const Dividers& dividers) {
+        if (same(dividers, currentDividers()))
+            return false;
+        m_dividers = dividers;
+        return true;
+    }
+
+    void Workspace::endResize() {
+        m_gesture.reset();
+    }
+
+    bool Workspace::resizing() const {
+        return m_gesture && !m_gesture->over;
     }
 
     Rect Workspace::leftZone() const {

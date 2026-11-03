@@ -65,6 +65,17 @@ namespace threecol {
         // and, with persist on, are saved to the state file.
         void                                               keepDividers();
 
+        // Saves the Dividers if the model's mouse drag ended since
+        // `wasResizing` was read: a mid-drag change counts as a release.
+        void                                               keepDividersIfDragEnded(bool wasResizing);
+
+        // The mouse was released after a drag: keep and save its sizes.
+        void                                               dragEnded();
+        CHyprSignalListener                                m_onDragEnded;
+        // The workspace of the last mouse drag, to save it if this instance
+        // goes mid-drag.
+        PHLWORKSPACEREF                                    m_dragWorkspace;
+
         // Hands the model the global settings and this workspace's
         // layout_opts. Returns what was ignored or adjusted.
         std::vector<std::string>                           applySettings();
