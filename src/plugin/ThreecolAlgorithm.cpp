@@ -111,6 +111,12 @@ namespace threecol {
             saveDividers(workspace, m_model.dividers());
     }
 
+    void CThreecolAlgorithm::keepDividersIfChanged(const std::optional<Dividers>& before) {
+        // A height change alone has nothing to save.
+        if (m_model.dividers() != before)
+            keepDividers();
+    }
+
     void CThreecolAlgorithm::keepDividersIfDragEnded(bool wasResizing) {
         if (wasResizing && !m_model.resizing())
             keepDividers();
@@ -166,12 +172,13 @@ namespace threecol {
         // A mouse drag is saved on release; anything else right away.
         if (mouseResizing(target)) {
             m_dragWorkspace = workspace;
-            if (!m_model.dragResize(it->first, Δ.x, toCorner(corner)))
+            if (!m_model.dragResize(it->first, Δ.x, Δ.y, toCorner(corner)))
                 return;
         } else {
-            if (!m_model.resizeWindow(it->first, Δ.x, toCorner(corner)))
+            const auto before = m_model.dividers();
+            if (!m_model.resizeWindow(it->first, Δ.x, Δ.y, toCorner(corner)))
                 return;
-            keepDividers();
+            keepDividersIfChanged(before);
         }
         recalculate();
     }
@@ -242,10 +249,11 @@ namespace threecol {
         }
 
         refreshModel();
+        const auto before = m_model.dividers();
         if (!m_model.layoutMessage(sv, focused))
             return {};
 
-        keepDividers();
+        keepDividersIfChanged(before);
         recalculate();
         return {};
     }

@@ -65,6 +65,9 @@ namespace threecol {
         // and, with persist on, are saved to the state file.
         void                                               keepDividers();
 
+        // Keeps the model's Dividers if they differ from `before`.
+        void                                               keepDividersIfChanged(const std::optional<Dividers>& before);
+
         // Saves the Dividers if the model's mouse drag ended since
         // `wasResizing` was read: a mid-drag change counts as a release.
         void                                               keepDividersIfDragEnded(bool wasResizing);

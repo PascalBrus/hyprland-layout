@@ -14,6 +14,7 @@ option(THREECOL_TESTS "Build the GoogleTest suite" ON)
 # Core module: all layout behaviour, plain C++, no Hyprland headers.
 add_library(threecol_core STATIC
     src/core/DividerStore.cpp
+    src/core/RowHeights.cpp
     src/core/Settings.cpp
     src/core/Workspace.cpp)
 target_include_directories(threecol_core PUBLIC src)
@@ -48,7 +49,8 @@ if(THREECOL_TESTS)
         tests/core/SettingsTest.cpp
         tests/core/KeyboardResizeTest.cpp
         tests/core/DividerStoreTest.cpp
-        tests/core/MouseResizeTest.cpp)
+        tests/core/MouseResizeTest.cpp
+        tests/core/RowHeightsTest.cpp)
     target_link_libraries(threecol_tests PRIVATE threecol_core GTest::gtest_main)
     gtest_discover_tests(threecol_tests)
 

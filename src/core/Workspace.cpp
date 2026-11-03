@@ -41,7 +41,10 @@ namespace threecol {
         switch (zone) {
             case Zone::Master: m_master = id; break;
             case Zone::Left: m_left = id; break;
-            case Zone::Stack: m_stack.push_back(id); break;
+            case Zone::Stack:
+                m_stack.push_back(id);
+                m_stackHeights.add();
+                break;
         }
     }
 
@@ -61,15 +64,21 @@ namespace threecol {
         if (it == windows.end())
             return std::nullopt;
 
-        // No more ticks come for a window that left.
+        // No more ticks come for a window that left. One leaving its zone
+        // moves the Rows under the drag.
         if (m_gesture && m_gesture->id == id)
             m_gesture.reset();
+        else if (m_gesture && zoneOf(m_gesture->id) == zoneOf(id))
+            m_gesture->over = true;
 
         if (m_master == id)
             m_master.reset();
         if (m_left == id)
             m_left.reset();
-        std::erase(m_stack, id);
+        if (const auto row = std::ranges::find(m_stack, id); row != m_stack.end()) {
+            m_stackHeights.remove(row - m_stack.begin());
+            m_stack.erase(row);
+        }
 
         if (std::next(it) != windows.end())
             return *std::next(it);
@@ -84,7 +93,7 @@ namespace threecol {
         if (m_left == id)
             return leftZone();
         if (const auto it = std::ranges::find(m_stack, id); it != m_stack.end())
-            return stackRow(it - m_stack.begin(), m_stack.size());
+            return stackRow(it - m_stack.begin());
         return std::nullopt;
     }
 
@@ -140,8 +149,10 @@ namespace threecol {
     }
 
     bool Workspace::applyLayoutMessage(std::string_view message, std::optional<WindowId> focused) {
-        if (message == "reset")
-            return std::exchange(m_dividers, std::nullopt).has_value();
+        if (message == "reset") {
+            const bool heights = m_stackHeights.equalise(m_settings.minRowHeight);
+            return std::exchange(m_dividers, std::nullopt).has_value() || heights;
+        }
 
         const auto zone = focused ? zoneOf(*focused) : std::nullopt;
         if (!zone)
@@ -150,6 +161,10 @@ namespace threecol {
             return resize(*zone, m_settings.step);
         if (message == "resize narrower")
             return resize(*zone, -m_settings.step);
+        if (message == "resize taller")
+            return resizeRow(*focused, m_settings.step);
+        if (message == "resize shorter")
+            return resizeRow(*focused, -m_settings.step);
         return false;
     }
 
@@ -195,6 +210,14 @@ namespace threecol {
         return true;
     }
 
+    bool Workspace::resizeRow(WindowId id, double by) {
+        // Only Stack Rows have heights to change; Left holds one Row for now.
+        const auto row = std::ranges::find(m_stack, id);
+        if (row == m_stack.end())
+            return false;
+        return m_stackHeights.resize(row - m_stack.begin(), by, m_settings.minRowHeight);
+    }
+
     namespace {
 
         // `width` clamped to [smallest, largest]; smallest wins if they cross.
@@ -204,6 +227,10 @@ namespace threecol {
 
         bool isLeft(Corner corner) {
             return corner == Corner::TopLeft || corner == Corner::BottomLeft;
+        }
+
+        bool isTop(Corner corner) {
+            return corner == Corner::TopLeft || corner == Corner::TopRight;
         }
 
     }
@@ -219,6 +246,23 @@ namespace threecol {
         return Divider::MasterStack;
     }
 
+    std::optional<std::size_t> Workspace::edgeFor(WindowId id, Corner corner) const {
+        const auto it = std::ranges::find(m_stack, id);
+        if (it == m_stack.end() || m_stack.size() < 2)
+            return std::nullopt;
+        const std::size_t row = it - m_stack.begin();
+        if (row == 0)
+            return 1;
+        if (row == m_stack.size() - 1)
+            return row;
+        // With no corner, the bottom one, as Hyprland grows a window down.
+        return isTop(corner) ? row : row + 1;
+    }
+
+    bool Workspace::setStackHeights(std::vector<double> heights) {
+        return m_stackHeights.set(std::move(heights), m_settings.minRowHeight);
+    }
+
     Dividers Workspace::moveDivider(Divider divider, Dividers from, double px) const {
         auto& [left, stack]   = from;
         const double by       = px / m_area.w;
@@ -231,26 +275,38 @@ namespace threecol {
         return from;
     }
 
-    bool Workspace::dragResize(WindowId id, double dx, Corner corner) {
+    bool Workspace::dragResize(WindowId id, double dx, double dy, Corner corner) {
         const auto zone = zoneOf(id);
         if (!zone || m_area.w <= 0)
             return false;
         if (m_gesture && m_gesture->over)
             return false;
 
-        if (!m_gesture || m_gesture->id != id)
-            m_gesture = Gesture{id, dividerFor(*zone, corner), currentDividers()};
-        m_gesture->travel += dx;
-        // Measured from press, so the Divider follows again as soon as the
-        // cursor comes back from past a limit.
-        return setResized(moveDivider(m_gesture->divider, m_gesture->atPress, m_gesture->travel));
+        if (!m_gesture || m_gesture->id != id) {
+            m_gesture = Gesture{.id = id, .divider = dividerFor(*zone, corner), .atPress = currentDividers()};
+            if (const auto row = edgeFor(id, corner))
+                m_gesture->edge = Edge{*row, m_stackHeights.fitted(m_settings.minRowHeight)};
+        }
+        m_gesture->travelX += dx;
+        m_gesture->travelY += dy;
+        // Measured from press, so the Divider and edge follow again as soon
+        // as the cursor comes back from past a limit.
+        const bool width  = setResized(moveDivider(m_gesture->divider, m_gesture->atPress, m_gesture->travelX));
+        bool       height = false;
+        if (const auto& edge = m_gesture->edge; edge && m_area.h > 0)
+            height = setStackHeights(RowHeights::movedEdge(edge->atPress, edge->row, m_gesture->travelY / m_area.h, m_settings.minRowHeight));
+        return width || height;
     }
 
-    bool Workspace::resizeWindow(WindowId id, double dx, Corner corner) {
+    bool Workspace::resizeWindow(WindowId id, double dx, double dy, Corner corner) {
         const auto zone = zoneOf(id);
         if (!zone || m_area.w <= 0)
             return false;
-        return setResized(moveDivider(dividerFor(*zone, corner), currentDividers(), dx));
+        const bool width  = setResized(moveDivider(dividerFor(*zone, corner), currentDividers(), dx));
+        bool       height = false;
+        if (const auto row = edgeFor(id, corner); row && m_area.h > 0)
+            height = setStackHeights(RowHeights::movedEdge(m_stackHeights.fitted(m_settings.minRowHeight), *row, dy / m_area.h, m_settings.minRowHeight));
+        return width || height;
     }
 
     bool Workspace::setResized(const Dividers& dividers) {
@@ -283,17 +339,31 @@ namespace threecol {
         return {m_area.x + m_area.w - stackW, m_area.y, stackW, m_area.h};
     }
 
-    Rect Workspace::stackRow(std::size_t row, std::size_t rows) const {
-        const Rect   zone = stackZone();
-        const double h    = zone.h / rows;
-        return {zone.x, zone.y + h * row, zone.w, h};
+    namespace {
+
+        // Row `row` of `zone`, given the zone's Row heights in use.
+        Rect rowOf(const Rect& zone, const std::vector<double>& heights, std::size_t row) {
+            double top = 0;
+            for (std::size_t i = 0; i < row; ++i)
+                top += heights[i];
+            return {zone.x, zone.y + zone.h * top, zone.w, zone.h * heights[row]};
+        }
+
+    }
+
+    Rect Workspace::stackRow(std::size_t row) const {
+        return rowOf(stackZone(), m_stackHeights.fitted(m_settings.minRowHeight), row);
     }
 
     Rect Workspace::nextWindowRect() const {
         switch (nextZone()) {
             case Zone::Master: return masterZone();
             case Zone::Left: return leftZone();
-            case Zone::Stack: return stackRow(m_stack.size(), m_stack.size() + 1);
+            case Zone::Stack: {
+                RowHeights next = m_stackHeights;
+                next.add();
+                return rowOf(stackZone(), next.fitted(m_settings.minRowHeight), m_stack.size());
+            }
         }
         return {};
     }
