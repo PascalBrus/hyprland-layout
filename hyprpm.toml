@@ -1,0 +1,13 @@
+[repository]
+name = "threecol"
+authors = ["Pascal B."]
+commit_pins = []
+
+[threecol]
+description = "A three-zone tiling layout for ultrawide monitors"
+authors = ["Pascal B."]
+output = "build/threecol.so"
+build = [
+    "cmake -B build -DCMAKE_BUILD_TYPE=Release -DTHREECOL_TESTS=OFF",
+    "cmake --build build -j",
+]

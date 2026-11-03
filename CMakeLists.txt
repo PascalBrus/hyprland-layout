@@ -31,7 +31,8 @@ add_library(threecol SHARED
     src/plugin/DropIndicator.cpp
     src/plugin/SavedDividers.cpp
     src/plugin/SettingsReporting.cpp
-    src/plugin/ThreecolAlgorithm.cpp)
+    src/plugin/ThreecolAlgorithm.cpp
+    src/plugin/VersionGuard.cpp)
 target_link_libraries(threecol PRIVATE threecol_core PkgConfig::HYPRLAND)
 # Hyprland loads the plugin as threecol.so.
 set_target_properties(threecol PROPERTIES PREFIX "")
