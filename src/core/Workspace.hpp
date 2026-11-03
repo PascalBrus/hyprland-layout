@@ -130,6 +130,10 @@ namespace threecol {
         // Returns whether the layout changed.
         bool                drop(WindowId id, double x, double y);
 
+        // Where `id` would land if dropped at (`x`, `y`) now: the rectangle
+        // drop would give it. Nothing when that drop would change nothing.
+        std::optional<Rect> dropIndicator(WindowId id, double x, double y) const;
+
         // A resize of `id`'s tile by `dx`, `dy` pixels.
         //
         // Sideways, a Left window moves Left|Master and a Stack window

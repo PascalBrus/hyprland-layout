@@ -581,6 +581,14 @@ namespace threecol {
         return dropped;
     }
 
+    std::optional<Rect> Workspace::dropIndicator(WindowId id, double x, double y) const {
+        // The drop itself, tried on a copy, so the two never disagree.
+        Workspace after = *this;
+        if (!after.applyDrop(id, x, y))
+            return std::nullopt;
+        return after.rectOf(id);
+    }
+
     bool Workspace::applyDrop(WindowId id, double x, double y) {
         const auto zone = zoneAt(x, y);
         if (!zone || !zoneOf(id))

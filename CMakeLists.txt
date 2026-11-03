@@ -28,6 +28,7 @@ pkg_check_modules(HYPRLAND REQUIRED IMPORTED_TARGET hyprland pixman-1 libdrm)
 add_library(threecol SHARED
     src/plugin/main.cpp
     src/plugin/Config.cpp
+    src/plugin/DropIndicator.cpp
     src/plugin/SavedDividers.cpp
     src/plugin/SettingsReporting.cpp
     src/plugin/ThreecolAlgorithm.cpp)
@@ -53,7 +54,8 @@ if(THREECOL_TESTS)
         tests/core/RowHeightsTest.cpp
         tests/core/LeftRowsTest.cpp
         tests/core/ChainTest.cpp
-        tests/core/DragDropTest.cpp)
+        tests/core/DragDropTest.cpp
+        tests/core/DropIndicatorTest.cpp)
     target_link_libraries(threecol_tests PRIVATE threecol_core GTest::gtest_main)
     gtest_discover_tests(threecol_tests)
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/Workspace.hpp"
+#include "plugin/DropIndicator.hpp"
 
 #include <hyprland/src/layout/algorithm/TiledAlgorithm.hpp>
 
@@ -109,12 +110,21 @@ namespace threecol {
         // layout_opts. Returns what was ignored or adjusted.
         std::vector<std::string>                           applySettings();
 
+        // Where the dragged tile would land if dropped now: the box drop
+        // would give it, with Hyprland's gaps and borders. Nothing when no
+        // tile of this workspace is being dragged or the drop changes nothing.
+        std::optional<SDropIndicator>                      dropIndicator() const;
+
         friend std::vector<std::string>                    applySettingsToAllWorkspaces();
+        friend std::optional<SDropIndicator>               currentDropIndicator();
     };
 
     // Re-reads the settings on every threecol workspace and returns all their
     // warnings.
     std::vector<std::string> applySettingsToAllWorkspaces();
+
+    // The drop indicator of the threecol tile being dragged, if any.
+    std::optional<SDropIndicator> currentDropIndicator();
 
     // Lays out every threecol workspace again, e.g. after its Dividers changed.
     void                     recalculateAllWorkspaces();

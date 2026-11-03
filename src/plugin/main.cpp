@@ -1,4 +1,5 @@
 #include "plugin/Config.hpp"
+#include "plugin/DropIndicator.hpp"
 #include "plugin/SavedDividers.hpp"
 #include "plugin/SettingsReporting.hpp"
 #include "plugin/ThreecolAlgorithm.hpp"
@@ -32,11 +33,13 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
 
     threecol::startSavingDividers();
     threecol::startSettingsReporting(g_handle);
+    threecol::startDropIndicator();
 
     return {"threecol", "A three-zone tiling layout for ultrawide monitors", "Pascal B.", "0.1.0"};
 }
 
 APICALL EXPORT void PLUGIN_EXIT() {
+    threecol::stopDropIndicator();
     threecol::stopSettingsReporting();
     threecol::stopSavingDividers();
     HyprlandAPI::removeAlgo(g_handle, "threecol");

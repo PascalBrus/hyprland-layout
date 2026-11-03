@@ -19,7 +19,11 @@
 #include <hyprland/src/managers/input/InputManager.hpp>
 #include <hyprland/src/output/Monitor.hpp>
 
+#include <hyprland/src/config/ConfigValue.hpp>
+#include <hyprland/src/config/shared/complex/ComplexDataTypes.hpp>
+
 #include <algorithm>
+#include <cmath>
 #include <iterator>
 
 namespace threecol {
@@ -66,6 +70,28 @@ namespace threecol {
                 return cursor;
             // The area's right and bottom edges are outside it.
             return Vector2D{std::clamp(cursor.x, area.x, area.x + area.width - 1), std::clamp(cursor.y, area.y, area.y + area.height - 1)};
+        }
+
+        // The box Hyprland gives a tile placed at `node` in `area`, as
+        // CWindowTarget::setPositionGlobal works it out: gaps_in on every edge
+        // not at the area's edge, then the window's border and other
+        // decorations.
+        CBox tileBox(const CBox& node, const CBox& area, const PHLWORKSPACE& workspace, const PHLWINDOW& window) {
+            static auto PGAPSIN = CConfigValue<Config::IComplexConfigValue>("general:gaps_in");
+            const auto  rule    = Config::workspaceRuleMgr()->getWorkspaceRuleFor(workspace);
+            const auto  gaps    = rule && rule->m_gapsIn ? *rule->m_gapsIn : *sc<Config::CCssGapData*>(PGAPSIN.ptr());
+            const auto  sticks  = [](double a, double b) { return std::abs(a - b) < 2; };
+
+            const double left   = sticks(node.x, area.x) ? 0 : gaps.m_left;
+            const double top    = sticks(node.y, area.y) ? 0 : gaps.m_top;
+            const double right  = sticks(node.x + node.w, area.x + area.w) ? 0 : gaps.m_right;
+            const double bottom = sticks(node.y + node.h, area.y + area.h) ? 0 : gaps.m_bottom;
+            const auto   decor  = window->getFullWindowReservedArea();
+
+            CBox box = node.copy().round();
+            box      = {box.x + left + decor.topLeft.x, box.y + top + decor.topLeft.y, box.w - left - right - decor.topLeft.x - decor.bottomRight.x,
+                        box.h - top - bottom - decor.topLeft.y - decor.bottomRight.y};
+            return box.round();
         }
 
         Corner toCorner(Layout::eRectCorner corner) {
@@ -126,6 +152,30 @@ namespace threecol {
         for (auto* instance : g_instances)
             std::ranges::move(instance->applySettings(), std::back_inserter(warnings));
         return warnings;
+    }
+
+    std::optional<SDropIndicator> currentDropIndicator() {
+        for (const auto* instance : g_instances) {
+            if (auto indicator = instance->dropIndicator())
+                return indicator;
+        }
+        return std::nullopt;
+    }
+
+    std::optional<SDropIndicator> CThreecolAlgorithm::dropIndicator() const {
+        const auto workspace = this->workspace();
+        const auto target    = m_dragged ? m_dragged->target.lock() : nullptr;
+        const auto window    = target ? target->window() : nullptr;
+        if (!workspace || !window || !workspace->visible() || Fullscreen::controller()->hasFullscreen(workspace, std::nullopt))
+            return std::nullopt;
+
+        // The same point and core drop that dropped() uses.
+        const CBox area  = m_parent->space()->workArea();
+        const auto point = dropPoint(workspace, area, window);
+        const auto rect  = point ? m_model.dropIndicator(m_dragged->id, point->x, point->y) : std::nullopt;
+        if (!rect)
+            return std::nullopt;
+        return SDropIndicator{window, workspace->m_monitor, tileBox(toBox(*rect), area, workspace, window)};
     }
 
     void recalculateAllWorkspaces() {
