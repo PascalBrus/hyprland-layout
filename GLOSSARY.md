@@ -32,6 +32,10 @@ _Avoid_: opening order, spawn order
 One of the two vertical boundaries between zones on a workspace: Left|Master and Master|Stack. Resizing any zone means moving one or both dividers; each workspace keeps its own.
 _Avoid_: edge, border, split
 
+**Row**:
+One window's slot in the Left or Stack zone, counted from the top. A height belongs to the Row, not the window: a window moved into a Row takes that Row's height.
+_Avoid_: stack position, slot, cell
+
 **Row limit**:
-The most windows the Left zone may hold, one by default. Lowering it moves the extra Left windows to the top of the Stack; raising it moves nothing.
+The most Rows the Left zone may hold, one by default. Lowering it moves the extra Left windows to the top of the Stack; raising it moves nothing.
 _Avoid_: cap, max rows, left count
