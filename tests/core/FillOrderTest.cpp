@@ -1,0 +1,125 @@
+#include "core/Workspace.hpp"
+
+#include <gtest/gtest.h>
+
+using threecol::Rect;
+using threecol::Workspace;
+
+namespace {
+
+    // One 5120x1440 ultrawide, no gaps, default widths 0.25 / 0.5 / 0.25.
+    constexpr Rect AREA{0, 0, 5120, 1440};
+
+    constexpr Rect LEFT_ZONE{0, 0, 1280, 1440};
+    constexpr Rect MASTER_ZONE{1280, 0, 2560, 1440};
+    constexpr Rect STACK_ZONE{3840, 0, 1280, 1440};
+
+}
+
+TEST(FillOrder, FirstWindowLandsInMasterZone) {
+    Workspace ws{AREA};
+    ws.addWindow(1);
+
+    EXPECT_EQ(ws.rectOf(1), MASTER_ZONE);
+}
+
+TEST(FillOrder, LoneWindowSitsOnlyInMasterWithSpaceOnBothSides) {
+    // A work area offset by a bar and an output position.
+    Workspace ws{Rect{100, 40, 5120, 1400}};
+    ws.addWindow(1);
+
+    const auto rect = ws.rectOf(1);
+    ASSERT_TRUE(rect);
+    EXPECT_EQ(rect->x, 100 + 1280);
+    EXPECT_EQ(rect->x + rect->w, 100 + 3840);
+    EXPECT_EQ(rect->y, 40);
+    EXPECT_EQ(rect->h, 1400);
+}
+
+TEST(FillOrder, SecondWindowLandsInLeftZone) {
+    Workspace ws{AREA};
+    ws.addWindow(1);
+    ws.addWindow(2);
+
+    EXPECT_EQ(ws.rectOf(1), MASTER_ZONE);
+    EXPECT_EQ(ws.rectOf(2), LEFT_ZONE);
+}
+
+TEST(FillOrder, ThirdWindowTakesTheWholeStackZone) {
+    Workspace ws{AREA};
+    ws.addWindow(1);
+    ws.addWindow(2);
+    ws.addWindow(3);
+
+    EXPECT_EQ(ws.rectOf(1), MASTER_ZONE);
+    EXPECT_EQ(ws.rectOf(2), LEFT_ZONE);
+    EXPECT_EQ(ws.rectOf(3), STACK_ZONE);
+}
+
+TEST(FillOrder, FurtherWindowsJoinTheBottomOfTheStackSharingHeightEqually) {
+    Workspace ws{AREA};
+    for (threecol::WindowId id = 1; id <= 5; ++id)
+        ws.addWindow(id);
+
+    // Windows 3, 4, 5 are Stack Rows, top to bottom, 480 px each.
+    EXPECT_EQ(ws.rectOf(3), (Rect{3840, 0, 1280, 480}));
+    EXPECT_EQ(ws.rectOf(4), (Rect{3840, 480, 1280, 480}));
+    EXPECT_EQ(ws.rectOf(5), (Rect{3840, 960, 1280, 480}));
+
+    EXPECT_EQ(ws.rectOf(1), MASTER_ZONE);
+    EXPECT_EQ(ws.rectOf(2), LEFT_ZONE);
+}
+
+TEST(FillOrder, NextWindowRectFollowsFillOrder) {
+    Workspace ws{AREA};
+    EXPECT_EQ(ws.nextWindowRect(), MASTER_ZONE);
+
+    ws.addWindow(1);
+    EXPECT_EQ(ws.nextWindowRect(), LEFT_ZONE);
+
+    ws.addWindow(2);
+    EXPECT_EQ(ws.nextWindowRect(), STACK_ZONE);
+
+    // With one Stack Row, the next window would be the bottom of two.
+    ws.addWindow(3);
+    EXPECT_EQ(ws.nextWindowRect(), (Rect{3840, 720, 1280, 720}));
+}
+
+TEST(FillOrder, NextWindowRectMatchesWhereTheWindowLands) {
+    Workspace ws{AREA};
+    for (threecol::WindowId id = 1; id <= 6; ++id) {
+        const Rect predicted = ws.nextWindowRect();
+        ws.addWindow(id);
+        EXPECT_EQ(ws.rectOf(id), predicted) << "window " << id;
+    }
+}
+
+TEST(Workspace, RemovedWindowHasNoRectangle) {
+    Workspace ws{AREA};
+    ws.addWindow(1);
+    ws.addWindow(2);
+    ws.addWindow(3);
+
+    ws.removeWindow(2);
+
+    EXPECT_EQ(ws.rectOf(2), std::nullopt);
+}
+
+TEST(Workspace, WindowsFollowAChangedArea) {
+    Workspace ws{AREA};
+    ws.addWindow(1);
+
+    ws.setArea(Rect{0, 0, 2560, 1440});
+
+    EXPECT_EQ(ws.rectOf(1), (Rect{640, 0, 1280, 1440}));
+}
+
+TEST(Workspace, AddingAWindowTwiceKeepsItInOneZone) {
+    Workspace ws{AREA};
+    ws.addWindow(1);
+    ws.addWindow(1);
+    ws.addWindow(2);
+
+    EXPECT_EQ(ws.rectOf(1), MASTER_ZONE);
+    EXPECT_EQ(ws.rectOf(2), LEFT_ZONE);
+}
