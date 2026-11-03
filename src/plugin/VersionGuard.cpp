@@ -16,7 +16,7 @@ namespace threecol {
 
         // A short commit when the commits differ. Otherwise only a library
         // version differs, so the whole hash is the only useful name.
-        std::string describe(std::string_view hash, bool commitsDiffer) {
+        std::string buildName(std::string_view hash, bool commitsDiffer) {
             if (commitsDiffer)
                 return std::format("Hyprland {}", commitOf(hash).substr(0, 7));
             return std::string{hash};
@@ -32,7 +32,7 @@ namespace threecol {
 
         const bool commitsDiffer = commitOf(running) != commitOf(built);
         return std::format("[threecol] built for {}, running {}; run `hyprpm update` (or rebuild threecol), then reload. Using dwindle until then.",
-                           describe(built, commitsDiffer), describe(running, commitsDiffer));
+                           buildName(built, commitsDiffer), buildName(running, commitsDiffer));
     }
 
 }
