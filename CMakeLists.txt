@@ -43,7 +43,8 @@ if(THREECOL_TESTS)
     add_executable(threecol_tests
         tests/core/FillOrderTest.cpp
         tests/core/CloseRulesTest.cpp
-        tests/core/SettingsTest.cpp)
+        tests/core/SettingsTest.cpp
+        tests/core/KeyboardResizeTest.cpp)
     target_link_libraries(threecol_tests PRIVATE threecol_core GTest::gtest_main)
     gtest_discover_tests(threecol_tests)
 

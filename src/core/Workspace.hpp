@@ -23,6 +23,16 @@ namespace threecol {
         friend bool operator==(const Rect&, const Rect&) = default;
     };
 
+    // Where a workspace's two Dividers sit, kept as the widths of the zones
+    // outside them: Left|Master after leftWidth, Master|Stack before the last
+    // stackWidth. Fractions of the workspace width; Master gets the rest.
+    struct Dividers {
+        double leftWidth  = 0;
+        double stackWidth = 0;
+
+        friend bool operator==(const Dividers&, const Dividers&) = default;
+    };
+
     // The threecol layout of one workspace: which Zone and Row each window is
     // in, and the rectangle that gives it.
     class Workspace {
@@ -54,6 +64,18 @@ namespace threecol {
         // The rectangle the next added window would get.
         Rect                nextWindowRect() const;
 
+        // A layout message from the user; `focused` is the focused window.
+        // Unknown messages, or ones that don't apply, do nothing. Returns
+        // whether the Dividers changed.
+        bool                layoutMessage(std::string_view message, std::optional<WindowId> focused);
+
+        // The Dividers set by resizing, to keep for this workspace; nothing if
+        // they follow the settings. A new instance takes them back with
+        // setDividers. They win over the settings until reset, clamped to
+        // the current limits.
+        std::optional<Dividers> dividers() const;
+        void                setDividers(std::optional<Dividers> dividers);
+
       private:
         enum class Zone { Left, Master, Stack };
 
@@ -62,6 +84,17 @@ namespace threecol {
         std::optional<WindowId> m_master;
         std::optional<WindowId> m_left;
         std::vector<WindowId>   m_stack; // Rows, top to bottom
+
+        // Set by resizing; until then the Dividers follow the settings.
+        std::optional<Dividers> m_dividers;
+
+        // The Dividers in use.
+        Dividers                currentDividers() const;
+
+        // The Zone `id` is in, or nothing if it isn't on this workspace.
+        std::optional<Zone>     zoneOf(WindowId id) const;
+
+        bool                    resize(Zone zone, double by);
 
         // The Zone the next added window takes under Fill order.
         Zone                    nextZone() const;

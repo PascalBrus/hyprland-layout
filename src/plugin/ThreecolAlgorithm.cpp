@@ -5,6 +5,8 @@
 
 #include <hyprland/src/config/shared/workspace/WorkspaceRuleManager.hpp>
 
+#include <hyprland/src/desktop/state/FocusState.hpp>
+#include <hyprland/src/desktop/view/window/Window.hpp>
 #include <hyprland/src/layout/algorithm/Algorithm.hpp>
 #include <hyprland/src/layout/space/Space.hpp>
 #include <hyprland/src/layout/target/Target.hpp>
@@ -13,6 +15,7 @@
 
 #include <algorithm>
 #include <iterator>
+#include <map>
 
 namespace threecol {
 
@@ -29,6 +32,10 @@ namespace threecol {
         // Every live instance, so a config reload can reach them all.
         std::vector<CThreecolAlgorithm*> g_instances;
 
+        // Each workspace's resized Dividers, by workspace name. Hyprland
+        // destroys the instance with its workspace, so they live here.
+        std::map<std::string, Dividers, std::less<>> g_dividers;
+
     }
 
     CThreecolAlgorithm::CThreecolAlgorithm() : m_model(Rect{}) {
@@ -39,8 +46,12 @@ namespace threecol {
         std::erase(g_instances, this);
     }
 
+    PHLWORKSPACE CThreecolAlgorithm::workspace() const {
+        return m_parent && m_parent->space() ? m_parent->space()->workspace() : nullptr;
+    }
+
     std::vector<std::string> CThreecolAlgorithm::applySettings() {
-        const auto workspace = m_parent && m_parent->space() ? m_parent->space()->workspace() : nullptr;
+        const auto workspace = this->workspace();
         if (!workspace)
             return m_model.setSettings(globalSettings());
 
@@ -58,6 +69,29 @@ namespace threecol {
     void CThreecolAlgorithm::syncArea() {
         if (m_parent && m_parent->space())
             m_model.setArea(toRect(m_parent->space()->workArea()));
+    }
+
+    void CThreecolAlgorithm::refreshModel() {
+        syncArea();
+        applySettings();
+
+        const auto workspace = this->workspace();
+        if (!workspace)
+            return;
+
+        const auto it = g_dividers.find(workspace->displayName());
+        m_model.setDividers(it == g_dividers.end() ? std::nullopt : std::optional{it->second});
+    }
+
+    void CThreecolAlgorithm::saveDividers() {
+        const auto workspace = this->workspace();
+        if (!workspace)
+            return;
+
+        if (const auto dividers = m_model.dividers())
+            g_dividers.insert_or_assign(workspace->displayName(), *dividers);
+        else
+            g_dividers.erase(workspace->displayName());
     }
 
     void CThreecolAlgorithm::newTarget(SP<Layout::ITarget> target) {
@@ -94,7 +128,7 @@ namespace threecol {
         if (!m_parent || !m_parent->space())
             return;
 
-        if (Fullscreen::controller()->hasFullscreen(m_parent->space()->workspace(), true)) {
+        if (Fullscreen::controller()->hasFullscreen(workspace(), true)) {
             m_defaultFullscreenHandler->syncTargetSizeAndPosition();
             return;
         }
@@ -107,8 +141,7 @@ namespace threecol {
             return true;
         });
 
-        syncArea();
-        applySettings();
+        refreshModel();
         if (!std::exchange(m_settingsChecked, true))
             reportSettingsLater();
 
@@ -135,14 +168,36 @@ namespace threecol {
         return it == m_targets.end() ? nullptr : it->second.lock();
     }
 
-    Config::ErrorResult CThreecolAlgorithm::layoutMsg(const std::string_view&) {
-        // Unknown messages do nothing and report no error.
+    Config::ErrorResult CThreecolAlgorithm::layoutMsg(const std::string_view& sv) {
+        // Messages that don't apply do nothing and report no error.
+        const auto workspace = this->workspace();
+        if (!workspace || Fullscreen::controller()->hasFullscreen(workspace, std::nullopt))
+            return {};
+
+        // A focused window must be one of this workspace's tiles: nothing
+        // applies to a floating one. With nothing focused, only reset does.
+        std::optional<WindowId> focused;
+        if (const auto window = Desktop::focusState()->window(); window && window->m_workspace == workspace) {
+            if (Fullscreen::controller()->isFullscreen(window))
+                return {};
+            const auto target = window->layoutTarget();
+            const auto it     = std::ranges::find_if(m_targets, [&](const auto& entry) { return entry.second.lock() == target; });
+            if (it == m_targets.end())
+                return {};
+            focused = it->first;
+        }
+
+        refreshModel();
+        if (!m_model.layoutMessage(sv, focused))
+            return {};
+
+        saveDividers();
+        recalculate();
         return {};
     }
 
     std::optional<Vector2D> CThreecolAlgorithm::predictSizeForNewTarget() {
-        syncArea();
-        applySettings();
+        refreshModel();
         const Rect next = m_model.nextWindowRect();
         return Vector2D{next.w, next.h};
     }

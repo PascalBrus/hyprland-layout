@@ -54,6 +54,16 @@ namespace threecol {
 
         void                                               syncArea();
 
+        // The workspace this instance lays out, if it has one yet.
+        PHLWORKSPACE                                       workspace() const;
+
+        // Hands the model the current area, settings and the Dividers kept
+        // for this workspace.
+        void                                               refreshModel();
+
+        // Keeps the model's Dividers after a change; they outlive the instance.
+        void                                               saveDividers();
+
         // Hands the model the global settings and this workspace's
         // layout_opts. Returns what was ignored or adjusted.
         std::vector<std::string>                           applySettings();
