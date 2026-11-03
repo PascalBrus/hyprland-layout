@@ -1,5 +1,10 @@
 #include "plugin/ThreecolAlgorithm.hpp"
 
+#include "plugin/Config.hpp"
+
+#include <hyprland/src/config/shared/workspace/WorkspaceRuleManager.hpp>
+#include <hyprland/src/debug/log/Logger.hpp>
+
 #include <hyprland/src/layout/algorithm/Algorithm.hpp>
 #include <hyprland/src/layout/space/Space.hpp>
 #include <hyprland/src/layout/target/Target.hpp>
@@ -7,6 +12,7 @@
 #include <hyprland/src/managers/fullscreen/handler/FullscreenHandler.hpp>
 
 #include <algorithm>
+#include <iterator>
 
 namespace threecol {
 
@@ -20,9 +26,36 @@ namespace threecol {
             return {rect.x, rect.y, rect.w, rect.h};
         }
 
+        // Every live instance, so a config reload can reach them all.
+        std::vector<CThreecolAlgorithm*> g_instances;
+
     }
 
-    CThreecolAlgorithm::CThreecolAlgorithm() : m_model(Rect{}) {}
+    CThreecolAlgorithm::CThreecolAlgorithm() : m_model(Rect{}) {
+        g_instances.push_back(this);
+    }
+
+    CThreecolAlgorithm::~CThreecolAlgorithm() {
+        std::erase(g_instances, this);
+    }
+
+    std::vector<std::string> CThreecolAlgorithm::applySettings() {
+        const auto workspace = m_parent && m_parent->space() ? m_parent->space()->workspace() : nullptr;
+        if (!workspace)
+            return m_model.setSettings(globalSettings());
+
+        const auto rule = Config::workspaceRuleMgr()->getWorkspaceRuleFor(workspace);
+        return m_model.setSettings(globalSettings(), rule ? rule->m_layoutopts : LayoutOpts{}, workspace->displayName());
+    }
+
+    std::vector<std::string> applySettingsToAllWorkspaces() {
+        std::vector<std::string> warnings;
+        for (auto* instance : g_instances) {
+            instance->m_settingsLogged = true;
+            std::ranges::move(instance->applySettings(), std::back_inserter(warnings));
+        }
+        return warnings;
+    }
 
     void CThreecolAlgorithm::syncArea() {
         if (m_parent && m_parent->space())
@@ -77,6 +110,12 @@ namespace threecol {
         });
 
         syncArea();
+        const auto warnings = applySettings();
+        if (!std::exchange(m_settingsLogged, true)) {
+            for (const auto& warning : warnings)
+                LOG(Log::WARN, "[threecol] {}", warning);
+        }
+
         for (const auto& [id, weak] : m_targets) {
             if (const auto rect = m_model.rectOf(id))
                 weak.lock()->setPositionGlobal(toBox(*rect));
@@ -107,6 +146,7 @@ namespace threecol {
 
     std::optional<Vector2D> CThreecolAlgorithm::predictSizeForNewTarget() {
         syncArea();
+        applySettings();
         const Rect next = m_model.nextWindowRect();
         return Vector2D{next.w, next.h};
     }

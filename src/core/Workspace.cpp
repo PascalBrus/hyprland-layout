@@ -1,13 +1,24 @@
 #include "core/Workspace.hpp"
 
 #include <algorithm>
+#include <utility>
 
 namespace threecol {
 
-    Workspace::Workspace(Rect area, Widths widths) : m_area(area), m_widths(widths) {}
+    Workspace::Workspace(Rect area) : m_area(area) {}
 
     void Workspace::setArea(Rect area) {
         m_area = area;
+    }
+
+    std::vector<std::string> Workspace::setSettings(const Settings& global, const LayoutOpts& opts, std::string_view workspaceName) {
+        auto resolved = resolveSettings(global, opts, workspaceName);
+        m_settings    = resolved.settings;
+        return std::move(resolved.warnings);
+    }
+
+    const Settings& Workspace::settings() const {
+        return m_settings;
     }
 
     Workspace::Zone Workspace::nextZone() const {
@@ -69,17 +80,17 @@ namespace threecol {
     }
 
     Rect Workspace::leftZone() const {
-        return {m_area.x, m_area.y, m_area.w * m_widths.left, m_area.h};
+        return {m_area.x, m_area.y, m_area.w * m_settings.leftWidth, m_area.h};
     }
 
     Rect Workspace::masterZone() const {
-        const double leftW  = m_area.w * m_widths.left;
-        const double stackW = m_area.w * m_widths.stack;
+        const double leftW  = m_area.w * m_settings.leftWidth;
+        const double stackW = m_area.w * m_settings.stackWidth;
         return {m_area.x + leftW, m_area.y, m_area.w - leftW - stackW, m_area.h};
     }
 
     Rect Workspace::stackZone() const {
-        const double stackW = m_area.w * m_widths.stack;
+        const double stackW = m_area.w * m_settings.stackWidth;
         return {m_area.x + m_area.w - stackW, m_area.y, stackW, m_area.h};
     }
 

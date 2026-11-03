@@ -4,6 +4,7 @@
 
 #include <hyprland/src/layout/algorithm/TiledAlgorithm.hpp>
 
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -14,6 +15,10 @@ namespace threecol {
     class CThreecolAlgorithm : public Layout::ITiledAlgorithm {
       public:
         CThreecolAlgorithm();
+        ~CThreecolAlgorithm() override;
+
+        CThreecolAlgorithm(const CThreecolAlgorithm&)            = delete;
+        CThreecolAlgorithm& operator=(const CThreecolAlgorithm&) = delete;
 
         void                            newTarget(SP<Layout::ITarget> target) override;
         void                            movedTarget(SP<Layout::ITarget> target, std::optional<Vector2D> focalPoint = std::nullopt) override;
@@ -43,7 +48,21 @@ namespace threecol {
         };
         std::optional<SFocusAfterClose>                    m_focusAfterClose;
 
+        // Logs this workspace's settings problems once; after that they are
+        // reported on config reload.
+        bool                                               m_settingsLogged = false;
+
         void                                               syncArea();
+
+        // Hands the model the global settings and this workspace's
+        // layout_opts. Returns what was ignored or adjusted.
+        std::vector<std::string>                           applySettings();
+
+        friend std::vector<std::string>                    applySettingsToAllWorkspaces();
     };
+
+    // Re-reads the settings on every threecol workspace and returns all their
+    // warnings. Used on config reload.
+    std::vector<std::string> applySettingsToAllWorkspaces();
 
 }

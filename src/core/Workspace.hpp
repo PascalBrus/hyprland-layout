@@ -1,8 +1,12 @@
 #pragma once
 
+#include "core/Settings.hpp"
+
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <string>
+#include <string_view>
 #include <vector>
 
 namespace threecol {
@@ -19,19 +23,21 @@ namespace threecol {
         friend bool operator==(const Rect&, const Rect&) = default;
     };
 
-    // Zone widths as fractions of the workspace area. Master gets the rest.
-    struct Widths {
-        double left  = 0.25;
-        double stack = 0.25;
-    };
-
     // The threecol layout of one workspace: which Zone and Row each window is
     // in, and the rectangle that gives it.
     class Workspace {
       public:
-        explicit Workspace(Rect area, Widths widths = {});
+        explicit Workspace(Rect area);
 
         void                setArea(Rect area);
+
+        // The settings changed: the global values and this workspace's
+        // layout_opts, which win over them. Returns what was ignored or
+        // adjusted; `workspaceName` names the workspace in those warnings.
+        std::vector<std::string> setSettings(const Settings& global, const LayoutOpts& opts = {}, std::string_view workspaceName = {});
+
+        // The settings in use, after layout_opts and making them fit.
+        const Settings&     settings() const;
 
         // A window joins the workspace and takes its place in Fill order.
         void                addWindow(WindowId id);
@@ -52,7 +58,7 @@ namespace threecol {
         enum class Zone { Left, Master, Stack };
 
         Rect                    m_area;
-        Widths                  m_widths;
+        Settings                m_settings;
         std::optional<WindowId> m_master;
         std::optional<WindowId> m_left;
         std::vector<WindowId>   m_stack; // Rows, top to bottom
