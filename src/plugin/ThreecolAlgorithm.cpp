@@ -48,7 +48,9 @@ namespace threecol {
         if (it == m_targets.end())
             return;
 
-        m_model.removeWindow(it->first);
+        m_focusAfterClose.reset();
+        if (const auto next = m_model.removeWindow(it->first))
+            m_focusAfterClose = SFocusAfterClose{target, *next};
         m_targets.erase(it);
         recalculate();
     }
@@ -89,9 +91,13 @@ namespace threecol {
         // Moves come in a later ticket.
     }
 
-    SP<Layout::ITarget> CThreecolAlgorithm::getNextCandidate(SP<Layout::ITarget>) {
-        // No opinion yet: Hyprland falls back to another tiled window.
-        return nullptr;
+    SP<Layout::ITarget> CThreecolAlgorithm::getNextCandidate(SP<Layout::ITarget> old) {
+        const auto hint = std::exchange(m_focusAfterClose, std::nullopt);
+        if (!old || !hint || hint->closed.lock() != old)
+            return nullptr; // Hyprland falls back to another tiled window.
+
+        const auto it = std::ranges::find_if(m_targets, [&](const auto& entry) { return entry.first == hint->next; });
+        return it == m_targets.end() ? nullptr : it->second.lock();
     }
 
     Config::ErrorResult CThreecolAlgorithm::layoutMsg(const std::string_view&) {

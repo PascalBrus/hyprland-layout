@@ -38,7 +38,8 @@ if(THREECOL_TESTS)
     include(GoogleTest)
 
     add_executable(threecol_tests
-        tests/core/FillOrderTest.cpp)
+        tests/core/FillOrderTest.cpp
+        tests/core/CloseRulesTest.cpp)
     target_link_libraries(threecol_tests PRIVATE threecol_core GTest::gtest_main)
     gtest_discover_tests(threecol_tests)
 

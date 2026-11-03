@@ -35,7 +35,12 @@ namespace threecol {
 
         // A window joins the workspace and takes its place in Fill order.
         void                addWindow(WindowId id);
-        void                removeWindow(WindowId id);
+
+        // A window leaves the workspace. Closing Master or the last Left window
+        // leaves a Hole; closing a Stack Row closes the gap. Returns the window
+        // to focus next: the one after it along the Chain, or the one before if
+        // it was last. Nothing if no window is left or it wasn't here.
+        std::optional<WindowId> removeWindow(WindowId id);
 
         // The window's rectangle, or nothing if it isn't on this workspace.
         std::optional<Rect> rectOf(WindowId id) const;
@@ -54,6 +59,10 @@ namespace threecol {
 
         // The Zone the next added window takes under Fill order.
         Zone                    nextZone() const;
+
+        // The windows in Chain order: Left, Master, then Stack top to bottom.
+        // Unlike the Chain itself, Holes are skipped.
+        std::vector<WindowId>   windowsInChainOrder() const;
 
         Rect                    leftZone() const;
         Rect                    masterZone() const;

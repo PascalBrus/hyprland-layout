@@ -29,12 +29,33 @@ namespace threecol {
         }
     }
 
-    void Workspace::removeWindow(WindowId id) {
+    std::vector<WindowId> Workspace::windowsInChainOrder() const {
+        std::vector<WindowId> windows;
+        if (m_left)
+            windows.push_back(*m_left);
+        if (m_master)
+            windows.push_back(*m_master);
+        windows.insert(windows.end(), m_stack.begin(), m_stack.end());
+        return windows;
+    }
+
+    std::optional<WindowId> Workspace::removeWindow(WindowId id) {
+        const auto windows = windowsInChainOrder();
+        const auto it      = std::ranges::find(windows, id);
+        if (it == windows.end())
+            return std::nullopt;
+
         if (m_master == id)
             m_master.reset();
         if (m_left == id)
             m_left.reset();
         std::erase(m_stack, id);
+
+        if (std::next(it) != windows.end())
+            return *std::next(it);
+        if (it != windows.begin())
+            return *std::prev(it);
+        return std::nullopt;
     }
 
     std::optional<Rect> Workspace::rectOf(WindowId id) const {

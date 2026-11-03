@@ -35,6 +35,14 @@ namespace threecol {
         std::vector<std::pair<WindowId, WP<Layout::ITarget>>> m_targets;
         WindowId                                           m_nextId = 1;
 
+        // The window the model named to focus after `closed` left. Hyprland
+        // asks getNextCandidate on unmap, after removeTarget; used up there.
+        struct SFocusAfterClose {
+            WP<Layout::ITarget> closed;
+            WindowId            next;
+        };
+        std::optional<SFocusAfterClose>                    m_focusAfterClose;
+
         void                                               syncArea();
     };
 
