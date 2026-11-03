@@ -61,8 +61,9 @@ namespace threecol {
         // for this workspace.
         void                                               refreshModel();
 
-        // Keeps the model's Dividers after a change; they outlive the instance.
-        void                                               saveDividers();
+        // Keeps the model's Dividers after a change; they outlive the instance
+        // and, with persist on, are saved to the state file.
+        void                                               keepDividers();
 
         // Hands the model the global settings and this workspace's
         // layout_opts. Returns what was ignored or adjusted.
@@ -74,5 +75,8 @@ namespace threecol {
     // Re-reads the settings on every threecol workspace and returns all their
     // warnings.
     std::vector<std::string> applySettingsToAllWorkspaces();
+
+    // Lays out every threecol workspace again, e.g. after its Dividers changed.
+    void                     recalculateAllWorkspaces();
 
 }

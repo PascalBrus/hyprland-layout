@@ -13,6 +13,7 @@ option(THREECOL_TESTS "Build the GoogleTest suite" ON)
 
 # Core module: all layout behaviour, plain C++, no Hyprland headers.
 add_library(threecol_core STATIC
+    src/core/DividerStore.cpp
     src/core/Settings.cpp
     src/core/Workspace.cpp)
 target_include_directories(threecol_core PUBLIC src)
@@ -26,6 +27,7 @@ pkg_check_modules(HYPRLAND REQUIRED IMPORTED_TARGET hyprland pixman-1 libdrm)
 add_library(threecol SHARED
     src/plugin/main.cpp
     src/plugin/Config.cpp
+    src/plugin/SavedDividers.cpp
     src/plugin/SettingsReporting.cpp
     src/plugin/ThreecolAlgorithm.cpp)
 target_link_libraries(threecol PRIVATE threecol_core PkgConfig::HYPRLAND)
@@ -44,7 +46,8 @@ if(THREECOL_TESTS)
         tests/core/FillOrderTest.cpp
         tests/core/CloseRulesTest.cpp
         tests/core/SettingsTest.cpp
-        tests/core/KeyboardResizeTest.cpp)
+        tests/core/KeyboardResizeTest.cpp
+        tests/core/DividerStoreTest.cpp)
     target_link_libraries(threecol_tests PRIVATE threecol_core GTest::gtest_main)
     gtest_discover_tests(threecol_tests)
 

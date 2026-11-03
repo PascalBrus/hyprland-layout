@@ -1,6 +1,7 @@
 #include "plugin/ThreecolAlgorithm.hpp"
 
 #include "plugin/Config.hpp"
+#include "plugin/SavedDividers.hpp"
 #include "plugin/SettingsReporting.hpp"
 
 #include <hyprland/src/config/shared/workspace/WorkspaceRuleManager.hpp>
@@ -15,7 +16,6 @@
 
 #include <algorithm>
 #include <iterator>
-#include <map>
 
 namespace threecol {
 
@@ -31,10 +31,6 @@ namespace threecol {
 
         // Every live instance, so a config reload can reach them all.
         std::vector<CThreecolAlgorithm*> g_instances;
-
-        // Each workspace's resized Dividers, by workspace name. Hyprland
-        // destroys the instance with its workspace, so they live here.
-        std::map<std::string, Dividers, std::less<>> g_dividers;
 
     }
 
@@ -66,6 +62,11 @@ namespace threecol {
         return warnings;
     }
 
+    void recalculateAllWorkspaces() {
+        for (auto* instance : g_instances)
+            instance->recalculate();
+    }
+
     void CThreecolAlgorithm::syncArea() {
         if (m_parent && m_parent->space())
             m_model.setArea(toRect(m_parent->space()->workArea()));
@@ -79,19 +80,12 @@ namespace threecol {
         if (!workspace)
             return;
 
-        const auto it = g_dividers.find(workspace->displayName());
-        m_model.setDividers(it == g_dividers.end() ? std::nullopt : std::optional{it->second});
+        m_model.setDividers(savedDividers(workspace));
     }
 
-    void CThreecolAlgorithm::saveDividers() {
-        const auto workspace = this->workspace();
-        if (!workspace)
-            return;
-
-        if (const auto dividers = m_model.dividers())
-            g_dividers.insert_or_assign(workspace->displayName(), *dividers);
-        else
-            g_dividers.erase(workspace->displayName());
+    void CThreecolAlgorithm::keepDividers() {
+        if (const auto workspace = this->workspace())
+            saveDividers(workspace, m_model.dividers());
     }
 
     void CThreecolAlgorithm::newTarget(SP<Layout::ITarget> target) {
@@ -191,7 +185,7 @@ namespace threecol {
         if (!m_model.layoutMessage(sv, focused))
             return {};
 
-        saveDividers();
+        keepDividers();
         recalculate();
         return {};
     }

@@ -1,4 +1,5 @@
 #include "plugin/Config.hpp"
+#include "plugin/SavedDividers.hpp"
 #include "plugin/SettingsReporting.hpp"
 #include "plugin/ThreecolAlgorithm.hpp"
 
@@ -29,6 +30,7 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
     if (!registered)
         HyprlandAPI::addNotification(g_handle, "[threecol] could not register the threecol layout; is it loaded twice?", ERROR_COLOR, 10000);
 
+    threecol::startSavingDividers();
     threecol::startSettingsReporting(g_handle);
 
     return {"threecol", "A three-zone tiling layout for ultrawide monitors", "Pascal B.", "0.1.0"};
@@ -36,5 +38,6 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
 
 APICALL EXPORT void PLUGIN_EXIT() {
     threecol::stopSettingsReporting();
+    threecol::stopSavingDividers();
     HyprlandAPI::removeAlgo(g_handle, "threecol");
 }
