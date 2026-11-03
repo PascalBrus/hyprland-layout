@@ -32,6 +32,10 @@ _Avoid_: opening order, spawn order
 One of the two vertical boundaries between zones on a workspace: Left|Master and Master|Stack. Resizing any zone means moving one or both dividers; each workspace keeps its own.
 _Avoid_: edge, border, split
 
+**Chain**:
+The order H/L focus and moves walk through a workspace's windows: Left top to bottom, then Master, then Stack top to bottom. It has two ends and doesn't wrap; empty zones count as one step.
+_Avoid_: cycle, focus order, walk
+
 **Row**:
 One window's slot in the Left or Stack zone, counted from the top. A height belongs to the Row, not the window: a window moved into a Row takes that Row's height.
 _Avoid_: stack position, slot, cell
