@@ -48,6 +48,21 @@ namespace threecol {
         };
         std::optional<SFocusAfterClose>                    m_focusAfterClose;
 
+        // The tile being dragged with window.drag. Hyprland floats it for the
+        // drag; the model keeps its place open until the drop.
+        struct SDragged {
+            WP<Layout::ITarget> target;
+            WindowId            id;
+        };
+        std::optional<SDragged>                            m_dragged;
+
+        // The dragged tile was dropped back on this workspace.
+        void                                               dropped(WindowId id);
+
+        // A drag ended without the tile coming back, e.g. it went to another
+        // workspace or closed: its place follows the close rules.
+        void                                               dragLeft();
+
         // Whether this workspace has asked for its settings to be checked.
         // After that, config reloads check them.
         bool                                               m_settingsChecked = false;
@@ -55,6 +70,7 @@ namespace threecol {
         void                                               syncArea();
 
         // The model's id for `target`, if it is one of this workspace's tiles.
+        // A tile being dragged floats, so it isn't one until it is dropped.
         std::optional<WindowId>                            idOf(const SP<Layout::ITarget>& target) const;
 
         // The tile the model calls `id`, if it is still alive.

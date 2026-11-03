@@ -8,6 +8,7 @@
 #include <hyprland/src/config/shared/workspace/WorkspaceRuleManager.hpp>
 
 #include <hyprland/src/desktop/state/FocusState.hpp>
+#include <hyprland/src/desktop/state/ViewState.hpp>
 #include <hyprland/src/desktop/view/window/Window.hpp>
 #include <hyprland/src/layout/LayoutManager.hpp>
 #include <hyprland/src/layout/algorithm/Algorithm.hpp>
@@ -15,6 +16,8 @@
 #include <hyprland/src/layout/target/Target.hpp>
 #include <hyprland/src/managers/fullscreen/FullscreenController.hpp>
 #include <hyprland/src/managers/fullscreen/handler/FullscreenHandler.hpp>
+#include <hyprland/src/managers/input/InputManager.hpp>
+#include <hyprland/src/output/Monitor.hpp>
 
 #include <algorithm>
 #include <iterator>
@@ -37,6 +40,32 @@ namespace threecol {
             const auto& drag = g_layoutManager->dragController();
             const auto  mode = drag->mode();
             return drag->target() == target && (mode == MBIND_RESIZE || mode == MBIND_RESIZE_BLOCK_RATIO || mode == MBIND_RESIZE_FORCE_RATIO);
+        }
+
+        // Whether Hyprland is floating `target` to drag it with window.drag.
+        // Before the drag threshold the window isn't floated yet, so it is
+        // leaving for another reason, e.g. it closed. Hyprland sets
+        // draggingTiled just after floating it.
+        bool startingDrag(const SP<Layout::ITarget>& target) {
+            const auto& drag = g_layoutManager->dragController();
+            return drag->target() == target && drag->mode() == MBIND_MOVE && drag->dragThresholdReached() && !drag->draggingTiled();
+        }
+
+        // Where on `workspace`, laid out in `area`, the cursor drops
+        // `dragged`. Nothing on a floating window, which isn't a tile to drop
+        // on. In the outer gaps or over a bar, the nearest point of `area`;
+        // off the workspace's monitor, the cursor, which is outside it.
+        std::optional<Vector2D> dropPoint(const PHLWORKSPACE& workspace, const CBox& area, const PHLWINDOW& dragged) {
+            const Vector2D cursor = g_pInputManager->getMouseCoordsInternal();
+            constexpr auto under  = Desktop::View::RESERVED_EXTENTS | Desktop::View::INPUT_EXTENTS | Desktop::View::ALLOW_FLOATING;
+            if (const auto window = Desktop::viewState()->hitTest().windowAt(cursor, under, dragged); window && window->isFloating())
+                return std::nullopt;
+
+            const auto monitor = workspace->m_monitor.lock();
+            if (!monitor || !monitor->logicalBox().containsPoint(cursor) || area.width < 1 || area.height < 1)
+                return cursor;
+            // The area's right and bottom edges are outside it.
+            return Vector2D{std::clamp(cursor.x, area.x, area.x + area.width - 1), std::clamp(cursor.y, area.y, area.y + area.height - 1)};
         }
 
         Corner toCorner(Layout::eRectCorner corner) {
@@ -147,6 +176,32 @@ namespace threecol {
         const bool wasResizing = m_model.resizing();
         m_model.endResize();
         keepDividersIfDragEnded(wasResizing);
+        // A drop back on this workspace came first, through movedTarget.
+        if (m_dragged)
+            dragLeft();
+    }
+
+    void CThreecolAlgorithm::dropped(WindowId id) {
+        const auto workspace   = this->workspace();
+        const auto target      = targetOf(id);
+        refreshModel();
+        const bool wasResizing = m_model.resizing();
+        if (workspace && target && !Fullscreen::controller()->hasFullscreen(workspace, std::nullopt)) {
+            if (const auto point = dropPoint(workspace, m_parent->space()->workArea(), target->window()))
+                m_model.drop(id, point->x, point->y);
+        }
+        keepDividersIfDragEnded(wasResizing);
+        // Hyprland focuses the dragged window after the drop.
+        recalculate();
+    }
+
+    void CThreecolAlgorithm::dragLeft() {
+        const WindowId id          = std::exchange(m_dragged, std::nullopt)->id;
+        const bool     wasResizing = m_model.resizing();
+        m_model.removeWindow(id);
+        keepDividersIfDragEnded(wasResizing);
+        std::erase_if(m_targets, [id](const auto& entry) { return entry.first == id; });
+        recalculate();
     }
 
     void CThreecolAlgorithm::newTarget(SP<Layout::ITarget> target) {
@@ -162,6 +217,16 @@ namespace threecol {
     }
 
     void CThreecolAlgorithm::movedTarget(SP<Layout::ITarget> target, std::optional<Vector2D>) {
+        // The dragged tile is tiled again: a drop if the mouse let go of it.
+        // A float toggle mid-drag puts it back in its place.
+        if (m_dragged && m_dragged->target.lock() == target) {
+            const WindowId id = std::exchange(m_dragged, std::nullopt)->id;
+            if (g_layoutManager->dragController()->wasDraggingWindow())
+                dropped(id);
+            else
+                recalculate();
+            return;
+        }
         newTarget(target);
     }
 
@@ -169,6 +234,13 @@ namespace threecol {
         const auto it = std::ranges::find_if(m_targets, [&](const auto& entry) { return entry.second.lock() == target; });
         if (it == m_targets.end())
             return;
+
+        // Floated to be dragged: its place stays open until the drop, and
+        // nothing else moves.
+        if (startingDrag(target)) {
+            m_dragged = SDragged{target, it->first};
+            return;
+        }
 
         m_focusAfterClose.reset();
         const bool wasResizing = m_model.resizing();
@@ -229,12 +301,17 @@ namespace threecol {
             reportSettingsLater();
 
         for (const auto& [id, weak] : m_targets) {
+            // The dragged tile follows the cursor.
+            if (m_dragged && m_dragged->id == id)
+                continue;
             if (const auto rect = m_model.rectOf(id))
                 weak.lock()->setPositionGlobal(toBox(*rect));
         }
     }
 
     std::optional<WindowId> CThreecolAlgorithm::idOf(const SP<Layout::ITarget>& target) const {
+        if (m_dragged && m_dragged->target.lock() == target)
+            return std::nullopt;
         const auto it = std::ranges::find_if(m_targets, [&](const auto& entry) { return entry.second.lock() == target; });
         return it == m_targets.end() ? std::nullopt : std::optional{it->first};
     }
@@ -245,7 +322,10 @@ namespace threecol {
     }
 
     void CThreecolAlgorithm::swapTargets(SP<Layout::ITarget> a, SP<Layout::ITarget> b) {
-        // Hyprland recalculates after a swap.
+        // Hyprland recalculates after a swap. Mid-drag, the dragged
+        // window's place stays where it was.
+        if (m_dragged)
+            return;
         const auto idA = idOf(a);
         const auto idB = idOf(b);
         if (idA && idB) {
@@ -271,7 +351,7 @@ namespace threecol {
         const auto workspace = this->workspace();
         const auto id        = idOf(t);
         const auto direction = toDirection(dir);
-        if (!workspace || !id || !direction || Fullscreen::controller()->hasFullscreen(workspace, std::nullopt))
+        if (!workspace || !id || !direction || m_dragged || Fullscreen::controller()->hasFullscreen(workspace, std::nullopt))
             return;
 
         const bool refreshed   = refreshModel();
@@ -291,9 +371,10 @@ namespace threecol {
     }
 
     Config::ErrorResult CThreecolAlgorithm::layoutMsg(const std::string_view& sv) {
-        // Messages that don't apply do nothing and report no error.
+        // Messages that don't apply do nothing and report no error. Mid-drag
+        // none do: the dragged window's place stays where it was.
         const auto workspace = this->workspace();
-        if (!workspace || Fullscreen::controller()->hasFullscreen(workspace, std::nullopt))
+        if (!workspace || m_dragged || Fullscreen::controller()->hasFullscreen(workspace, std::nullopt))
             return {};
 
         // A focused window must be one of this workspace's tiles: nothing

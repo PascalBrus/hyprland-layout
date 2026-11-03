@@ -320,11 +320,9 @@ namespace threecol {
                     takeOut(id);
                     m_stack.windows.insert(m_stack.windows.begin(), id);
                     m_stack.heights.insert(0);
-                } else if (m_left.windows.size() < leftRowLimit()) {
-                    takeOut(id);
-                    m_left.windows.push_back(id);
-                    m_left.heights.add();
-                } else
+                } else if (m_left.windows.size() < leftRowLimit())
+                    joinBottom(m_left, id);
+                else
                     swapPlaces(id, m_left.windows.back());
                 return true;
         }
@@ -543,6 +541,87 @@ namespace threecol {
         RowHeights next = rows->heights;
         next.add();
         return rowOf(zoneRect(zone), next.fitted(m_settings.minRowHeight), rows->windows.size());
+    }
+
+    namespace {
+
+        // The "add" area: this much of a zone's bottom Row, at its bottom.
+        constexpr double ADD_AREA = 0.25;
+
+        bool inAddArea(const Rect& bottomRow, double y) {
+            return y >= bottomRow.y + bottomRow.h * (1 - ADD_AREA);
+        }
+
+    }
+
+    std::optional<Workspace::Zone> Workspace::zoneAt(double x, double y) const {
+        if (x < m_area.x || x >= m_area.x + m_area.w || y < m_area.y || y >= m_area.y + m_area.h)
+            return std::nullopt;
+        if (x < masterZone().x)
+            return Zone::Left;
+        if (x < stackZone().x)
+            return Zone::Master;
+        return Zone::Stack;
+    }
+
+    std::size_t Workspace::rowAt(Zone zone, double y) const {
+        const auto& windows = rowsOf(zone)->windows;
+        for (std::size_t row = 0; row + 1 < windows.size(); ++row) {
+            const Rect rect = rowRect(zone, row);
+            if (y < rect.y + rect.h)
+                return row;
+        }
+        return windows.size() - 1;
+    }
+
+    bool Workspace::drop(WindowId id, double x, double y) {
+        const bool dropped = applyDrop(id, x, y);
+        if (dropped && m_gesture)
+            m_gesture->over = true;
+        return dropped;
+    }
+
+    bool Workspace::applyDrop(WindowId id, double x, double y) {
+        const auto zone = zoneAt(x, y);
+        if (!zone || !zoneOf(id))
+            return false;
+
+        Rows* rows = rowsOf(*zone);
+        if (!rows) {
+            if (m_master == id)
+                return false;
+            toMaster(id);
+            return true;
+        }
+
+        auto& windows = rows->windows;
+        if (windows.empty()) {
+            joinBottom(*rows, id);
+            return true;
+        }
+        const std::size_t row  = rowAt(*zone, y);
+        const WindowId    onto = windows[row];
+        if (onto == id)
+            return false;
+        if (row + 1 == windows.size() && inAddArea(rowRect(*zone, row), y)) {
+            // In its own zone it moves to the bottom; the Rows keep their heights.
+            if (const auto from = std::ranges::find(windows, id); from != windows.end()) {
+                std::rotate(from, std::next(from), windows.end());
+                return true;
+            }
+            if (*zone == Zone::Stack || windows.size() < leftRowLimit()) {
+                joinBottom(*rows, id);
+                return true;
+            }
+        }
+        swapPlaces(id, onto);
+        return true;
+    }
+
+    void Workspace::joinBottom(Rows& rows, WindowId id) {
+        takeOut(id);
+        rows.windows.push_back(id);
+        rows.heights.add();
     }
 
 }

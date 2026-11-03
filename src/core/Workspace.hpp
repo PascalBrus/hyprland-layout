@@ -115,6 +115,21 @@ namespace threecol {
         // for outright, e.g. by Hyprland's swap. Returns whether they did.
         bool                swapWindows(WindowId a, WindowId b);
 
+        // `id` was dragged with the mouse and dropped at (`x`, `y`). Through
+        // the drag its place stayed open, so nothing else moved.
+        //
+        // Dropped on another window, the two swap Rows. Dropped on the "add"
+        // area, the bottom quarter of a Left or Stack zone's bottom Row, it
+        // joins as a new bottom Row: the Stack always takes it, a full Left
+        // swaps with its bottom Row instead, and in its own zone it moves to
+        // the bottom. Dropped into an empty zone (a Hole or empty Stack) it
+        // moves there. Wherever it moves from follows the close rules.
+        //
+        // A point in a gap counts as the zone it's in and the nearest Row. A
+        // drop on its own place or outside the workspace changes nothing.
+        // Returns whether the layout changed.
+        bool                drop(WindowId id, double x, double y);
+
         // A resize of `id`'s tile by `dx`, `dy` pixels.
         //
         // Sideways, a Left window moves Left|Master and a Stack window
@@ -194,6 +209,12 @@ namespace threecol {
         // `id` leaves its place under the close rules.
         void                    takeOut(WindowId id);
 
+        bool                    applyDrop(WindowId id, double x, double y);
+
+        // `id` leaves its place under the close rules and joins the bottom of
+        // `rows` as a new Row.
+        void                    joinBottom(Rows& rows, WindowId id);
+
         // `id` swaps with Master, or moves into a Master Hole.
         void                    toMaster(WindowId id);
         bool                    resize(Zone zone, double by);
@@ -249,6 +270,13 @@ namespace threecol {
 
         // `from` with `divider` moved `px` pixels right, within its limits.
         Dividers                moveDivider(Divider divider, Dividers from, double px) const;
+
+        // The Zone at (`x`, `y`), or nothing outside the workspace.
+        std::optional<Zone>     zoneAt(double x, double y) const;
+
+        // The Row of `zone` whose band of the zone height holds `y`: the top
+        // Row above the zone, the bottom one below it. `zone` has Rows.
+        std::size_t             rowAt(Zone zone, double y) const;
 
         // The Zone the next added window takes under Fill order.
         Zone                    nextZone() const;
