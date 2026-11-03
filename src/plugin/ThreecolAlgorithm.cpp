@@ -68,12 +68,17 @@ namespace threecol {
     }
 
     std::vector<std::string> CThreecolAlgorithm::applySettings() {
-        const auto workspace = this->workspace();
-        if (!workspace)
-            return m_model.setSettings(globalSettings());
-
-        const auto rule = Config::workspaceRuleMgr()->getWorkspaceRuleFor(workspace);
-        return m_model.setSettings(globalSettings(), rule ? rule->m_layoutopts : LayoutOpts{}, workspace->displayName());
+        // A lower Row limit moves Left windows, which ends a drag.
+        const bool wasResizing = m_model.resizing();
+        const auto workspace   = this->workspace();
+        std::vector<std::string> warnings;
+        if (workspace) {
+            const auto rule = Config::workspaceRuleMgr()->getWorkspaceRuleFor(workspace);
+            warnings        = m_model.setSettings(globalSettings(), rule ? rule->m_layoutopts : LayoutOpts{}, workspace->displayName());
+        } else
+            warnings = m_model.setSettings(globalSettings());
+        keepDividersIfDragEnded(wasResizing);
+        return warnings;
     }
 
     std::vector<std::string> applySettingsToAllWorkspaces() {
@@ -93,17 +98,22 @@ namespace threecol {
             m_model.setArea(toRect(m_parent->space()->workArea()));
     }
 
-    void CThreecolAlgorithm::refreshModel() {
+    std::vector<std::optional<Rect>> CThreecolAlgorithm::tileRects() const {
+        std::vector<std::optional<Rect>> rects;
+        for (const auto& [id, target] : m_targets)
+            rects.push_back(m_model.rectOf(id));
+        return rects;
+    }
+
+    bool CThreecolAlgorithm::refreshModel() {
+        const auto before = tileRects();
         syncArea();
         applySettings();
 
-        const auto workspace = this->workspace();
-        if (!workspace)
-            return;
-
         // Mid-drag, the model's Dividers are newer than the saved ones.
-        if (!m_model.resizing())
+        if (const auto workspace = this->workspace(); workspace && !m_model.resizing())
             m_model.setDividers(savedDividers(workspace));
+        return tileRects() != before;
     }
 
     void CThreecolAlgorithm::keepDividers() {
@@ -168,19 +178,20 @@ namespace threecol {
         if (it == m_targets.end())
             return;
 
-        refreshModel();
+        const bool refreshed = refreshModel();
+        bool       resized   = false;
         // A mouse drag is saved on release; anything else right away.
         if (mouseResizing(target)) {
             m_dragWorkspace = workspace;
-            if (!m_model.dragResize(it->first, Δ.x, Δ.y, toCorner(corner)))
-                return;
+            resized         = m_model.dragResize(it->first, Δ.x, Δ.y, toCorner(corner));
         } else {
             const auto before = m_model.dividers();
-            if (!m_model.resizeWindow(it->first, Δ.x, Δ.y, toCorner(corner)))
-                return;
-            keepDividersIfChanged(before);
+            resized           = m_model.resizeWindow(it->first, Δ.x, Δ.y, toCorner(corner));
+            if (resized)
+                keepDividersIfChanged(before);
         }
-        recalculate();
+        if (resized || refreshed)
+            recalculate();
     }
 
     void CThreecolAlgorithm::recalculate(Layout::eRecalculateReason) {
@@ -248,13 +259,13 @@ namespace threecol {
             focused = it->first;
         }
 
-        refreshModel();
-        const auto before = m_model.dividers();
-        if (!m_model.layoutMessage(sv, focused))
-            return {};
-
-        keepDividersIfChanged(before);
-        recalculate();
+        const bool refreshed = refreshModel();
+        const auto before    = m_model.dividers();
+        const bool changed   = m_model.layoutMessage(sv, focused);
+        if (changed)
+            keepDividersIfChanged(before);
+        if (changed || refreshed)
+            recalculate();
         return {};
     }
 

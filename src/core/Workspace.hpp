@@ -58,7 +58,7 @@ namespace threecol {
         void                addWindow(WindowId id);
 
         // A window leaves the workspace. Closing Master or the last Left window
-        // leaves a Hole; closing a Stack Row closes the gap. Returns the window
+        // leaves a Hole; closing any other Left or Stack Row closes the gap. Returns the window
         // to focus next: the one after it along the Chain, or the one before if
         // it was last. Nothing if no window is left or it wasn't here.
         std::optional<WindowId> removeWindow(WindowId id);
@@ -74,8 +74,8 @@ namespace threecol {
         // whether the layout changed.
         //
         // `resize wider` / `resize narrower` move the focused zone's Dividers;
-        // `resize taller` / `resize shorter` change the focused Stack Row's
-        // height, the other Rows giving way in proportion; `reset` puts the
+        // `resize taller` / `resize shorter` change the focused Left or Stack
+        // Row's height, the other Rows giving way in proportion; `reset` puts the
         // Dividers back to the settings and makes the Rows equal.
         bool                layoutMessage(std::string_view message, std::optional<WindowId> focused);
 
@@ -85,7 +85,7 @@ namespace threecol {
         // Master|Stack. Master moves the Divider on the grabbed half, or
         // Master|Stack with no corner.
         //
-        // Up and down, a Stack Row moves the edge on the grabbed half, or its
+        // Up and down, a Left or Stack Row moves the edge on the grabbed half, or its
         // bottom edge with no corner, changing only the two Rows either side.
         // The top Row has only a bottom edge, the bottom Row only a top edge,
         // and a lone Row has none.
@@ -120,10 +120,15 @@ namespace threecol {
 
         Rect                    m_area;
         Settings                m_settings;
+        // A zone of Rows: its windows top to bottom, and their heights.
+        struct Rows {
+            std::vector<WindowId> windows;
+            RowHeights            heights;
+        };
+
         std::optional<WindowId> m_master;
-        std::optional<WindowId> m_left;
-        std::vector<WindowId>   m_stack; // Rows, top to bottom
-        RowHeights              m_stackHeights;
+        Rows                    m_left;
+        Rows                    m_stack;
 
         // Set by resizing; until then the Dividers follow the settings.
         std::optional<Dividers> m_dividers;
@@ -140,9 +145,10 @@ namespace threecol {
 
         enum class Divider { LeftMaster, MasterStack };
 
-        // A Row edge being moved: the one above `row`, and the zone's Row
-        // heights at press.
+        // A Row edge being moved: the one above `row` of `zone`, and the
+        // zone's Row heights at press.
         struct Edge {
+            Zone                zone;
             std::size_t         row;
             std::vector<double> atPress;
         };
@@ -164,12 +170,23 @@ namespace threecol {
 
         static Divider          dividerFor(Zone zone, Corner corner);
 
-        // The Stack Row whose top edge `id` moves when grabbed at `corner`;
-        // nothing outside the Stack or for a lone Row.
-        std::optional<std::size_t> edgeFor(WindowId id, Corner corner) const;
+        // The Rows of `zone`, or nothing for Master.
+        Rows*                   rowsOf(Zone zone);
+        const Rows*             rowsOf(Zone zone) const;
 
-        // Keeps `heights` for the Stack if they differ from the ones in use.
-        bool                    setStackHeights(std::vector<double> heights);
+        // The Row edge `id` moves when grabbed at `corner`, with the heights
+        // in use; nothing for Master or a lone Row.
+        std::optional<Edge>     edgeFor(WindowId id, Corner corner) const;
+
+        // Keeps `heights` for `zone`'s Rows if they differ from the ones in use.
+        bool                    setHeights(Zone zone, std::vector<double> heights);
+
+        // The Row limit in use: at least one Row.
+        std::size_t             leftRowLimit() const;
+
+        // Moves the bottom Left windows past the Row limit to the top of the
+        // Stack, keeping their Chain order. Returns whether any moved.
+        bool                    fitLeftToRowLimit();
 
         // Keeps `dividers` if they differ from the ones in use.
         bool                    setResized(const Dividers& dividers);
@@ -187,7 +204,8 @@ namespace threecol {
         Rect                    leftZone() const;
         Rect                    masterZone() const;
         Rect                    stackZone() const;
-        Rect                    stackRow(std::size_t row) const;
+        Rect                    zoneRect(Zone zone) const;
+        Rect                    rowRect(Zone zone, std::size_t row) const;
     };
 
 }

@@ -75,6 +75,22 @@ namespace threecol {
             settings.stackWidth = stack;
         }
 
+
+        // Makes the Row limit fit: Left uses only as many Rows as can each be
+        // at least min_row_height tall, and always at least one.
+        void makeRowLimitFit(Settings& settings, bool fromLayoutOpts, std::string_view workspaceName, std::vector<std::string>& warnings) {
+            if (settings.minRowHeight <= 0)
+                return;
+            // The most Rows n with n * min_row_height <= 1, allowing the
+            // rounding error RowHeights allows, so 1 / 0.1 isn't 9.
+            const int fits = std::max(1, static_cast<int>(std::min<double>(std::floor((1 + 1e-9) / settings.minRowHeight), std::numeric_limits<int>::max())));
+            if (settings.leftRows <= fits)
+                return;
+            warnings.push_back(std::format("{}left_rows {} doesn't fit min_row_height {}; using {}", fromLayoutOpts ? workspaceLabel(workspaceName) + ": " : std::string{},
+                                           settings.leftRows, settings.minRowHeight, fits));
+            settings.leftRows = fits;
+        }
+
     }
 
     ResolvedSettings resolveSettings(const Settings& global, const LayoutOpts& opts, std::string_view workspaceName) {
@@ -86,6 +102,7 @@ namespace threecol {
         };
 
         SOverridden overridden;
+        bool        rowsOverridden = false;
         for (const auto& [key, text] : opts) {
             if (key == "left_width" || key == "stack_width") {
                 double& width = key == "left_width" ? settings.leftWidth : settings.stackWidth;
@@ -95,15 +112,17 @@ namespace threecol {
                 } else
                     warnIgnored(key, text, "a number from 0 to 1", std::format("{}", width));
             } else if (key == "left_rows") {
-                if (const auto value = parseRowLimit(text))
+                if (const auto value = parseRowLimit(text)) {
                     settings.leftRows = *value;
-                else
+                    rowsOverridden    = true;
+                } else
                     warnIgnored(key, text, "a whole number of at least 1", std::format("{}", settings.leftRows));
             } else
                 resolved.warnings.push_back(std::format("{}: unknown layout_opts key \"{}\", ignored", workspaceLabel(workspaceName), key));
         }
 
         makeWidthsFit(settings, overridden, workspaceName, resolved.warnings);
+        makeRowLimitFit(settings, rowsOverridden, workspaceName, resolved.warnings);
 
         return resolved;
     }

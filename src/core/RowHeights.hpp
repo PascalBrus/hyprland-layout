@@ -18,6 +18,9 @@ namespace threecol {
         // A new bottom Row gets 1/n; the others shrink, keeping their ratios.
         void                add();
 
+        // The same for a new Row at `row`, the Rows from there moving down.
+        void                insert(std::size_t row);
+
         // A Row closes; the others grow in proportion.
         void                remove(std::size_t row);
 

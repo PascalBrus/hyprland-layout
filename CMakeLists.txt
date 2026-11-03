@@ -50,7 +50,8 @@ if(THREECOL_TESTS)
         tests/core/KeyboardResizeTest.cpp
         tests/core/DividerStoreTest.cpp
         tests/core/MouseResizeTest.cpp
-        tests/core/RowHeightsTest.cpp)
+        tests/core/RowHeightsTest.cpp
+        tests/core/LeftRowsTest.cpp)
     target_link_libraries(threecol_tests PRIVATE threecol_core GTest::gtest_main)
     gtest_discover_tests(threecol_tests)
 

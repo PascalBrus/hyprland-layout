@@ -58,8 +58,12 @@ namespace threecol {
         PHLWORKSPACE                                       workspace() const;
 
         // Hands the model the current area, settings and the Dividers kept
-        // for this workspace.
-        void                                               refreshModel();
+        // for this workspace. Returns whether that moved any tile, e.g. a
+        // lower Row limit moving Left windows to the Stack.
+        bool                                               refreshModel();
+
+        // Every tile's rectangle in the model, in m_targets order.
+        std::vector<std::optional<Rect>>                   tileRects() const;
 
         // Keeps the model's Dividers after a change; they outlive the instance
         // and, with persist on, are saved to the state file.

@@ -65,10 +65,14 @@ namespace threecol {
     }
 
     void RowHeights::add() {
+        insert(m_heights.size());
+    }
+
+    void RowHeights::insert(std::size_t row) {
         const double n = m_heights.size() + 1;
         for (double& height : m_heights)
             height *= (n - 1) / n;
-        m_heights.push_back(1 / n);
+        m_heights.insert(m_heights.begin() + std::min(row, m_heights.size()), 1 / n);
     }
 
     void RowHeights::remove(std::size_t row) {
