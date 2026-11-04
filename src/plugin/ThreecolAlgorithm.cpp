@@ -30,6 +30,12 @@ namespace threecol {
 
     namespace {
 
+        // The entry of `targets` (an instance's m_targets) for model id `id`,
+        // or its end.
+        auto entryOf(auto& targets, WindowId id) {
+            return std::ranges::find_if(targets, [id](const auto& entry) { return entry.first == id; });
+        }
+
         Rect toRect(const CBox& box) {
             return {box.x, box.y, box.width, box.height};
         }
@@ -135,16 +141,76 @@ namespace threecol {
 
     std::vector<std::string> CThreecolAlgorithm::applySettings() {
         // A lower Row limit moves Left windows, which ends a drag.
-        const bool wasResizing = m_model.resizing();
-        const auto workspace   = this->workspace();
-        std::vector<std::string> warnings;
+        const bool     wasResizing = m_model.resizing();
+        const auto     workspace   = this->workspace();
+        SettingsChange change;
         if (workspace) {
             const auto rule = Config::workspaceRuleMgr()->getWorkspaceRuleFor(workspace);
-            warnings        = m_model.setSettings(globalSettings(), rule ? rule->m_layoutopts : LayoutOpts{}, workspace->displayName());
+            change          = m_model.setSettings(globalSettings(), rule ? rule->m_layoutopts : LayoutOpts{}, workspace->displayName());
         } else
-            warnings = m_model.setSettings(globalSettings());
+            change = m_model.setSettings(globalSettings());
         keepDividersIfDragEnded(wasResizing);
-        return warnings;
+
+        // Pushed out with no room: already out of the model, so the
+        // removeTarget that floating them brings finds nothing to do.
+        for (const WindowId id : change.noRoom) {
+            const auto it = entryOf(m_targets, id);
+            if (it == m_targets.end())
+                continue;
+            const auto target = it->second;
+            m_targets.erase(it);
+            // Floating already for its drag: dropped, it comes back through
+            // movedTarget and floats then if there's still no room.
+            if (m_dragged && m_dragged->id == id) {
+                m_dragged.reset();
+                continue;
+            }
+            floatLater(target);
+        }
+        return std::move(change.warnings);
+    }
+
+    void CThreecolAlgorithm::floatNoRoom(const SP<Layout::ITarget>& target) {
+        // While Hyprland hands this instance the tiles of the layout it
+        // replaces, it is walking its own list of them: floating one now
+        // would change that list under it.
+        const auto parent = m_parent.lock();
+        if (!parent || parent->tiledAlgo().get() != this) {
+            floatLater(target);
+            return;
+        }
+        // As a new floating window: its own size, centred.
+        parent->setFloating(target, true, /*reposition=*/true);
+    }
+
+    void CThreecolAlgorithm::floatLater(const WP<Layout::ITarget>& target) {
+        m_toFloat.push_back(target);
+        if (m_pendingFloat)
+            return;
+        // Hyprland has its event loop for as long as plugins are loaded; if
+        // it ever hasn't, floating now beats a window left out of the layout.
+        if (!g_pEventLoopManager) {
+            floatQueued();
+            return;
+        }
+
+        // Settings are applied from the middle of Hyprland's own work, e.g. a
+        // recalculate or a resize, so the floating waits for it to finish.
+        m_pendingFloat = g_pEventLoopManager->doLaterLock([this] {
+            m_pendingFloat.reset();
+            floatQueued();
+        });
+    }
+
+    void CThreecolAlgorithm::floatQueued() {
+        const auto parent = m_parent.lock();
+        for (const auto& weak : std::exchange(m_toFloat, {})) {
+            const auto target = weak.lock();
+            // Still one of this workspace's tiles, and not tiled here again.
+            if (!target || !parent || parent->tiledAlgo().get() != this || target->floating() || target->space() != parent->space() || idOf(target))
+                continue;
+            parent->setFloating(target, true, /*reposition=*/true);
+        }
     }
 
     std::vector<std::string> applySettingsToAllWorkspaces() {
@@ -258,11 +324,22 @@ namespace threecol {
         if (idOf(target))
             return;
 
+        // The settings in use decide whether it finds room. Decided before
+        // tracking it, so floating it is a plain hand-over to the floating
+        // algorithm, as dwindle does.
+        refreshModel();
         const WindowId id          = m_nextId++;
         const bool     wasResizing = m_model.resizing();
-        m_targets.emplace_back(id, target);
-        m_model.addWindow(id);
+        const bool     placed      = m_model.addWindow(id);
         keepDividersIfDragEnded(wasResizing);
+        if (!placed) {
+            // A refresh, here or in predictSizeForNewTarget just before, may
+            // have pushed tiles out of a side zone without laying them out.
+            recalculate();
+            floatNoRoom(target);
+            return;
+        }
+        m_targets.emplace_back(id, target);
         recalculate();
     }
 
@@ -367,7 +444,7 @@ namespace threecol {
     }
 
     SP<Layout::ITarget> CThreecolAlgorithm::targetOf(WindowId id) const {
-        const auto it = std::ranges::find_if(m_targets, [&](const auto& entry) { return entry.first == id; });
+        const auto it = entryOf(m_targets, id);
         return it == m_targets.end() ? nullptr : it->second.lock();
     }
 
@@ -424,14 +501,20 @@ namespace threecol {
         // Messages that don't apply do nothing and report no error. Mid-drag
         // none do: the dragged window's place stays where it was.
         const auto workspace = this->workspace();
-        if (!workspace || m_dragged || Fullscreen::controller()->hasFullscreen(workspace, std::nullopt))
+        if (!workspace || m_dragged)
             return {};
 
-        // A focused window must be one of this workspace's tiles: nothing
-        // applies to a floating one. With nothing focused, only reset and
-        // focusmaster do.
+        // reset doesn't depend on the focused window, so it runs from a
+        // floating window and under a fullscreen or maximised one too.
+        const bool reset = sv == "reset";
+        if (!reset && Fullscreen::controller()->hasFullscreen(workspace, std::nullopt))
+            return {};
+
+        // For the other messages, a focused window must be one of this
+        // workspace's tiles: nothing applies to a floating one. With nothing
+        // focused, only focusmaster does.
         std::optional<WindowId> focused;
-        if (const auto window = Desktop::focusState()->window(); window && window->m_workspace == workspace) {
+        if (const auto window = Desktop::focusState()->window(); !reset && window && window->m_workspace == workspace) {
             if (Fullscreen::controller()->isFullscreen(window))
                 return {};
             focused = idOf(window->layoutTarget());
@@ -463,8 +546,11 @@ namespace threecol {
 
     std::optional<Vector2D> CThreecolAlgorithm::predictSizeForNewTarget() {
         refreshModel();
-        const Rect next = m_model.nextWindowRect();
-        return Vector2D{next.w, next.h};
+        const auto next = m_model.nextWindowRect();
+        // No room: it will float, so the window picks its own size.
+        if (!next)
+            return std::nullopt;
+        return Vector2D{next->w, next->h};
     }
 
 }

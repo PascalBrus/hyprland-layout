@@ -10,6 +10,15 @@
 
 namespace threecol {
 
+    // A new state file, for the caller to write.
+    struct StateFileWrite {
+        std::string text;
+        // Move the old file aside (as dividers.bak) before writing, then call
+        // DividerStore::backedUp: it didn't fully parse, so writing over it
+        // would lose what's in it for good.
+        bool        backUpOldFile = false;
+    };
+
     // Every workspace's resized Dividers, by workspace name, and the state
     // file that keeps them across reboots. Hyprland destroys a workspace's
     // layout with the workspace, so the Dividers live here, plugin-wide.
@@ -30,20 +39,25 @@ namespace threecol {
         std::optional<Dividers>    find(std::string_view workspace) const;
 
         // Keeps the workspace's Dividers, or forgets them with nothing (reset).
-        // Returns the state file's new text if it needs writing.
-        std::optional<std::string> set(std::string_view workspace, std::optional<Dividers> dividers);
+        // Returns the new state file if it needs writing.
+        std::optional<StateFileWrite> set(std::string_view workspace, std::optional<Dividers> dividers);
 
         // A workspace was renamed: its Dividers follow the new name. Returns
-        // the state file's new text if it needs writing.
-        std::optional<std::string> rename(std::string_view from, std::string_view to);
+        // the new state file if it needs writing.
+        std::optional<StateFileWrite> rename(std::string_view from, std::string_view to);
+
+        // The old file was moved aside as a write asked; later writes may
+        // replace it. Until then, every write asks again.
+        void                          backedUp();
 
       private:
         std::map<std::string, Dividers, std::less<>> m_dividers;
         bool                                         m_persist = false;
         bool                                         m_read    = false; // the file, since persist turned on
+        bool                                         m_unparsed = false; // the file read didn't fully parse and isn't backed up yet
 
-        // The state file's text if it needs writing.
-        std::optional<std::string>                   changed() const;
+        // The new state file if it needs writing.
+        std::optional<StateFileWrite>                changed() const;
     };
 
 }

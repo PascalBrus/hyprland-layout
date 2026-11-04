@@ -4,8 +4,11 @@
 
 #include <cmath>
 #include <optional>
+#include <vector>
 
+using threecol::Direction;
 using threecol::Rect;
+using threecol::RowLimit;
 using threecol::Settings;
 using threecol::WindowId;
 using threecol::Workspace;
@@ -17,7 +20,7 @@ namespace {
 
     constexpr Rect MASTER_ZONE{1280, 0, 2560, 1440};
     constexpr Rect LEFT_ZONE{0, 0, 1280, 1440};
-    constexpr Rect STACK_ZONE{3840, 0, 1280, 1440};
+    constexpr Rect RIGHT_ZONE{3840, 0, 1280, 1440};
 
     // A workspace with Row limit `leftRows` and windows 1..count added in
     // Fill order: 1 Master, then Left up to the limit, then the Stack.
@@ -33,7 +36,7 @@ namespace {
         return {0, y, 1280, h};
     }
 
-    Rect stackRow(double y, double h) {
+    Rect rightRow(double y, double h) {
         return {3840, y, 1280, h};
     }
 
@@ -49,6 +52,24 @@ namespace {
                                              << ", " << expected.y << ", " << expected.w << ", " << expected.h << "}";
     }
 
+
+    // A mirrored layout: Left a Stack, Right bounded to `rightRows` (or a
+    // second Stack). Windows land through Fill order and moves: `right` top
+    // to bottom, then `master`, then `left` top to bottom.
+    Workspace mirrored(RowLimit rightRows, const std::vector<WindowId>& left, WindowId master, const std::vector<WindowId>& right) {
+        Workspace ws{AREA};
+        ws.setSettings(Settings{.leftRows = RowLimit::unlimited(), .rightRows = rightRows});
+        // Each joins Right at its top, so the bottom one goes first.
+        for (auto id = right.rbegin(); id != right.rend(); ++id) {
+            ws.addWindow(*id);
+            ws.move(*id, Direction::Right);
+        }
+        ws.addWindow(master);
+        for (const WindowId id : left)
+            ws.addWindow(id);
+        return ws;
+    }
+
 }
 
 // Swap
@@ -60,7 +81,7 @@ TEST(DropOnAWindow, SwapsTheTwo) {
 
     EXPECT_TRUE(near(ws.rectOf(2), MASTER_ZONE));
     EXPECT_TRUE(near(ws.rectOf(1), LEFT_ZONE));
-    EXPECT_TRUE(near(ws.rectOf(3), STACK_ZONE));
+    EXPECT_TRUE(near(ws.rectOf(3), RIGHT_ZONE));
 }
 
 TEST(DropOnAWindow, EachTakesTheOthersRowHeight) {
@@ -69,8 +90,8 @@ TEST(DropOnAWindow, EachTakesTheOthersRowHeight) {
 
     EXPECT_TRUE(ws.drop(4, 4000, 100)); // the bottom Stack Row onto the top one
 
-    EXPECT_TRUE(near(ws.rectOf(4), stackRow(0, 792)));
-    EXPECT_TRUE(near(ws.rectOf(3), stackRow(792, 648)));
+    EXPECT_TRUE(near(ws.rectOf(4), rightRow(0, 792)));
+    EXPECT_TRUE(near(ws.rectOf(3), rightRow(792, 648)));
 }
 
 TEST(DropOnAWindow, WithAWindowFromAnotherZoneTakesItsZoneWidth) {
@@ -78,7 +99,7 @@ TEST(DropOnAWindow, WithAWindowFromAnotherZoneTakesItsZoneWidth) {
 
     EXPECT_TRUE(ws.drop(1, 4000, 1000)); // Master onto the bottom Stack Row, above its add area
 
-    EXPECT_TRUE(near(ws.rectOf(1), stackRow(720, 720)));
+    EXPECT_TRUE(near(ws.rectOf(1), rightRow(720, 720)));
     EXPECT_TRUE(near(ws.rectOf(4), MASTER_ZONE));
 }
 
@@ -89,9 +110,9 @@ TEST(DropOnTheAddArea, OfTheStackAddsANewBottomRow) {
 
     EXPECT_TRUE(ws.drop(1, 4000, 1400)); // Master onto the bottom quarter of 4
 
-    EXPECT_TRUE(near(ws.rectOf(3), stackRow(0, 480)));
-    EXPECT_TRUE(near(ws.rectOf(4), stackRow(480, 480)));
-    EXPECT_TRUE(near(ws.rectOf(1), stackRow(960, 480)));
+    EXPECT_TRUE(near(ws.rectOf(3), rightRow(0, 480)));
+    EXPECT_TRUE(near(ws.rectOf(4), rightRow(480, 480)));
+    EXPECT_TRUE(near(ws.rectOf(1), rightRow(960, 480)));
     EXPECT_EQ(ws.nextWindowRect(), MASTER_ZONE); // Master left a Hole
 }
 
@@ -101,7 +122,7 @@ TEST(DropOnTheAddArea, OfAFullLeftSwapsWithItsBottomRow) {
     EXPECT_TRUE(ws.drop(3, 600, 1400));
 
     EXPECT_TRUE(near(ws.rectOf(3), LEFT_ZONE));
-    EXPECT_TRUE(near(ws.rectOf(2), STACK_ZONE));
+    EXPECT_TRUE(near(ws.rectOf(2), RIGHT_ZONE));
 }
 
 TEST(DropOnTheAddArea, OfALeftBelowItsRowLimitAddsANewBottomRow) {
@@ -120,9 +141,9 @@ TEST(DropOnTheAddArea, OfItsOwnZoneMovesItToTheBottom) {
 
     EXPECT_TRUE(ws.drop(3, 4000, 1400));
 
-    EXPECT_TRUE(near(ws.rectOf(4), stackRow(0, 552)));
-    EXPECT_TRUE(near(ws.rectOf(5), stackRow(552, 444)));
-    EXPECT_TRUE(near(ws.rectOf(3), stackRow(996, 444)));
+    EXPECT_TRUE(near(ws.rectOf(4), rightRow(0, 552)));
+    EXPECT_TRUE(near(ws.rectOf(5), rightRow(552, 444)));
+    EXPECT_TRUE(near(ws.rectOf(3), rightRow(996, 444)));
 }
 
 TEST(DropOnTheAddArea, OfItsOwnFullLeftMovesItToTheBottom) {
@@ -144,7 +165,7 @@ TEST(DropIntoAnEmptyZone, FillsAMasterHole) {
     EXPECT_TRUE(ws.drop(3, 2000, 700));
 
     EXPECT_TRUE(near(ws.rectOf(3), MASTER_ZONE));
-    EXPECT_TRUE(near(ws.rectOf(4), STACK_ZONE)); // the Stack closed the gap
+    EXPECT_TRUE(near(ws.rectOf(4), RIGHT_ZONE)); // the Stack closed the gap
 }
 
 TEST(DropIntoAnEmptyZone, FillsALeftHole) {
@@ -162,7 +183,7 @@ TEST(DropIntoAnEmptyZone, FillsAnEmptyStack) {
 
     EXPECT_TRUE(ws.drop(2, 4000, 100));
 
-    EXPECT_TRUE(near(ws.rectOf(2), STACK_ZONE));
+    EXPECT_TRUE(near(ws.rectOf(2), RIGHT_ZONE));
     EXPECT_EQ(ws.nextWindowRect(), LEFT_ZONE); // the last Left window left a Hole
 }
 
@@ -176,8 +197,8 @@ TEST(DropChangesNothing, OnItsOwnPlace) {
     EXPECT_FALSE(ws.drop(4, 4000, 1400)); // the add area of its own bottom Row
 
     EXPECT_TRUE(near(ws.rectOf(1), MASTER_ZONE));
-    EXPECT_TRUE(near(ws.rectOf(3), stackRow(0, 720)));
-    EXPECT_TRUE(near(ws.rectOf(4), stackRow(720, 720)));
+    EXPECT_TRUE(near(ws.rectOf(3), rightRow(0, 720)));
+    EXPECT_TRUE(near(ws.rectOf(4), rightRow(720, 720)));
 }
 
 TEST(DropChangesNothing, InTheAddAreaOfItsOwnLoneRow) {
@@ -221,10 +242,10 @@ TEST(DropInAGap, BetweenRowsCountsAsTheNearestRow) {
     Workspace ws = filled(1, 5); // 1 Master, 2 Left, 3, 4 and 5 Stack, 480 px each
 
     EXPECT_TRUE(ws.drop(1, 4000, 475)); // just above the edge between 3 and 4
-    EXPECT_TRUE(near(ws.rectOf(1), stackRow(0, 480)));
+    EXPECT_TRUE(near(ws.rectOf(1), rightRow(0, 480)));
 
     EXPECT_TRUE(ws.drop(1, 4000, 485)); // just below it
-    EXPECT_TRUE(near(ws.rectOf(1), stackRow(480, 480)));
+    EXPECT_TRUE(near(ws.rectOf(1), rightRow(480, 480)));
 }
 
 TEST(DropOnAnOffsetWorkspace, UsesScreenCoordinates) {
@@ -248,4 +269,87 @@ TEST(Drop, EndsAMouseResize) {
     EXPECT_TRUE(ws.drop(3, 2000, 700));
 
     EXPECT_FALSE(ws.resizing());
+}
+
+// Mirrored: the add area works by role, on either side.
+
+TEST(DropOnTheAddAreaMirrored, OfAFullRightSwapsWithItsBottomRow) {
+    Workspace ws = mirrored(1, {2, 3}, 4, {1});
+
+    EXPECT_TRUE(ws.drop(2, 4000, 1400));
+
+    EXPECT_TRUE(near(ws.rectOf(2), RIGHT_ZONE));
+    EXPECT_TRUE(near(ws.rectOf(1), leftRow(0, 720)));
+}
+
+TEST(DropOnTheAddAreaMirrored, OfARightBelowItsRowLimitAddsANewBottomRow) {
+    Workspace ws = mirrored(2, {2, 3}, 4, {1});
+
+    EXPECT_TRUE(ws.drop(2, 4000, 1400));
+
+    EXPECT_TRUE(near(ws.rectOf(1), rightRow(0, 720)));
+    EXPECT_TRUE(near(ws.rectOf(2), rightRow(720, 720)));
+    EXPECT_TRUE(near(ws.rectOf(3), LEFT_ZONE));
+}
+
+TEST(DropOnTheAddAreaMirrored, OfTheLeftStackAddsANewBottomRow) {
+    Workspace ws = mirrored(1, {2, 3}, 4, {1});
+
+    EXPECT_TRUE(ws.drop(4, 600, 1400));
+
+    EXPECT_TRUE(near(ws.rectOf(2), leftRow(0, 480)));
+    EXPECT_TRUE(near(ws.rectOf(3), leftRow(480, 480)));
+    EXPECT_TRUE(near(ws.rectOf(4), leftRow(960, 480)));
+    EXPECT_EQ(ws.nextWindowRect(), MASTER_ZONE);
+}
+
+TEST(DropOnAWindowMirrored, SwapsWithThatWindowInAFullRight) {
+    Workspace ws = mirrored(2, {2}, 4, {5, 1});
+
+    EXPECT_TRUE(ws.drop(2, 4000, 300)); // onto 5, the top Right Row
+
+    EXPECT_TRUE(near(ws.rectOf(2), rightRow(0, 720)));
+    EXPECT_TRUE(near(ws.rectOf(5), LEFT_ZONE));
+}
+
+TEST(DropOnTheAddAreaTwoStacks, OfEitherSideAddsANewBottomRow) {
+    Workspace ws = mirrored(RowLimit::unlimited(), {2, 3}, 4, {1});
+
+    EXPECT_TRUE(ws.drop(2, 4000, 1400));
+
+    EXPECT_TRUE(near(ws.rectOf(1), rightRow(0, 720)));
+    EXPECT_TRUE(near(ws.rectOf(2), rightRow(720, 720)));
+}
+
+TEST(DragDrop, AMissingLeftZoneIsNeverADropTarget) {
+    Workspace ws = filled(0, 3); // 1 Master, Right 2 3
+
+    // Where Left would be is Master.
+    EXPECT_TRUE(ws.drop(3, 10, 1430));
+
+    EXPECT_EQ(ws.rectOf(3), (Rect{0, 0, 3840, 1440}));
+    EXPECT_EQ(ws.rectOf(1), (Rect{3840, 720, 1280, 720}));
+}
+
+TEST(DragDrop, AMissingRightZoneIsNeverADropTarget) {
+    Workspace ws{AREA};
+    ws.setSettings(Settings{.leftRows = RowLimit::unlimited(), .rightRows = 0});
+    for (WindowId id = 1; id <= 2; ++id)
+        ws.addWindow(id); // 1 Master, Left 2
+
+    // Where Right's "add" area would be is Master.
+    EXPECT_TRUE(ws.drop(2, 5110, 1430));
+
+    EXPECT_EQ(ws.rectOf(2), (Rect{1280, 0, 3840, 1440}));
+    EXPECT_EQ(ws.rectOf(1), LEFT_ZONE);
+}
+
+TEST(DragDrop, WithBothSidesMissingDroppingMasterAnywhereChangesNothing) {
+    Workspace ws{AREA};
+    ws.setSettings(Settings{.leftRows = 0, .rightRows = 0});
+    ws.addWindow(1);
+
+    for (const double x : {10.0, 2560.0, 5110.0})
+        EXPECT_FALSE(ws.drop(1, x, 1430)) << x;
+    EXPECT_EQ(ws.rectOf(1), AREA);
 }

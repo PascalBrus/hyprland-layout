@@ -8,6 +8,7 @@
 using threecol::Corner;
 using threecol::Dividers;
 using threecol::Rect;
+using threecol::Settings;
 using threecol::WindowId;
 using threecol::Workspace;
 
@@ -52,7 +53,7 @@ TEST(MouseResize, DraggingALeftWindowMovesLeftMasterUnderTheCursor) {
     EXPECT_TRUE(near(ws.rectOf(3), {3840, 0, 1280, 1440}));
 }
 
-TEST(MouseResize, DraggingAStackWindowMovesMasterStackUnderTheCursor) {
+TEST(MouseResize, DraggingAStackWindowMovesMasterRightUnderTheCursor) {
     Workspace ws = filled(4); // 3 and 4 share the Stack
 
     ws.dragResize(4, -256, 0, Corner::TopLeft);
@@ -73,7 +74,7 @@ TEST(MouseResize, DraggingMastersLeftHalfMovesLeftMaster) {
     EXPECT_TRUE(near(ws.rectOf(3), {3840, 0, 1280, 1440}));
 }
 
-TEST(MouseResize, DraggingMastersRightHalfMovesMasterStack) {
+TEST(MouseResize, DraggingMastersRightHalfMovesMasterRight) {
     Workspace ws = filled(3);
 
     ws.dragResize(1, 256, 0, Corner::BottomRight);
@@ -224,4 +225,42 @@ TEST(MouseResize, AKeyPressDuringADragEndsItAndIsntUndoneByLaterTicks) {
     ws.dragResize(2, 256, 0, Corner::TopRight);
 
     EXPECT_TRUE(near(ws.rectOf(2), {0, 0, 1280, 1440}));
+}
+
+TEST(MouseResize, WithLeftMissingDraggingEitherHalfOfMasterMovesMasterRight) {
+    for (const Corner corner : {Corner::TopLeft, Corner::BottomRight}) {
+        Workspace ws{AREA};
+        ws.setSettings(Settings{.leftRows = 0});
+        ws.addWindow(1);
+        ws.addWindow(2); // Right
+
+        EXPECT_TRUE(ws.dragResize(1, 256, 0, corner));
+
+        EXPECT_TRUE(near(ws.rectOf(1), {0, 0, 4096, 1440}));
+        EXPECT_TRUE(near(ws.rectOf(2), {4096, 0, 1024, 1440}));
+    }
+}
+
+TEST(MouseResize, WithRightMissingAOneOffResizeOnMasterMovesLeftMaster) {
+    Workspace ws{AREA};
+    ws.setSettings(Settings{.rightRows = 0});
+    ws.addWindow(1);
+    ws.addWindow(2); // Left
+
+    EXPECT_TRUE(ws.resizeWindow(1, -256));
+
+    EXPECT_TRUE(near(ws.rectOf(2), {0, 0, 1024, 1440}));
+    EXPECT_TRUE(near(ws.rectOf(1), {1024, 0, 4096, 1440}));
+}
+
+TEST(MouseResize, WithBothSidesMissingResizingMasterDoesNothing) {
+    Workspace ws{AREA};
+    ws.setSettings(Settings{.leftRows = 0, .rightRows = 0});
+    ws.addWindow(1);
+
+    EXPECT_FALSE(ws.dragResize(1, 256, 0, Corner::BottomRight));
+    EXPECT_FALSE(ws.resizeWindow(1, -256, 0, Corner::TopLeft));
+
+    EXPECT_EQ(ws.rectOf(1), AREA);
+    EXPECT_FALSE(ws.dividers());
 }

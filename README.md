@@ -4,29 +4,30 @@ A three-zone tiling layout for Hyprland, built for ultrawide monitors.
 
 ![threecol: windows filling the Left, Master and Stack zones, then a mouse resize and a drag-and-drop swap](docs/threecol.gif)
 
-<!-- Recorded from the Showcase list in docs/live-test.md. -->
-
 ## What it is
 
-threecol splits each workspace into three **Zones**, side by side:
+threecol splits each workspace into three **Zones**, side by side. By default Left holds one window and Right is the **Stack**:
 
 ```
 ┌──────────┬────────────────────┬──────────┐
-│          │                    │ Stack 1  │
+│          │                    │ Right 1  │
 │   Left   │       Master       ├──────────┤
-│          │                    │ Stack 2  │
+│          │                    │ Right 2  │
 │          │                    ├──────────┤
-│          │                    │ Stack 3  │
+│          │                    │ Right 3  │
 └──────────┴────────────────────┴──────────┘
    ¼ wide          ½ wide          ¼ wide
 ```
 
-- **Fill order.** The first window goes to Master, the second to Left, and the rest to the bottom of the Stack. A lone window sits in the middle, not stretched across the whole screen.
+Either side can be the Stack, or both: `left_rows = "unlimited"` with `right_rows = 1` mirrors the layout. A Row limit of `0` drops a side altogether, and Master takes its width (see [Settings](#settings)).
+
+- **Fill order.** The first window goes to Master, then the `fill_first` side (Left by default) up to its **Row limit**, then the other side up to its own. New windows join a side at its bottom. By default that is Master, one window in Left, and the rest at the bottom of the Stack on the right. A lone window sits in the middle, not stretched across the whole screen.
+- **No room.** With both sides limited, a window that finds no room (Master taken and both sides full) floats at its own size, centred. It stays floating when room frees up.
 - **Holes.** Close the Master window and its place stays empty; nothing slides in. The next new window fills it.
-- **Rows.** The Stack holds any number of windows, one per **Row**. Left holds one by default, more with `left_rows`.
+- **Rows.** Each side holds one window per **Row**. A Stack holds any number; a side with a Row limit (`left_rows`, `right_rows`) holds up to that many. By default Left holds one and Right is the Stack; mirrored, it's the other way round.
 - **Resizing.** SUPER+right-drag moves the **Dividers** between zones and the edges between Rows. SUPER+ALT+HJKL does the same in steps, and SUPER+R resets. Each workspace keeps its own Dividers, saved across reboots.
 - **Drag-and-drop.** SUPER+left-drag a window onto another to swap them, onto the bottom quarter of a zone to add it there, or into an empty zone to move it. A highlight shows where it will land.
-- **Chain focus.** SUPER+H/L walk Left → Master → Stack top → … → Stack bottom. SUPER+J/K move up and down inside Left or the Stack.
+- **Chain focus.** SUPER+H/L walk the windows left to right on screen: Left top → bottom, Master, Right top → bottom, whichever side is the Stack. SUPER+J/K move up and down inside Left or Right.
 
 The words in **bold** are defined in [`GLOSSARY.md`](GLOSSARY.md).
 
@@ -41,6 +42,8 @@ hyprpm enable threecol
 ```
 
 hyprpm builds the plugin (CMake, a C++23 compiler and `pkg-config`; no GoogleTest needed) and pins the threecol commit that matches your Hyprland.
+
+`hyprpm update` also builds Hyprland's headers from source, so it needs Hyprland's own build dependencies at the versions your Hyprland release asks for. An outdated one stops it with a CMake error. For example, 0.57.1 needs `hyprland-protocols` 0.8.0 or newer. Update the package it names and run `hyprpm update` again.
 
 **Load it at start-up.** hyprpm doesn't load plugins on its own. Add this to your `hyprland.lua`:
 
@@ -101,8 +104,8 @@ threecol binds no keys. Copy [`examples/binds.lua`](examples/binds.lua) into you
 
 | Keys | Action | Repeats |
 |---|---|---|
-| SUPER+H / L | Focus along the **Chain** (Left → Master → Stack) | no |
-| SUPER+J / K | Focus down / up inside Left or the Stack | no |
+| SUPER+H / L | Focus along the **Chain** (Left → Master → Right) | no |
+| SUPER+J / K | Focus down / up inside Left or Right | no |
 | SUPER+SHIFT+H / L / J / K | Move the window the same way; it moves into free room and swaps only when there is none | no |
 | SUPER+M | Focus the Master window | no |
 | SUPER+SHIFT+M | Swap the focused window with Master (or move it into a Master Hole) | no |
@@ -110,7 +113,7 @@ threecol binds no keys. Copy [`examples/binds.lua`](examples/binds.lua) into you
 | SUPER+right-drag | Resize: move the nearest Divider or Row edge | – |
 | SUPER+ALT+L / H | Make the focused zone wider / narrower by one `step` | yes |
 | SUPER+ALT+K / J | Make the focused Row taller / shorter by one `step` | yes |
-| SUPER+R | Reset the workspace's Dividers and Row heights to the settings | no |
+| SUPER+R | Reset the workspace's Dividers and Row heights to the settings, even with a floating, fullscreen or maximised window | no |
 
 **The snippet replaces your binds on these keys.** Hyprland runs every bind on a key, not just the last one, so the snippet clears each key with `hl.unbind` before binding it. In Hyprland's stock config that removes SUPER+M (exit), SUPER+R (launcher), SUPER+J (dwindle `togglesplit`) and the SUPER+drag binds (re-added unchanged). SUPER+ALT+L is a common lock-screen bind. Move anything you want to keep to other keys, or change the keys in the snippet.
 
@@ -145,7 +148,7 @@ Mostly yes. Hyprland's own dispatchers fall into three groups on a threecol work
 | `window.drag()` (mouse bind) | Native drag-and-drop |
 | `window.swap({ with = … })`, `window.swap({ next = true })` | Swaps the two windows; each takes the other's Zone and Row |
 | `layout("focusmaster")`, `layout("swapwithmaster")` | Same names as the master layout, so existing binds keep working |
-| `window.float`, `window.fullscreen`, `window.close`, moving to another workspace | Hyprland's own. A window that comes back tiled (or arrives from another workspace) is placed in Fill order |
+| `window.float`, `window.fullscreen`, `window.close`, moving to another workspace | Hyprland's own. A window that comes back tiled (or arrives from another workspace) is placed in Fill order, or floats again if there's no room |
 
 **They are geometric.** Hyprland picks the target by screen position, not by the Chain. They work, but can land somewhere other than the threecol bind would, e.g. around Holes or between Rows:
 
@@ -166,50 +169,112 @@ hl.config({
     plugin = {
         threecol = {
             left_width  = 0.25,
-            stack_width = 0.25,
+            right_width = 0.25,
             left_rows   = 2,
         },
     },
 })
 ```
 
-Sizes are fractions of the workspace area (0 to 1). Master gets whatever Left and Stack leave.
+Sizes are fractions of the workspace area (0 to 1). Master gets whatever Left and Right leave.
+
+> **`stack_width` is now `right_width`.** If your config or a `layout_opts` sets `stack_width`, rename it to `right_width` once. The old name is no longer read: globally Hyprland reports it as an unknown setting, and in `layout_opts` threecol warns about an unknown key. Saved Divider positions carry over unchanged.
 
 | Setting | Type | Default | Per workspace | Meaning |
 |---|---|---|---|---|
 | `left_width` | float | 0.25 | yes | Left zone width |
-| `stack_width` | float | 0.25 | yes | Stack zone width |
-| `left_rows` | int | 1 | yes | **Row limit**: most windows the Left zone holds (≥ 1) |
-| `min_width` | float | 0.10 | no | Smallest Left / Stack width |
+| `right_width` | float | 0.25 | yes | Right zone width (was `stack_width`) |
+| `left_rows` | int or `"unlimited"` | 1 | yes | **Row limit**: most windows the Left zone holds, `0` for no Left zone, or `"unlimited"` for a Stack |
+| `right_rows` | int or `"unlimited"` | `"unlimited"` | yes | **Row limit** of the Right zone, the same way |
+| `fill_first` | `"left"` or `"right"` | `"left"` | yes | The side new windows go to after Master, before the other side |
+| `min_width` | float | 0.10 | no | Smallest Left / Right width |
 | `min_master_width` | float | 0.20 | no | Smallest Master width |
-| `min_row_height` | float | 0.10 | no | Smallest Row height (Left and Stack) |
+| `min_row_height` | float | 0.10 | no | Smallest Row height (Left and Right); also caps both Row limits |
 | `step` | float | 0.05 | no | Keyboard resize step |
 | `persist` | bool | true | no | Save Divider positions across reloads and reboots |
 
-**Per workspace.** `left_width`, `stack_width` and `left_rows` can be overridden with a workspace rule's `layout_opts`, using the same names:
+**Per workspace.** `left_width`, `right_width`, `left_rows`, `right_rows` and `fill_first` can be overridden with a workspace rule's `layout_opts`, using the same names:
 
 ```lua
 hl.workspace_rule({
     workspace   = "3",
     layout      = "threecol",
-    layout_opts = { left_width = 0.30, stack_width = 0.20, left_rows = 2 },
+    layout_opts = { left_width = 0.30, right_width = 0.20, left_rows = 2 },
 })
 ```
+
+**Mirrored.** Make Left the Stack, give Right a Row limit, and fill Right first:
+
+```lua
+hl.config({
+    plugin = {
+        threecol = {
+            left_rows  = "unlimited",
+            right_rows = 1,
+            fill_first = "right",
+        },
+    },
+})
+```
+
+New windows then go to Master, one to Right, and the rest to the bottom of the Left Stack. Moves, drops, close rules and the Chain are the mirror image of the default. Both sides may be `"unlimited"` (two Stacks).
+
+**`fill_first` and a Stack.** A Stack has no Row limit, so if the `fill_first` side is a Stack it takes every new window after Master. The other side then fills only when you move or drag a window there. That happens with `fill_first = "right"` on the default layout, or with the mirrored layout above if you leave out `fill_first`.
+
+**No Left zone.** A Row limit of `0` makes a side a **Missing zone**: it has no width, no Divider and no place in the Chain, and Master reaches the screen edge:
+
+```lua
+hl.config({
+    plugin = {
+        threecol = {
+            left_rows = 0,
+        },
+    },
+})
+```
+
+```
+┌──────────────────────────────┬──────────┐
+│                              │ Right 1  │
+│            Master            ├──────────┤
+│                              │ Right 2  │
+└──────────────────────────────┴──────────┘
+              ¾ wide              ¼ wide
+```
+
+New windows go to Master, then the Right Stack. Resizing Master moves only the Master|Right Divider, `move l` from Master does nothing, and a window dropped where Left would be lands on Master. The missing side's width setting is ignored: it isn't raised to `min_width`, counted against `min_master_width` or warned about. Its saved Divider is kept, so if the side comes back (by a reload or a `layout_opts` change) it returns where you left it. With both sides at `0`, Master fills the workspace, resizing does nothing, and every other window floats.
+
+**Both sides limited.** Neither side has to be a Stack. Give both a Row limit and windows that find no room float instead:
+
+```lua
+hl.config({
+    plugin = {
+        threecol = {
+            left_rows  = 1,
+            right_rows = 2,
+        },
+    },
+})
+```
+
+Here the fifth window floats at its own size, centred, as does any later one while all four places are taken. A floated window stays floating when a place frees up; toggle it back to tiled with `window.float` to place it.
 
 **Which value wins.** A Divider you moved by hand wins until you reset (SUPER+R). Then the `layout_opts` value, then the global setting.
 
 **Mistakes are forgiven.**
 
 - An unknown or bad `layout_opts` key or value is ignored; that workspace uses the global value.
-- Settings that can't all fit are made to fit: Master keeps its minimum, and Left and Stack shrink in proportion. Left uses only as many Rows as fit `min_row_height`.
+- Settings that can't all fit are made to fit: Master keeps its minimum, and Left and Right shrink in proportion. A side with a Row limit uses only as many Rows as fit `min_row_height`.
 - Each config load shows one notification listing what was ignored or adjusted.
 
 **Changing settings.** Changes to `plugin:threecol:*` apply as soon as the config reloads.
 
-- Lowering `left_rows` moves the extra Left windows to the top of the Stack. Raising it moves nothing.
+- Lowering a Row limit, setting it to `0`, or switching a side from `"unlimited"` to a number, pushes that side's extra bottom windows out to the other side, at its end nearest Master (the top of Right, the bottom of Left), keeping their order. A Stack takes them all; a side with a Row limit takes as many as it has free Rows, first in Chain order; the rest float. Raising a limit moves nothing.
 - Tighter limits clamp the saved Dividers in use but don't rewrite the saved file, so loosening them again brings the old sizes back.
 
 **Saved Dividers.** With `persist = true`, each workspace's Dividers are saved after every finished resize to `$XDG_STATE_HOME/threecol/dividers` (or `~/.local/state/threecol/dividers`), keyed by workspace name. Row heights are not saved; they go back to equal after a reboot. With `persist = false` the file is neither read nor written (but kept), and every reload resets all workspaces to the settings.
+
+A state file threecol can't fully read (from a newer threecol, or hand-edited into something it doesn't understand) counts as nothing saved, or loses just the lines it can't read. The next save moves it aside to `dividers.bak` first (replacing an older `dividers.bak`), so nothing in it is lost; Windows (CRLF) line endings are fine. The file is replaced in one step, so a crash never leaves half a file, but it isn't forced to disk: after a power cut some filesystems may lose it, and threecol then starts with nothing saved. Two Hyprland sessions with the same `XDG_STATE_HOME` (or `HOME`), such as a nested one, share the file, and the last one to save wins.
 
 ## After a Hyprland update
 
@@ -257,7 +322,7 @@ For a new Hyprland release:
 
 1. Update Hyprland and restart it.
 2. Fix any build errors against the new headers, then run `cmake --build build -j && ctest --test-dir build`.
-3. Load the build on the live session and run the checklist in [`docs/live-test.md`](docs/live-test.md).
+3. Load the build on the live session and check that it works.
 4. If the plugin's version changed, bump it in both `CMakeLists.txt` (`project(… VERSION …)`) and `src/plugin/main.cpp` (`PLUGIN_INIT`'s return value).
 5. Commit and push.
 6. Add a `commit_pins` entry to `hyprpm.toml`: `["<Hyprland commit>", "<threecol commit>"]`, with a comment naming the Hyprland version. The Hyprland commit is the full hash from `hyprctl version`. The threecol commit is the one from step 5. A commit can't pin itself, so the pin is a commit of its own.

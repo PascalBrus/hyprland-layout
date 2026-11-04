@@ -32,7 +32,7 @@ local function threecol_active()
 end
 
 -- Focus (SUPER+HJKL) and move (SUPER+SHIFT+HJKL) along the Chain.
--- H/L walk Left → Master → Stack; J/K go down/up inside Left or the Stack.
+-- H/L walk Left → Master → Right; J/K go down/up inside Left or Right.
 -- Not repeating: one press is one step.
 local directions = {
     H = { msg = "l", dir = "left" },

@@ -5,7 +5,9 @@
 #include <cmath>
 #include <optional>
 
+using threecol::LayoutOpts;
 using threecol::Rect;
+using threecol::Settings;
 using threecol::WindowId;
 using threecol::Workspace;
 
@@ -21,6 +23,15 @@ namespace {
         Workspace ws{AREA};
         for (WindowId id = 1; id <= count; ++id)
             ws.addWindow(id);
+        return ws;
+    }
+
+    // A workspace with no Left zone: 1 Master, 2 Right.
+    Workspace noLeft() {
+        Workspace ws{AREA};
+        ws.setSettings(Settings{.leftRows = 0});
+        ws.addWindow(1);
+        ws.addWindow(2);
         return ws;
     }
 
@@ -156,7 +167,7 @@ TEST(KeyboardResize, ResizedDividersWinOverChangedWidthSettings) {
     Workspace ws = filled(3);
     ws.layoutMessage("resize wider", 2);
 
-    ws.setSettings({.leftWidth = 0.3, .stackWidth = 0.3});
+    ws.setSettings({.leftWidth = 0.3, .rightWidth = 0.3});
 
     EXPECT_TRUE(near(ws.rectOf(2), {0, 0, 1536, 1440}));
     EXPECT_TRUE(near(ws.rectOf(3), {3840, 0, 1280, 1440}));
@@ -170,6 +181,38 @@ TEST(KeyboardResize, ARaisedLimitClampsResizedDividers) {
     ws.setSettings({.minWidth = 0.15});
 
     EXPECT_TRUE(near(ws.rectOf(1), {1280, 0, 3072, 1440}));
+    EXPECT_TRUE(near(ws.rectOf(3), {4352, 0, 768, 1440}));
+}
+
+TEST(KeyboardResize, ARaisedMasterMinimumShrinksResizedDividersInProportionUntilItIsLoosened) {
+    Workspace ws = filled(3);
+    ws.layoutMessage("resize wider", 2); // Left 0.25 -> 0.30
+
+    ws.setSettings({.minMasterWidth = 0.6}); // Left and Stack share 0.4, as 0.30 : 0.25
+
+    const double left  = 5120 * 0.4 * 0.30 / 0.55;
+    const double stack = 5120 * 0.4 * 0.25 / 0.55;
+    EXPECT_TRUE(near(ws.rectOf(2), {0, 0, left, 1440}));
+    EXPECT_TRUE(near(ws.rectOf(1), {left, 0, 3072, 1440}));
+    EXPECT_TRUE(near(ws.rectOf(3), {5120 - stack, 0, stack, 1440}));
+
+    ws.setSettings({});
+
+    EXPECT_TRUE(near(ws.rectOf(2), {0, 0, 1536, 1440}));
+    EXPECT_TRUE(near(ws.rectOf(3), {3840, 0, 1280, 1440}));
+}
+
+TEST(KeyboardResize, AResizeUnderARaisedLimitKeepsTheWidthsAsShown) {
+    Workspace ws = filled(3);
+    ws.setSettings({.step = 0.15});
+    ws.layoutMessage("resize narrower", 3); // Stack 0.25 -> 0.10
+    ws.setSettings({.minWidth = 0.15, .step = 0.05}); // Stack shown at 0.15
+
+    ws.layoutMessage("resize wider", 2); // Left 0.25 -> 0.30, from what is shown
+    ws.setSettings({});
+
+    // The resize saved the Stack at 0.15: loosening the limit no longer brings 0.10 back.
+    EXPECT_TRUE(near(ws.rectOf(2), {0, 0, 1536, 1440}));
     EXPECT_TRUE(near(ws.rectOf(3), {4352, 0, 768, 1440}));
 }
 
@@ -252,10 +295,111 @@ TEST(KeyboardResize, UnknownOrInapplicableMessagesDoNothing) {
 
 TEST(KeyboardResize, AResizeStoppedAtMastersMinimumStaysPut) {
     Workspace ws = filled(3);
-    ws.setSettings({.stackWidth = 0.3, .minMasterWidth = 0.3, .step = 0.3});
+    ws.setSettings({.rightWidth = 0.3, .minMasterWidth = 0.3, .step = 0.3});
     ws.layoutMessage("resize wider", 2); // stops where Master is 0.3
 
     for (int press = 0; press < 5; ++press)
         EXPECT_FALSE(ws.layoutMessage("resize wider", 2));
     EXPECT_FALSE(ws.layoutMessage("resize wider", 3));
+}
+
+TEST(KeyboardResize, WideningMasterWithLeftMissingMovesOnlyMasterRightAFullStep) {
+    Workspace ws = noLeft();
+
+    EXPECT_TRUE(ws.layoutMessage("resize wider", 1));
+
+    EXPECT_TRUE(near(ws.rectOf(1), {0, 0, 4096, 1440}));
+    EXPECT_TRUE(near(ws.rectOf(2), {4096, 0, 1024, 1440}));
+}
+
+TEST(KeyboardResize, NarrowingMasterWithLeftMissingMovesOnlyMasterRight) {
+    Workspace ws = noLeft();
+
+    EXPECT_TRUE(ws.layoutMessage("resize narrower", 1));
+
+    EXPECT_TRUE(near(ws.rectOf(1), {0, 0, 3584, 1440}));
+    EXPECT_TRUE(near(ws.rectOf(2), {3584, 0, 1536, 1440}));
+}
+
+TEST(KeyboardResize, WideningMasterWithRightMissingMovesOnlyLeftMaster) {
+    Workspace ws{AREA};
+    ws.setSettings(Settings{.rightRows = 0});
+    ws.addWindow(1);
+    ws.addWindow(2); // Left
+
+    ws.layoutMessage("resize wider", 1);
+
+    EXPECT_TRUE(near(ws.rectOf(2), {0, 0, 1024, 1440}));
+    EXPECT_TRUE(near(ws.rectOf(1), {1024, 0, 4096, 1440}));
+}
+
+TEST(KeyboardResize, WideningRightWithLeftMissingLeavesTheLeftEdgeAlone) {
+    Workspace ws = noLeft();
+
+    ws.layoutMessage("resize wider", 2);
+
+    EXPECT_TRUE(near(ws.rectOf(1), {0, 0, 3584, 1440}));
+    EXPECT_TRUE(near(ws.rectOf(2), {3584, 0, 1536, 1440}));
+}
+
+TEST(KeyboardResize, WithBothSidesMissingResizingMasterDoesNothing) {
+    Workspace ws{AREA};
+    ws.setSettings(Settings{.leftRows = 0, .rightRows = 0});
+    ws.addWindow(1);
+
+    EXPECT_FALSE(ws.layoutMessage("resize wider", 1));
+    EXPECT_FALSE(ws.layoutMessage("resize narrower", 1));
+
+    EXPECT_EQ(ws.rectOf(1), AREA);
+}
+
+TEST(KeyboardResize, AZoneThatGoesMissingComesBackAtItsSavedDivider) {
+    Workspace ws = filled(3);
+    ws.layoutMessage("resize wider", 2); // Left 0.30
+
+    ws.setSettings(Settings{.leftRows = 0});
+    EXPECT_TRUE(near(ws.rectOf(1), {0, 0, 3840, 1440}));
+    ws.setSettings(Settings{});
+
+    EXPECT_TRUE(near(ws.rectOf(1), {1536, 0, 2304, 1440}));
+}
+
+TEST(KeyboardResize, ResizingWhileAZoneIsMissingKeepsItsSavedDivider) {
+    Workspace ws = filled(3);
+    ws.layoutMessage("resize wider", 2); // Left 0.30
+    ws.setSettings(Settings{.leftRows = 0});
+
+    ws.layoutMessage("resize wider", 3); // Right 0.30
+    ws.setSettings(Settings{});
+
+    EXPECT_TRUE(near(ws.rectOf(1), {1536, 0, 2048, 1440}));
+    EXPECT_TRUE(near(ws.rectOf(3), {3584, 720, 1536, 720})); // below 2, pushed out of Left
+}
+
+TEST(KeyboardResize, ResetWhileAZoneIsMissingBringsItBackAtTheLayoutOptsWidth) {
+    Workspace ws{AREA};
+    ws.setSettings(Settings{.leftRows = 0}, LayoutOpts{{"left_width", "0.3"}}, "3");
+    ws.addWindow(1);
+    ws.addWindow(2); // Right
+    ws.layoutMessage("resize wider", 2);
+
+    ws.layoutMessage("reset", 1);
+    ws.setSettings(Settings{}, LayoutOpts{{"left_width", "0.3"}}, "3");
+
+    EXPECT_TRUE(near(ws.rectOf(1), {1536, 0, 2304, 1440}));
+    EXPECT_TRUE(near(ws.rectOf(2), {3840, 0, 1280, 1440}));
+}
+
+TEST(KeyboardResize, ResetWhileAZoneIsMissingBringsItBackAtTheGlobalWidth) {
+    Workspace ws{AREA};
+    ws.setSettings(Settings{.leftWidth = 0.2, .leftRows = 0});
+    ws.addWindow(1);
+    ws.addWindow(2); // Right
+    ws.layoutMessage("resize wider", 1);
+
+    ws.layoutMessage("reset", 1);
+    ws.setSettings(Settings{.leftWidth = 0.2});
+
+    EXPECT_TRUE(near(ws.rectOf(1), {1024, 0, 2816, 1440}));
+    EXPECT_TRUE(near(ws.rectOf(2), {3840, 0, 1280, 1440}));
 }

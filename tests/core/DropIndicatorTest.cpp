@@ -4,8 +4,11 @@
 
 #include <cmath>
 #include <optional>
+#include <vector>
 
+using threecol::Direction;
 using threecol::Rect;
+using threecol::RowLimit;
 using threecol::Settings;
 using threecol::WindowId;
 using threecol::Workspace;
@@ -27,7 +30,7 @@ namespace {
         return ws;
     }
 
-    Rect stackRow(double y, double h) {
+    Rect rightRow(double y, double h) {
         return {3840, y, 1280, h};
     }
 
@@ -43,6 +46,24 @@ namespace {
                                              << ", " << expected.y << ", " << expected.w << ", " << expected.h << "}";
     }
 
+
+    // A mirrored layout: Left a Stack, Right bounded to `rightRows` (or a
+    // second Stack). Windows land through Fill order and moves: `right` top
+    // to bottom, then `master`, then `left` top to bottom.
+    Workspace mirrored(RowLimit rightRows, const std::vector<WindowId>& left, WindowId master, const std::vector<WindowId>& right) {
+        Workspace ws{AREA};
+        ws.setSettings(Settings{.leftRows = RowLimit::unlimited(), .rightRows = rightRows});
+        // Each joins Right at its top, so the bottom one goes first.
+        for (auto id = right.rbegin(); id != right.rend(); ++id) {
+            ws.addWindow(*id);
+            ws.move(*id, Direction::Right);
+        }
+        ws.addWindow(master);
+        for (const WindowId id : left)
+            ws.addWindow(id);
+        return ws;
+    }
+
 }
 
 TEST(DropIndicator, OnAWindowShowsThatWindowsPlace) {
@@ -55,7 +76,7 @@ TEST(DropIndicator, OnTheAddAreaShowsTheNewBottomRow) {
     const Workspace ws = filled(1, 4); // 1 Master, 2 Left, 3 and 4 Stack
 
     // Master onto the bottom quarter of 4: the Stack gets a third Row.
-    EXPECT_TRUE(near(ws.dropIndicator(1, 4000, 1400), stackRow(960, 480)));
+    EXPECT_TRUE(near(ws.dropIndicator(1, 4000, 1400), rightRow(960, 480)));
 }
 
 TEST(DropIndicator, IntoAMasterHoleShowsTheMasterZone) {
@@ -69,7 +90,7 @@ TEST(DropIndicator, InAGapShowsTheNearestRow) {
     const Workspace ws = filled(1, 4); // 1 Master, 2 Left, 3 and 4 Stack
 
     // Just below the Stack's top Row: still the top Row, 3.
-    EXPECT_TRUE(near(ws.dropIndicator(1, 4000, 719), stackRow(0, 720)));
+    EXPECT_TRUE(near(ws.dropIndicator(1, 4000, 719), rightRow(0, 720)));
 }
 
 TEST(DropIndicator, IsNothingWhenTheDropChangesNothing) {
@@ -107,4 +128,44 @@ TEST(DropIndicator, AgreesWithTheDropEverywhere) {
             }
         }
     }
+}
+
+TEST(DropIndicator, AgreesWithTheDropEverywhereWhenMirrored) {
+    // A Left Stack of three, a full Right of two, uneven heights.
+    Workspace start = mirrored(2, {2, 3, 4}, 1, {5, 6});
+    start.layoutMessage("resize taller", 3);
+
+    for (WindowId dragged = 1; dragged <= 6; ++dragged) {
+        for (double x = 40; x < 5120; x += 160) {
+            for (double y = 20; y < 1440; y += 60) {
+                Workspace  dropped   = start;
+                const auto indicator = start.dropIndicator(dragged, x, y);
+                if (dropped.drop(dragged, x, y))
+                    EXPECT_TRUE(near(indicator, *dropped.rectOf(dragged))) << "window " << dragged << " at " << x << ", " << y;
+                else
+                    EXPECT_EQ(indicator, std::nullopt) << "window " << dragged << " at " << x << ", " << y;
+            }
+        }
+    }
+}
+
+TEST(DropIndicator, OnTheAddAreaOfAFullRightShowsItsBottomRow) {
+    const Workspace ws = mirrored(1, {2, 3}, 4, {1});
+
+    EXPECT_TRUE(near(ws.dropIndicator(2, 4000, 1400), rightRow(0, 1440)));
+}
+
+TEST(DropIndicator, OverAMissingLeftZoneItShowsMaster) {
+    Workspace ws = filled(0, 3); // 1 Master, Right 2 3
+
+    EXPECT_EQ(ws.dropIndicator(3, 10, 1430), (Rect{0, 0, 3840, 1440}));
+}
+
+TEST(DropIndicator, WithBothSidesMissingItShowsNothing) {
+    Workspace ws{AREA};
+    ws.setSettings(Settings{.leftRows = 0, .rightRows = 0});
+    ws.addWindow(1);
+
+    EXPECT_EQ(ws.dropIndicator(1, 10, 1430), std::nullopt);
+    EXPECT_EQ(ws.dropIndicator(1, 5110, 1430), std::nullopt);
 }

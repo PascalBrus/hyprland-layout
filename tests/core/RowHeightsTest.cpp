@@ -27,7 +27,7 @@ namespace {
     }
 
     // A Stack Row from its top edge and height.
-    Rect stackRow(double y, double h) {
+    Rect rightRow(double y, double h) {
         return {3840, y, 1280, h};
     }
 
@@ -50,9 +50,9 @@ TEST(RowHeights, TallerGrowsTheFocusedRowAStepAndTheOthersGiveWayInProportion) {
 
     EXPECT_TRUE(ws.layoutMessage("resize taller", 4));
 
-    EXPECT_TRUE(near(ws.rectOf(3), stackRow(0, 444)));
-    EXPECT_TRUE(near(ws.rectOf(4), stackRow(444, 552)));
-    EXPECT_TRUE(near(ws.rectOf(5), stackRow(996, 444)));
+    EXPECT_TRUE(near(ws.rectOf(3), rightRow(0, 444)));
+    EXPECT_TRUE(near(ws.rectOf(4), rightRow(444, 552)));
+    EXPECT_TRUE(near(ws.rectOf(5), rightRow(996, 444)));
 }
 
 TEST(RowHeights, ShorterShrinksTheFocusedRowAStepAndTheOthersGrowInProportion) {
@@ -60,9 +60,9 @@ TEST(RowHeights, ShorterShrinksTheFocusedRowAStepAndTheOthersGrowInProportion) {
 
     EXPECT_TRUE(ws.layoutMessage("resize shorter", 4));
 
-    EXPECT_TRUE(near(ws.rectOf(3), stackRow(0, 516)));
-    EXPECT_TRUE(near(ws.rectOf(4), stackRow(516, 408)));
-    EXPECT_TRUE(near(ws.rectOf(5), stackRow(924, 516)));
+    EXPECT_TRUE(near(ws.rectOf(3), rightRow(0, 516)));
+    EXPECT_TRUE(near(ws.rectOf(4), rightRow(516, 408)));
+    EXPECT_TRUE(near(ws.rectOf(5), rightRow(924, 516)));
 }
 
 TEST(RowHeights, TallerStopsWhenTheOtherRowsAreAllAtTheMinimum) {
@@ -75,9 +75,9 @@ TEST(RowHeights, TallerStopsWhenTheOtherRowsAreAllAtTheMinimum) {
         ws.layoutMessage("resize taller", 3);
     EXPECT_FALSE(ws.layoutMessage("resize taller", 3));
 
-    EXPECT_TRUE(near(ws.rectOf(3), stackRow(0, 1152)));
-    EXPECT_TRUE(near(ws.rectOf(4), stackRow(1152, 144)));
-    EXPECT_TRUE(near(ws.rectOf(5), stackRow(1296, 144)));
+    EXPECT_TRUE(near(ws.rectOf(3), rightRow(0, 1152)));
+    EXPECT_TRUE(near(ws.rectOf(4), rightRow(1152, 144)));
+    EXPECT_TRUE(near(ws.rectOf(5), rightRow(1296, 144)));
 }
 
 TEST(RowHeights, ShorterStopsAtTheMinimum) {
@@ -87,9 +87,9 @@ TEST(RowHeights, ShorterStopsAtTheMinimum) {
         ws.layoutMessage("resize shorter", 4);
     EXPECT_FALSE(ws.layoutMessage("resize shorter", 4));
 
-    EXPECT_TRUE(near(ws.rectOf(3), stackRow(0, 648)));
-    EXPECT_TRUE(near(ws.rectOf(4), stackRow(648, 144)));
-    EXPECT_TRUE(near(ws.rectOf(5), stackRow(792, 648)));
+    EXPECT_TRUE(near(ws.rectOf(3), rightRow(0, 648)));
+    EXPECT_TRUE(near(ws.rectOf(4), rightRow(648, 144)));
+    EXPECT_TRUE(near(ws.rectOf(5), rightRow(792, 648)));
 }
 
 TEST(RowHeights, TallerAndShorterDoNothingOnMasterLeftOrALoneRow) {
@@ -100,19 +100,19 @@ TEST(RowHeights, TallerAndShorterDoNothingOnMasterLeftOrALoneRow) {
         EXPECT_FALSE(ws.layoutMessage("resize shorter", id));
     }
 
-    EXPECT_TRUE(near(ws.rectOf(3), stackRow(0, 1440)));
+    EXPECT_TRUE(near(ws.rectOf(3), rightRow(0, 1440)));
 }
 
 TEST(RowHeights, ANewRowGetsAnEqualShareAndTheOthersKeepTheirRatios) {
     Workspace ws = filled(4);
     ws.layoutMessage("resize taller", 3); // 792 / 648
 
-    EXPECT_TRUE(near(std::optional<Rect>{ws.nextWindowRect()}, stackRow(960, 480)));
+    EXPECT_TRUE(near(ws.nextWindowRect(), rightRow(960, 480)));
     ws.addWindow(5);
 
-    EXPECT_TRUE(near(ws.rectOf(3), stackRow(0, 528)));
-    EXPECT_TRUE(near(ws.rectOf(4), stackRow(528, 432)));
-    EXPECT_TRUE(near(ws.rectOf(5), stackRow(960, 480)));
+    EXPECT_TRUE(near(ws.rectOf(3), rightRow(0, 528)));
+    EXPECT_TRUE(near(ws.rectOf(4), rightRow(528, 432)));
+    EXPECT_TRUE(near(ws.rectOf(5), rightRow(960, 480)));
 }
 
 TEST(RowHeights, ClosingARowGrowsTheOthersInProportion) {
@@ -122,8 +122,8 @@ TEST(RowHeights, ClosingARowGrowsTheOthersInProportion) {
     ws.removeWindow(5);
 
     // 552 : 444 over the whole 1440 px.
-    EXPECT_TRUE(near(ws.rectOf(3), stackRow(0, 1440.0 * 552 / 996)));
-    EXPECT_TRUE(near(ws.rectOf(4), stackRow(1440.0 * 552 / 996, 1440.0 * 444 / 996)));
+    EXPECT_TRUE(near(ws.rectOf(3), rightRow(0, 1440.0 * 552 / 996)));
+    EXPECT_TRUE(near(ws.rectOf(4), rightRow(1440.0 * 552 / 996, 1440.0 * 444 / 996)));
 }
 
 TEST(RowHeights, ACrowdedStackSharesTheHeightEquallyAndTheProportionsComeBack) {
@@ -139,9 +139,9 @@ TEST(RowHeights, ACrowdedStackSharesTheHeightEquallyAndTheProportionsComeBack) {
         EXPECT_NEAR(ws.rectOf(id)->h, 360, 1e-6);
 
     ws.removeWindow(6);
-    EXPECT_TRUE(near(ws.rectOf(3), stackRow(0, 528)));
-    EXPECT_TRUE(near(ws.rectOf(4), stackRow(528, 432)));
-    EXPECT_TRUE(near(ws.rectOf(5), stackRow(960, 480)));
+    EXPECT_TRUE(near(ws.rectOf(3), rightRow(0, 528)));
+    EXPECT_TRUE(near(ws.rectOf(4), rightRow(528, 432)));
+    EXPECT_TRUE(near(ws.rectOf(5), rightRow(960, 480)));
 }
 
 TEST(RowHeights, ACrowdedStackCantBeResized) {
@@ -161,8 +161,8 @@ TEST(RowHeights, ResetMakesTheRowsEqualAgain) {
 
     EXPECT_TRUE(ws.layoutMessage("reset", 3));
 
-    EXPECT_TRUE(near(ws.rectOf(3), stackRow(0, 480)));
-    EXPECT_TRUE(near(ws.rectOf(4), stackRow(480, 480)));
+    EXPECT_TRUE(near(ws.rectOf(3), rightRow(0, 480)));
+    EXPECT_TRUE(near(ws.rectOf(4), rightRow(480, 480)));
     EXPECT_FALSE(ws.layoutMessage("reset", 3));
 }
 
@@ -172,10 +172,10 @@ TEST(RowHeights, DraggingARowsBottomHalfMovesItsBottomEdgeOnly) {
     ws.dragResize(4, 0, 60, Corner::BottomRight);
     ws.dragResize(4, 0, 40, Corner::BottomRight);
 
-    EXPECT_TRUE(near(ws.rectOf(3), stackRow(0, 360)));
-    EXPECT_TRUE(near(ws.rectOf(4), stackRow(360, 460)));
-    EXPECT_TRUE(near(ws.rectOf(5), stackRow(820, 260)));
-    EXPECT_TRUE(near(ws.rectOf(6), stackRow(1080, 360)));
+    EXPECT_TRUE(near(ws.rectOf(3), rightRow(0, 360)));
+    EXPECT_TRUE(near(ws.rectOf(4), rightRow(360, 460)));
+    EXPECT_TRUE(near(ws.rectOf(5), rightRow(820, 260)));
+    EXPECT_TRUE(near(ws.rectOf(6), rightRow(1080, 360)));
 }
 
 TEST(RowHeights, DraggingARowsTopHalfMovesItsTopEdgeOnly) {
@@ -183,10 +183,10 @@ TEST(RowHeights, DraggingARowsTopHalfMovesItsTopEdgeOnly) {
 
     ws.dragResize(5, 0, -100, Corner::TopLeft);
 
-    EXPECT_TRUE(near(ws.rectOf(3), stackRow(0, 360)));
-    EXPECT_TRUE(near(ws.rectOf(4), stackRow(360, 260)));
-    EXPECT_TRUE(near(ws.rectOf(5), stackRow(620, 460)));
-    EXPECT_TRUE(near(ws.rectOf(6), stackRow(1080, 360)));
+    EXPECT_TRUE(near(ws.rectOf(3), rightRow(0, 360)));
+    EXPECT_TRUE(near(ws.rectOf(4), rightRow(360, 260)));
+    EXPECT_TRUE(near(ws.rectOf(5), rightRow(620, 460)));
+    EXPECT_TRUE(near(ws.rectOf(6), rightRow(1080, 360)));
 }
 
 TEST(RowHeights, TheTopRowHasOnlyABottomEdge) {
@@ -194,9 +194,9 @@ TEST(RowHeights, TheTopRowHasOnlyABottomEdge) {
 
     ws.dragResize(3, 0, -100, Corner::TopLeft);
 
-    EXPECT_TRUE(near(ws.rectOf(3), stackRow(0, 380)));
-    EXPECT_TRUE(near(ws.rectOf(4), stackRow(380, 580)));
-    EXPECT_TRUE(near(ws.rectOf(5), stackRow(960, 480)));
+    EXPECT_TRUE(near(ws.rectOf(3), rightRow(0, 380)));
+    EXPECT_TRUE(near(ws.rectOf(4), rightRow(380, 580)));
+    EXPECT_TRUE(near(ws.rectOf(5), rightRow(960, 480)));
 }
 
 TEST(RowHeights, TheBottomRowHasOnlyATopEdge) {
@@ -204,9 +204,9 @@ TEST(RowHeights, TheBottomRowHasOnlyATopEdge) {
 
     ws.dragResize(5, 0, 100, Corner::BottomRight);
 
-    EXPECT_TRUE(near(ws.rectOf(3), stackRow(0, 480)));
-    EXPECT_TRUE(near(ws.rectOf(4), stackRow(480, 580)));
-    EXPECT_TRUE(near(ws.rectOf(5), stackRow(1060, 380)));
+    EXPECT_TRUE(near(ws.rectOf(3), rightRow(0, 480)));
+    EXPECT_TRUE(near(ws.rectOf(4), rightRow(480, 580)));
+    EXPECT_TRUE(near(ws.rectOf(5), rightRow(1060, 380)));
 }
 
 TEST(RowHeights, ALoneRowResizesSidewaysOnly) {
@@ -230,13 +230,13 @@ TEST(RowHeights, TheEdgeStopsAtTheMinimumAndFollowsAgainWhenTheCursorComesBack) 
     Workspace ws = filled(5);
 
     ws.dragResize(4, 0, 1000, Corner::BottomRight);
-    EXPECT_TRUE(near(ws.rectOf(4), stackRow(480, 816)));
-    EXPECT_TRUE(near(ws.rectOf(5), stackRow(1296, 144)));
+    EXPECT_TRUE(near(ws.rectOf(4), rightRow(480, 816)));
+    EXPECT_TRUE(near(ws.rectOf(5), rightRow(1296, 144)));
 
     // 300 px past press: the cursor is back where the edge can follow.
     ws.dragResize(4, 0, -700, Corner::BottomRight);
-    EXPECT_TRUE(near(ws.rectOf(4), stackRow(480, 780)));
-    EXPECT_TRUE(near(ws.rectOf(5), stackRow(1260, 180)));
+    EXPECT_TRUE(near(ws.rectOf(4), rightRow(480, 780)));
+    EXPECT_TRUE(near(ws.rectOf(5), rightRow(1260, 180)));
 }
 
 TEST(RowHeights, TheEdgeIsFixedAtPressForTheWholeDrag) {
@@ -245,9 +245,9 @@ TEST(RowHeights, TheEdgeIsFixedAtPressForTheWholeDrag) {
     ws.dragResize(4, 0, 50, Corner::TopLeft);
     ws.dragResize(4, 0, 50, Corner::BottomLeft);
 
-    EXPECT_TRUE(near(ws.rectOf(3), stackRow(0, 580)));
-    EXPECT_TRUE(near(ws.rectOf(4), stackRow(580, 380)));
-    EXPECT_TRUE(near(ws.rectOf(5), stackRow(960, 480)));
+    EXPECT_TRUE(near(ws.rectOf(3), rightRow(0, 580)));
+    EXPECT_TRUE(near(ws.rectOf(4), rightRow(580, 380)));
+    EXPECT_TRUE(near(ws.rectOf(5), rightRow(960, 480)));
 }
 
 TEST(RowHeights, AWindowJoiningTheStackEndsAnEdgeDragKeepingItsSizes) {
@@ -258,8 +258,8 @@ TEST(RowHeights, AWindowJoiningTheStackEndsAnEdgeDragKeepingItsSizes) {
     EXPECT_FALSE(ws.resizing());
     EXPECT_FALSE(ws.dragResize(3, 0, 100, Corner::BottomRight));
 
-    EXPECT_TRUE(near(ws.rectOf(3), stackRow(0, 576)));
-    EXPECT_TRUE(near(ws.rectOf(4), stackRow(576, 384)));
+    EXPECT_TRUE(near(ws.rectOf(3), rightRow(0, 576)));
+    EXPECT_TRUE(near(ws.rectOf(4), rightRow(576, 384)));
 }
 
 TEST(RowHeights, ARowClosingInTheGrabbedZoneEndsTheDrag) {
@@ -275,10 +275,10 @@ TEST(RowHeights, AOneOffResizeMovesTheBottomEdgeOrTheBottomRowsTopEdge) {
     Workspace ws = filled(5);
 
     ws.resizeWindow(4, 0, 100);
-    EXPECT_TRUE(near(ws.rectOf(4), stackRow(480, 580)));
-    EXPECT_TRUE(near(ws.rectOf(5), stackRow(1060, 380)));
+    EXPECT_TRUE(near(ws.rectOf(4), rightRow(480, 580)));
+    EXPECT_TRUE(near(ws.rectOf(5), rightRow(1060, 380)));
 
     ws.resizeWindow(5, 0, -100);
-    EXPECT_TRUE(near(ws.rectOf(4), stackRow(480, 480)));
-    EXPECT_TRUE(near(ws.rectOf(5), stackRow(960, 480)));
+    EXPECT_TRUE(near(ws.rectOf(4), rightRow(480, 480)));
+    EXPECT_TRUE(near(ws.rectOf(5), rightRow(960, 480)));
 }

@@ -1,6 +1,7 @@
 #include "core/Workspace.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <utility>
 
@@ -27,33 +28,89 @@ namespace threecol {
         m_area = area;
     }
 
-    std::vector<std::string> Workspace::setSettings(const Settings& global, const LayoutOpts& opts, std::string_view workspaceName) {
+    SettingsChange Workspace::setSettings(const Settings& global, const LayoutOpts& opts, std::string_view workspaceName) {
         auto resolved = resolveSettings(global, opts, workspaceName);
         m_settings    = resolved.settings;
-        // Moved windows change the Rows under a Row edge drag.
-        const bool rowDrag = m_gesture && m_gesture->edge;
-        if (fitLeftToRowLimit() && rowDrag)
-            m_gesture->over = true;
-        return std::move(resolved.warnings);
-    }
-
-    std::size_t Workspace::leftRowLimit() const {
-        return static_cast<std::size_t>(std::max(1, m_settings.leftRows));
-    }
-
-    bool Workspace::fitLeftToRowLimit() {
-        const auto limit = leftRowLimit();
-        auto&      left  = m_left.windows;
-        if (left.size() <= limit)
-            return false;
-        // Bottom up, each moved window goes on top of the ones moved before.
-        while (left.size() > limit) {
-            m_stack.windows.insert(m_stack.windows.begin(), left.back());
-            m_stack.heights.insert(0);
-            m_left.heights.remove(left.size() - 1);
-            left.pop_back();
+        SettingsChange change{.warnings = std::move(resolved.warnings), .noRoom = {}};
+        const auto grabbedZone = m_gesture ? zoneOf(m_gesture->id) : std::nullopt;
+        const bool moved       = fitToRowLimits(change.noRoom);
+        if (!m_gesture)
+            return change;
+        // No more ticks come for a window that left.
+        if (std::ranges::contains(change.noRoom, m_gesture->id)) {
+            m_gesture.reset();
+            return change;
         }
-        return true;
+        // Moved windows change the Rows under a Row edge drag; a window
+        // pushed to the other side, or a Divider whose zone went missing,
+        // no longer matches what was grabbed.
+        const bool rowsMoved      = moved && m_gesture->edge;
+        const bool sideChanged    = zoneOf(m_gesture->id) != grabbedZone;
+        const bool dividerMissing = m_gesture->divider && !exists(*m_gesture->divider == Divider::LeftMaster ? Zone::Left : Zone::Right);
+        if (rowsMoved || sideChanged || dividerMissing)
+            m_gesture->over = true;
+        return change;
+    }
+
+    void Workspace::Rows::insert(std::size_t row, WindowId id) {
+        windows.insert(windows.begin() + static_cast<std::ptrdiff_t>(row), id);
+        heights.insert(row);
+    }
+
+    Workspace::End Workspace::endNearestMaster(Zone side) {
+        return side == Zone::Left ? End::Bottom : End::Top;
+    }
+
+    bool Workspace::masterIsForwardOf(Zone side) {
+        // Along the Chain a side's Rows run top to bottom.
+        return endNearestMaster(side) == End::Bottom;
+    }
+
+    Workspace::Zone Workspace::otherSide(Zone side) {
+        return side == Zone::Left ? Zone::Right : Zone::Left;
+    }
+
+    RowLimit Workspace::rowLimit(Zone side) const {
+        return side == Zone::Left ? m_settings.leftRows : m_settings.rightRows;
+    }
+
+    bool Workspace::exists(Zone side) const {
+        return rowLimit(side).role() != Role::Missing;
+    }
+
+    bool Workspace::hasRoom(Zone side) const {
+        const auto limit = rowLimit(side).rows();
+        return !limit || std::cmp_less(rowsOf(side)->windows.size(), *limit);
+    }
+
+    bool Workspace::fitToRowLimits(std::vector<WindowId>& noRoom) {
+        bool moved = false;
+        for (const Zone side : {Zone::Left, Zone::Right}) {
+            const auto limit = rowLimit(side).rows();
+            auto&      rows  = *rowsOf(side);
+            if (!limit || std::cmp_less_equal(rows.windows.size(), *limit))
+                continue;
+
+            const auto           keep = static_cast<std::size_t>(std::max(0, *limit));
+            std::vector<WindowId> out(rows.windows.begin() + static_cast<std::ptrdiff_t>(keep), rows.windows.end());
+            while (rows.windows.size() > keep) {
+                rows.heights.remove(rows.windows.size() - 1);
+                rows.windows.pop_back();
+            }
+
+            // In Chain order, each after the one before, while there's room.
+            const Zone  to    = otherSide(side);
+            auto&       other = *rowsOf(to);
+            std::size_t row   = endNearestMaster(to) == End::Top ? 0 : other.windows.size();
+            for (const WindowId id : out) {
+                if (hasRoom(to))
+                    other.insert(row++, id);
+                else
+                    noRoom.push_back(id);
+            }
+            moved = true;
+        }
+        return moved;
     }
 
     Workspace::Rows* Workspace::rowsOf(Zone zone) {
@@ -63,7 +120,7 @@ namespace threecol {
     const Workspace::Rows* Workspace::rowsOf(Zone zone) const {
         switch (zone) {
             case Zone::Left: return &m_left;
-            case Zone::Stack: return &m_stack;
+            case Zone::Right: return &m_right;
             case Zone::Master: return nullptr;
         }
         return nullptr;
@@ -73,34 +130,41 @@ namespace threecol {
         return m_settings;
     }
 
-    Workspace::Zone Workspace::nextZone() const {
+    std::optional<Workspace::Zone> Workspace::nextZone() const {
         if (!m_master)
             return Zone::Master;
-        if (m_left.windows.size() < leftRowLimit())
-            return Zone::Left;
-        return Zone::Stack;
+        // Then the fill_first side up to its Row limit, then the other.
+        const auto order = m_settings.fillFirst == Side::Left ? std::array{Zone::Left, Zone::Right} : std::array{Zone::Right, Zone::Left};
+        for (const Zone side : order) {
+            if (hasRoom(side))
+                return side;
+        }
+        return std::nullopt;
     }
 
-    void Workspace::addWindow(WindowId id) {
+    bool Workspace::addWindow(WindowId id) {
         if (rectOf(id))
-            return;
+            return true;
 
-        const Zone zone = nextZone();
+        const auto zone = nextZone();
+        if (!zone)
+            return false;
         if (m_gesture && zoneOf(m_gesture->id) == zone)
             m_gesture->over = true;
 
-        if (auto* rows = rowsOf(zone)) {
-            rows->windows.push_back(id);
-            rows->heights.add();
-        } else
+        // New windows join a side zone at its bottom.
+        if (auto* rows = rowsOf(*zone))
+            rows->insert(rows->windows.size(), id);
+        else
             m_master = id;
+        return true;
     }
 
     std::vector<WindowId> Workspace::windowsInChainOrder() const {
         std::vector<WindowId> windows = m_left.windows;
         if (m_master)
             windows.push_back(*m_master);
-        windows.insert(windows.end(), m_stack.windows.begin(), m_stack.windows.end());
+        windows.insert(windows.end(), m_right.windows.begin(), m_right.windows.end());
         return windows;
     }
 
@@ -138,7 +202,7 @@ namespace threecol {
         constexpr double EPSILON = 1e-9;
 
         bool same(const Dividers& a, const Dividers& b) {
-            return std::abs(a.leftWidth - b.leftWidth) < EPSILON && std::abs(a.stackWidth - b.stackWidth) < EPSILON;
+            return std::abs(a.leftWidth - b.leftWidth) < EPSILON && std::abs(a.rightWidth - b.rightWidth) < EPSILON;
         }
 
     }
@@ -151,18 +215,25 @@ namespace threecol {
         m_dividers = dividers;
     }
 
-    Dividers Workspace::currentDividers() const {
-        if (!m_dividers)
-            return {m_settings.leftWidth, m_settings.stackWidth};
+    Dividers Workspace::savedDividers() const {
+        return m_dividers.value_or(Dividers{m_settings.leftWidth, m_settings.rightWidth});
+    }
 
+    Dividers Workspace::currentDividers() const {
         // Limits may have changed since the resize: clamp the way settings
-        // are made to fit, keeping m_dividers so a looser limit brings them back.
-        Dividers fitted{std::max(m_dividers->leftWidth, m_settings.minWidth), std::max(m_dividers->stackWidth, m_settings.minWidth)};
-        const double room = 1 - m_settings.minMasterWidth;
-        const double sum  = fitted.leftWidth + fitted.stackWidth;
-        if (sum > room + EPSILON)
-            fitted = {fitted.leftWidth * room / sum, fitted.stackWidth * room / sum};
+        // are made to fit, keeping m_dividers so a looser limit brings them
+        // back. A missing zone has no width, Master taking it.
+        const Dividers saved = savedDividers();
+        Dividers       fitted{exists(Zone::Left) ? std::max(saved.leftWidth, m_settings.minWidth) : 0,
+                        exists(Zone::Right) ? std::max(saved.rightWidth, m_settings.minWidth) : 0};
+        leaveMasterItsMinimum(fitted.leftWidth, fitted.rightWidth, m_settings.minMasterWidth);
         return fitted;
+    }
+
+    void Workspace::keepDividers(const Dividers& dividers) {
+        // A missing zone's saved width stays, so it comes back where it was.
+        const Dividers saved = savedDividers();
+        m_dividers           = Dividers{exists(Zone::Left) ? dividers.leftWidth : saved.leftWidth, exists(Zone::Right) ? dividers.rightWidth : saved.rightWidth};
     }
 
     std::optional<Workspace::Zone> Workspace::zoneOf(WindowId id) const {
@@ -170,8 +241,8 @@ namespace threecol {
             return Zone::Master;
         if (std::ranges::contains(m_left.windows, id))
             return Zone::Left;
-        if (std::ranges::contains(m_stack.windows, id))
-            return Zone::Stack;
+        if (std::ranges::contains(m_right.windows, id))
+            return Zone::Right;
         return std::nullopt;
     }
 
@@ -199,7 +270,7 @@ namespace threecol {
     MessageResult Workspace::applyLayoutMessage(std::string_view message, std::optional<WindowId> focused) {
         if (message == "reset") {
             const bool left    = m_left.heights.equalise(m_settings.minRowHeight);
-            const bool heights = m_stack.heights.equalise(m_settings.minRowHeight) || left;
+            const bool heights = m_right.heights.equalise(m_settings.minRowHeight) || left;
             return {.changed = std::exchange(m_dividers, std::nullopt).has_value() || heights};
         }
         if (message == "focusmaster")
@@ -260,7 +331,7 @@ namespace threecol {
     WindowId* Workspace::slotOf(WindowId id) {
         if (m_master == id)
             return &*m_master;
-        for (Rows* rows : {&m_left, &m_stack}) {
+        for (Rows* rows : {&m_left, &m_right}) {
             if (const auto it = std::ranges::find(rows->windows, id); it != rows->windows.end())
                 return &*it;
         }
@@ -274,7 +345,7 @@ namespace threecol {
     void Workspace::takeOut(WindowId id) {
         if (m_master == id)
             m_master.reset();
-        for (Rows* rows : {&m_left, &m_stack}) {
+        for (Rows* rows : {&m_left, &m_right}) {
             if (const auto row = std::ranges::find(rows->windows, id); row != rows->windows.end()) {
                 rows->heights.remove(row - rows->windows.begin());
                 rows->windows.erase(row);
@@ -296,8 +367,8 @@ namespace threecol {
         if (!zone)
             return false;
 
-        // Along the Chain, Left and Stack Rows run top to bottom, so right
-        // is down inside them.
+        // Along the Chain, a side zone's Rows run top to bottom, so right is
+        // down inside them.
         const bool forward = direction == Direction::Right || direction == Direction::Down;
         if (const auto other = rowNeighbour(id, forward)) {
             swapPlaces(id, *other);
@@ -306,27 +377,25 @@ namespace threecol {
         if (direction == Direction::Up || direction == Direction::Down)
             return false;
 
-        switch (*zone) {
-            case Zone::Left:
-            case Zone::Stack:
-                // Off the bottom of Left or the top of the Stack is Master;
-                // the other ways are the Chain's ends.
-                if ((*zone == Zone::Left) != forward)
-                    return false;
-                toMaster(id);
-                return true;
-            case Zone::Master:
-                if (forward) {
-                    takeOut(id);
-                    m_stack.windows.insert(m_stack.windows.begin(), id);
-                    m_stack.heights.insert(0);
-                } else if (m_left.windows.size() < leftRowLimit())
-                    joinBottom(m_left, id);
-                else
-                    swapPlaces(id, m_left.windows.back());
-                return true;
+        if (*zone != Zone::Master) {
+            // Off the end nearest Master is Master; the other ways are the
+            // Chain's ends.
+            if (masterIsForwardOf(*zone) != forward)
+                return false;
+            toMaster(id);
+            return true;
         }
-        return false;
+
+        const Zone side = forward ? Zone::Right : Zone::Left;
+        if (hasRoom(side)) {
+            joinNearMaster(side, id);
+            return true;
+        }
+        const auto& windows = rowsOf(side)->windows;
+        if (windows.empty())
+            return false;
+        swapPlaces(id, endNearestMaster(side) == End::Top ? windows.front() : windows.back());
+        return true;
     }
 
     std::optional<WindowId> Workspace::rowNeighbour(WindowId id, bool down) const {
@@ -354,28 +423,40 @@ namespace threecol {
         const double minMaster = m_settings.minMasterWidth;
 
         Dividers     dividers  = currentDividers();
-        auto& [left, stack]    = dividers;
+        auto& [left, right]    = dividers;
         switch (zone) {
-            case Zone::Left: left = moved(left, by, minWidth, 1 - stack - minMaster); break;
-            case Zone::Stack: stack = moved(stack, by, minWidth, 1 - left - minMaster); break;
-            // Each Divider moves half the step, so Master stays centred.
-            case Zone::Master:
+            case Zone::Left: left = moved(left, by, minWidth, 1 - right - minMaster); break;
+            case Zone::Right: right = moved(right, by, minWidth, 1 - left - minMaster); break;
+            // Each Divider moves an equal share of the step, so Master stays
+            // centred: half each, or all of it for the only one. A missing
+            // zone has no Divider; with neither, nothing moves.
+            case Zone::Master: {
+                const bool hasLeft  = exists(Zone::Left);
+                const bool hasRight = exists(Zone::Right);
+                const int  count    = int{hasLeft} + int{hasRight};
+                if (count == 0)
+                    return false;
                 if (by > 0) {
                     // A side at min_width stays; the free side still moves.
-                    left  = moved(left, -by / 2, minWidth, left);
-                    stack = moved(stack, -by / 2, minWidth, stack);
+                    if (hasLeft)
+                        left = moved(left, -by / count, minWidth, left);
+                    if (hasRight)
+                        right = moved(right, -by / count, minWidth, right);
                 } else {
                     // Narrowing stops when Master reaches min_master_width.
-                    const double room = std::max(0.0, 1 - left - stack - minMaster);
-                    const double half = std::min(-by, room) / 2;
-                    left += half;
-                    stack += half;
+                    const double room  = std::max(0.0, 1 - left - right - minMaster);
+                    const double share = std::min(-by, room) / count;
+                    if (hasLeft)
+                        left += share;
+                    if (hasRight)
+                        right += share;
                 }
                 break;
+            }
         }
         if (same(dividers, currentDividers()))
             return false;
-        m_dividers = dividers;
+        keepDividers(dividers);
         return true;
     }
 
@@ -405,15 +486,21 @@ namespace threecol {
 
     }
 
-    Workspace::Divider Workspace::dividerFor(Zone zone, Corner corner) {
+    std::optional<Workspace::Divider> Workspace::dividerFor(Zone zone, Corner corner) const {
         switch (zone) {
             case Zone::Left: return Divider::LeftMaster;
-            case Zone::Stack: return Divider::MasterStack;
-            // The grabbed half is the side of the nearer Divider. With no
-            // corner, the right one, as Hyprland grows a window to the right.
-            case Zone::Master: return isLeft(corner) ? Divider::LeftMaster : Divider::MasterStack;
+            case Zone::Right: return Divider::MasterRight;
+            case Zone::Master:
+                // A missing zone has no Divider: Master moves the other one.
+                if (!exists(Zone::Left))
+                    return exists(Zone::Right) ? std::optional{Divider::MasterRight} : std::nullopt;
+                if (!exists(Zone::Right))
+                    return Divider::LeftMaster;
+                // The grabbed half is the side of the nearer Divider. With no
+                // corner, the right one, as Hyprland grows a window to the right.
+                return isLeft(corner) ? Divider::LeftMaster : Divider::MasterRight;
         }
-        return Divider::MasterStack;
+        return std::nullopt;
     }
 
     std::optional<Workspace::Edge> Workspace::edgeFor(WindowId id, Corner corner) const {
@@ -433,14 +520,16 @@ namespace threecol {
         return rows && rows->heights.set(std::move(heights), m_settings.minRowHeight);
     }
 
-    Dividers Workspace::moveDivider(Divider divider, Dividers from, double px) const {
-        auto& [left, stack]   = from;
+    Dividers Workspace::moveDivider(std::optional<Divider> divider, Dividers from, double px) const {
+        if (!divider)
+            return from;
+        auto& [left, right]   = from;
         const double by       = px / m_area.w;
         const double minWidth = m_settings.minWidth;
         const double room     = 1 - m_settings.minMasterWidth;
-        switch (divider) {
-            case Divider::LeftMaster: left = within(left + by, minWidth, room - stack); break;
-            case Divider::MasterStack: stack = within(stack - by, minWidth, room - left); break;
+        switch (*divider) {
+            case Divider::LeftMaster: left = within(left + by, minWidth, room - right); break;
+            case Divider::MasterRight: right = within(right - by, minWidth, room - left); break;
         }
         return from;
     }
@@ -481,7 +570,7 @@ namespace threecol {
     bool Workspace::setResized(const Dividers& dividers) {
         if (same(dividers, currentDividers()))
             return false;
-        m_dividers = dividers;
+        keepDividers(dividers);
         return true;
     }
 
@@ -499,13 +588,13 @@ namespace threecol {
 
     Rect Workspace::masterZone() const {
         const double leftW  = m_area.w * currentDividers().leftWidth;
-        const double stackW = m_area.w * currentDividers().stackWidth;
-        return {m_area.x + leftW, m_area.y, m_area.w - leftW - stackW, m_area.h};
+        const double rightW = m_area.w * currentDividers().rightWidth;
+        return {m_area.x + leftW, m_area.y, m_area.w - leftW - rightW, m_area.h};
     }
 
-    Rect Workspace::stackZone() const {
-        const double stackW = m_area.w * currentDividers().stackWidth;
-        return {m_area.x + m_area.w - stackW, m_area.y, stackW, m_area.h};
+    Rect Workspace::rightZone() const {
+        const double rightW = m_area.w * currentDividers().rightWidth;
+        return {m_area.x + m_area.w - rightW, m_area.y, rightW, m_area.h};
     }
 
     namespace {
@@ -524,7 +613,7 @@ namespace threecol {
         switch (zone) {
             case Zone::Left: return leftZone();
             case Zone::Master: return masterZone();
-            case Zone::Stack: return stackZone();
+            case Zone::Right: return rightZone();
         }
         return {};
     }
@@ -533,14 +622,16 @@ namespace threecol {
         return rowOf(zoneRect(zone), rowsOf(zone)->heights.fitted(m_settings.minRowHeight), row);
     }
 
-    Rect Workspace::nextWindowRect() const {
-        const Zone  zone = nextZone();
-        const auto* rows = rowsOf(zone);
+    std::optional<Rect> Workspace::nextWindowRect() const {
+        const auto zone = nextZone();
+        if (!zone)
+            return std::nullopt;
+        const auto* rows = rowsOf(*zone);
         if (!rows)
             return masterZone();
         RowHeights next = rows->heights;
         next.add();
-        return rowOf(zoneRect(zone), next.fitted(m_settings.minRowHeight), rows->windows.size());
+        return rowOf(zoneRect(*zone), next.fitted(m_settings.minRowHeight), rows->windows.size());
     }
 
     namespace {
@@ -559,9 +650,9 @@ namespace threecol {
             return std::nullopt;
         if (x < masterZone().x)
             return Zone::Left;
-        if (x < stackZone().x)
+        if (x < rightZone().x)
             return Zone::Master;
-        return Zone::Stack;
+        return Zone::Right;
     }
 
     std::size_t Workspace::rowAt(Zone zone, double y) const {
@@ -617,7 +708,7 @@ namespace threecol {
                 std::rotate(from, std::next(from), windows.end());
                 return true;
             }
-            if (*zone == Zone::Stack || windows.size() < leftRowLimit()) {
+            if (hasRoom(*zone)) {
                 joinBottom(*rows, id);
                 return true;
             }
@@ -628,8 +719,13 @@ namespace threecol {
 
     void Workspace::joinBottom(Rows& rows, WindowId id) {
         takeOut(id);
-        rows.windows.push_back(id);
-        rows.heights.add();
+        rows.insert(rows.windows.size(), id);
+    }
+
+    void Workspace::joinNearMaster(Zone side, WindowId id) {
+        takeOut(id);
+        auto& rows = *rowsOf(side);
+        rows.insert(endNearestMaster(side) == End::Top ? 0 : rows.windows.size(), id);
     }
 
 }

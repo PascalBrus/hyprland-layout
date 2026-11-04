@@ -5,11 +5,15 @@
 
 #include <algorithm>
 #include <iterator>
+#include <tuple>
 
 using threecol::LayoutOpts;
 using threecol::Rect;
+using threecol::Role;
+using threecol::RowLimit;
 using threecol::Settings;
 using threecol::SettingsReport;
+using threecol::Side;
 using threecol::WindowId;
 using threecol::Workspace;
 
@@ -31,7 +35,7 @@ namespace {
 TEST(Settings, GlobalWidthsSetTheZonesAndMasterGetsTheRest) {
     Workspace ws = filled();
 
-    const auto warnings = ws.setSettings(Settings{.leftWidth = 0.2, .stackWidth = 0.3});
+    const auto warnings = ws.setSettings(Settings{.leftWidth = 0.2, .rightWidth = 0.3}).warnings;
 
     EXPECT_TRUE(warnings.empty());
     EXPECT_EQ(ws.rectOf(2), (Rect{0, 0, 1024, 1440}));
@@ -42,7 +46,7 @@ TEST(Settings, GlobalWidthsSetTheZonesAndMasterGetsTheRest) {
 TEST(Settings, LayoutOptsWidthsWinOverTheGlobalWidths) {
     Workspace ws = filled();
 
-    const auto warnings = ws.setSettings(Settings{}, LayoutOpts{{"left_width", "0.2"}, {"stack_width", "0.300000"}}, "3");
+    const auto warnings = ws.setSettings(Settings{}, LayoutOpts{{"left_width", "0.2"}, {"right_width", "0.300000"}}, "3").warnings;
 
     EXPECT_TRUE(warnings.empty());
     EXPECT_EQ(ws.rectOf(2), (Rect{0, 0, 1024, 1440}));
@@ -58,9 +62,19 @@ TEST(Settings, LayoutOptsLeftRowsWinsOverTheGlobalRowLimit) {
     EXPECT_EQ(ws.settings().leftRows, 3);
 }
 
+TEST(Settings, LayoutOptsRightRowsWinsOverTheGlobalRowLimit) {
+    Workspace ws{AREA};
+
+    const auto warnings = ws.setSettings(Settings{}, LayoutOpts{{"right_rows", "2"}, {"left_rows", "unlimited"}}, "3").warnings;
+
+    EXPECT_TRUE(warnings.empty());
+    EXPECT_EQ(ws.settings().rightRows, 2);
+    EXPECT_EQ(ws.settings().leftRows, RowLimit::unlimited());
+}
+
 TEST(Settings, AWorkspaceWithoutLayoutOptsUsesTheGlobalValues) {
     Workspace ws{AREA};
-    const Settings global{.leftWidth = 0.3, .stackWidth = 0.2, .leftRows = 2};
+    const Settings global{.leftWidth = 0.3, .rightWidth = 0.2, .leftRows = 2};
 
     ws.setSettings(global);
 
@@ -70,7 +84,7 @@ TEST(Settings, AWorkspaceWithoutLayoutOptsUsesTheGlobalValues) {
 TEST(Settings, AnUnknownLayoutOptsKeyIsIgnoredWithAWarning) {
     Workspace ws{AREA};
 
-    const auto warnings = ws.setSettings(Settings{}, LayoutOpts{{"master_width", "0.5"}}, "3");
+    const auto warnings = ws.setSettings(Settings{}, LayoutOpts{{"master_width", "0.5"}}, "3").warnings;
 
     EXPECT_EQ(ws.settings(), Settings{});
     ASSERT_EQ(warnings.size(), 1u);
@@ -82,7 +96,7 @@ TEST(Settings, ANonNumericLayoutOptsValueIsIgnoredAndTheGlobalValueUsed) {
     for (const char* bad : {"wide", "", "0.3x", "nan", "inf", "true"}) {
         Workspace ws{AREA};
 
-        const auto warnings = ws.setSettings(Settings{.leftWidth = 0.3}, LayoutOpts{{"left_width", bad}}, "3");
+        const auto warnings = ws.setSettings(Settings{.leftWidth = 0.3}, LayoutOpts{{"left_width", bad}}, "3").warnings;
 
         EXPECT_DOUBLE_EQ(ws.settings().leftWidth, 0.3) << "value: '" << bad << "'";
         ASSERT_EQ(warnings.size(), 1u) << "value: '" << bad << "'";
@@ -94,21 +108,141 @@ TEST(Settings, AnOutOfRangeLayoutOptsWidthIsIgnoredAndTheGlobalValueUsed) {
     for (const char* bad : {"-0.1", "1.5"}) {
         Workspace ws{AREA};
 
-        const auto warnings = ws.setSettings(Settings{.stackWidth = 0.3}, LayoutOpts{{"stack_width", bad}}, "3");
+        const auto warnings = ws.setSettings(Settings{.rightWidth = 0.3}, LayoutOpts{{"right_width", bad}}, "3").warnings;
 
-        EXPECT_DOUBLE_EQ(ws.settings().stackWidth, 0.3) << "value: " << bad;
+        EXPECT_DOUBLE_EQ(ws.settings().rightWidth, 0.3) << "value: " << bad;
         EXPECT_EQ(warnings.size(), 1u) << "value: " << bad;
     }
 }
 
-TEST(Settings, ALeftRowsThatIsNotAWholeNumberOfAtLeastOneIsIgnored) {
-    for (const char* bad : {"0", "-2", "1.5", "two"}) {
+TEST(Settings, ALeftRowsThatIsNotAWholeNumberIsIgnored) {
+    for (const char* bad : {"-2", "1.5", "two"}) {
         Workspace ws{AREA};
 
-        const auto warnings = ws.setSettings(Settings{.leftRows = 2}, LayoutOpts{{"left_rows", bad}}, "3");
+        const auto warnings = ws.setSettings(Settings{.leftRows = 2}, LayoutOpts{{"left_rows", bad}}, "3").warnings;
 
         EXPECT_EQ(ws.settings().leftRows, 2) << "value: " << bad;
         EXPECT_EQ(warnings.size(), 1u) << "value: " << bad;
+    }
+}
+
+TEST(Settings, ARightRowsThatIsNotAWholeNumberOrUnlimitedIsIgnored) {
+    for (const char* bad : {"-2", "1.5", "infinite", "Unlimited"}) {
+        Workspace ws{AREA};
+
+        const auto warnings = ws.setSettings(Settings{}, LayoutOpts{{"right_rows", bad}}, "3").warnings;
+
+        EXPECT_EQ(ws.settings().rightRows, RowLimit::unlimited()) << "value: " << bad;
+        ASSERT_EQ(warnings.size(), 1u) << "value: " << bad;
+        EXPECT_NE(warnings[0].find("right_rows"), std::string::npos) << warnings[0];
+    }
+}
+
+TEST(Settings, LayoutOptsFillFirstWinsOverTheGlobalFillFirst) {
+    for (const auto [text, side, global] : {std::tuple{"right", Side::Right, Side::Left}, std::tuple{"left", Side::Left, Side::Right}}) {
+        Workspace ws{AREA};
+
+        const auto warnings = ws.setSettings(Settings{.fillFirst = global}, LayoutOpts{{"fill_first", text}}, "3").warnings;
+
+        EXPECT_TRUE(warnings.empty()) << "value: " << text;
+        EXPECT_EQ(ws.settings().fillFirst, side) << "value: " << text;
+    }
+}
+
+TEST(Settings, AFillFirstThatIsNotLeftOrRightIsIgnored) {
+    for (const char* bad : {"", "Right", "master", "0", "1"}) {
+        Workspace ws{AREA};
+
+        const auto warnings = ws.setSettings(Settings{.fillFirst = Side::Right}, LayoutOpts{{"fill_first", bad}}, "3").warnings;
+
+        EXPECT_EQ(ws.settings().fillFirst, Side::Right) << "value: " << bad;
+        ASSERT_EQ(warnings.size(), 1u) << "value: " << bad;
+        EXPECT_NE(warnings[0].find("fill_first"), std::string::npos) << warnings[0];
+        EXPECT_NE(warnings[0].find("workspace 3"), std::string::npos) << warnings[0];
+        EXPECT_NE(warnings[0].find("using right"), std::string::npos) << warnings[0];
+    }
+}
+
+TEST(Settings, FillFirstDefaultsToLeft) {
+    EXPECT_EQ(Settings{}.fillFirst, Side::Left);
+}
+
+TEST(Settings, BothSidesMayBeBounded) {
+    Workspace ws{AREA};
+
+    const auto warnings = ws.setSettings(Settings{.leftRows = 2, .rightRows = 3}).warnings;
+
+    EXPECT_TRUE(warnings.empty());
+    EXPECT_EQ(ws.settings().leftRows, 2);
+    EXPECT_EQ(ws.settings().rightRows, 3);
+}
+
+TEST(Settings, LayoutOptsMayBoundBothSides) {
+    Workspace ws{AREA};
+
+    const auto warnings = ws.setSettings(Settings{}, LayoutOpts{{"right_rows", "2"}}, "3").warnings;
+
+    EXPECT_TRUE(warnings.empty());
+    EXPECT_EQ(ws.settings().leftRows, 1);
+    EXPECT_EQ(ws.settings().rightRows, 2);
+}
+
+TEST(Settings, BothSidesMayBeStacks) {
+    Workspace ws{AREA};
+
+    const auto warnings = ws.setSettings(Settings{.leftRows = RowLimit::unlimited()}).warnings;
+
+    EXPECT_TRUE(warnings.empty());
+    EXPECT_EQ(ws.settings().leftRows, RowLimit::unlimited());
+    EXPECT_EQ(ws.settings().rightRows, RowLimit::unlimited());
+}
+
+TEST(Settings, ARowLimitOfZeroInLayoutOptsMakesAMissingZone) {
+    for (const char* key : {"left_rows", "right_rows"}) {
+        Workspace ws{AREA};
+
+        const auto warnings = ws.setSettings(Settings{}, LayoutOpts{{key, "0"}}, "3").warnings;
+
+        const auto& limit = std::string{key} == "left_rows" ? ws.settings().leftRows : ws.settings().rightRows;
+        EXPECT_EQ(limit, 0) << key;
+        EXPECT_EQ(limit.role(), Role::Missing) << key;
+        EXPECT_TRUE(warnings.empty()) << key;
+    }
+}
+
+TEST(Settings, AMissingZonesWidthIsNotRaisedToMinWidthNorWarnedAbout) {
+    Workspace ws{AREA};
+
+    const auto warnings = ws.setSettings(Settings{.leftWidth = 0.05, .minWidth = 0.1, .leftRows = 0}).warnings;
+
+    EXPECT_TRUE(warnings.empty());
+}
+
+TEST(Settings, AMissingZonesWidthIsNotCountedAgainstMastersMinimum) {
+    Workspace ws{AREA};
+    ws.addWindow(1);
+    ws.addWindow(2); // Right
+
+    // 0.7 + 0.25 would leave Master less than 0.2, but Left is missing.
+    const auto warnings = ws.setSettings(Settings{.leftWidth = 0.7, .leftRows = 0}).warnings;
+
+    EXPECT_TRUE(warnings.empty());
+    EXPECT_EQ(ws.rectOf(2), (Rect{3840, 0, 1280, 1440}));
+}
+
+TEST(Settings, AMasterMinimumWarningLeavesAMissingZoneOut) {
+    for (const auto& [missing, present, opts] : {std::tuple{"left_width", "right_width", Settings{.rightWidth = 0.9, .leftRows = 0}},
+                                                 std::tuple{"right_width", "left_width", Settings{.leftWidth = 0.9, .rightRows = 0}}}) {
+        Workspace ws{AREA};
+
+        // The missing zone's width comes from layout_opts; the problem doesn't.
+        const auto warnings = ws.setSettings(opts, LayoutOpts{{missing, "0.3"}}, "3").warnings;
+
+        ASSERT_EQ(warnings.size(), 1u) << missing;
+        EXPECT_NE(warnings[0].find(present), std::string::npos) << warnings[0];
+        EXPECT_NE(warnings[0].find("min_master_width"), std::string::npos) << warnings[0];
+        EXPECT_EQ(warnings[0].find(missing), std::string::npos) << warnings[0];
+        EXPECT_EQ(warnings[0].find("workspace 3"), std::string::npos) << warnings[0];
     }
 }
 
@@ -116,7 +250,7 @@ TEST(Settings, AWholeNumberLeftRowsWrittenAsAFloatIsAccepted) {
     Workspace ws{AREA};
 
     // Hyprland turns a Lua float 2.0 into "2.000000".
-    const auto warnings = ws.setSettings(Settings{}, LayoutOpts{{"left_rows", "2.000000"}}, "3");
+    const auto warnings = ws.setSettings(Settings{}, LayoutOpts{{"left_rows", "2.000000"}}, "3").warnings;
 
     EXPECT_EQ(ws.settings().leftRows, 2);
     EXPECT_TRUE(warnings.empty());
@@ -125,17 +259,17 @@ TEST(Settings, AWholeNumberLeftRowsWrittenAsAFloatIsAccepted) {
 TEST(Settings, ABadLayoutOptsKeyLeavesTheGoodOnesInPlace) {
     Workspace ws{AREA};
 
-    const auto warnings = ws.setSettings(Settings{}, LayoutOpts{{"left_width", "oops"}, {"stack_width", "0.3"}}, "3");
+    const auto warnings = ws.setSettings(Settings{}, LayoutOpts{{"left_width", "oops"}, {"right_width", "0.3"}}, "3").warnings;
 
     EXPECT_DOUBLE_EQ(ws.settings().leftWidth, 0.25);
-    EXPECT_DOUBLE_EQ(ws.settings().stackWidth, 0.3);
+    EXPECT_DOUBLE_EQ(ws.settings().rightWidth, 0.3);
     EXPECT_EQ(warnings.size(), 1u);
 }
 
 TEST(Settings, WidthsThatSqueezeMasterBelowItsMinimumShrinkLeftAndStackInProportion) {
     Workspace ws = filled();
 
-    const auto warnings = ws.setSettings(Settings{.leftWidth = 0.6, .stackWidth = 0.3, .minMasterWidth = 0.2});
+    const auto warnings = ws.setSettings(Settings{.leftWidth = 0.6, .rightWidth = 0.3, .minMasterWidth = 0.2}).warnings;
 
     // Master keeps 0.2; Left and Stack share 0.8 at their 2:1 ratio.
     EXPECT_NEAR(ws.rectOf(1)->w, 1024, 1e-6);
@@ -147,7 +281,7 @@ TEST(Settings, WidthsThatSqueezeMasterBelowItsMinimumShrinkLeftAndStackInProport
 TEST(Settings, AWidthBelowMinWidthIsRaisedToMinWidth) {
     Workspace ws = filled();
 
-    const auto warnings = ws.setSettings(Settings{.leftWidth = 0.05, .minWidth = 0.1});
+    const auto warnings = ws.setSettings(Settings{.leftWidth = 0.05, .minWidth = 0.1}).warnings;
 
     EXPECT_EQ(ws.rectOf(2), (Rect{0, 0, 512, 1440}));
     EXPECT_EQ(ws.rectOf(1), (Rect{512, 0, 3328, 1440}));
@@ -158,7 +292,7 @@ TEST(Settings, ImpossibleLimitsStillLeaveMasterItsMinimum) {
     Workspace ws = filled();
 
     // Two Left/Stack minimums of 0.45 and a Master minimum of 0.2 add up to 1.1.
-    const auto warnings = ws.setSettings(Settings{.minWidth = 0.45, .minMasterWidth = 0.2});
+    const auto warnings = ws.setSettings(Settings{.minWidth = 0.45, .minMasterWidth = 0.2}).warnings;
 
     EXPECT_EQ(ws.rectOf(2), (Rect{0, 0, 2048, 1440}));
     EXPECT_EQ(ws.rectOf(1), (Rect{2048, 0, 1024, 1440}));
@@ -169,7 +303,7 @@ TEST(Settings, ImpossibleLimitsStillLeaveMasterItsMinimum) {
 TEST(Settings, LayoutOptsWidthsAreMadeToFitTooAndTheWarningNamesTheWorkspace) {
     Workspace ws = filled();
 
-    const auto warnings = ws.setSettings(Settings{}, LayoutOpts{{"left_width", "0.5"}, {"stack_width", "0.5"}}, "web");
+    const auto warnings = ws.setSettings(Settings{}, LayoutOpts{{"left_width", "0.5"}, {"right_width", "0.5"}}, "web").warnings;
 
     EXPECT_EQ(ws.rectOf(2), (Rect{0, 0, 2048, 1440}));
     EXPECT_EQ(ws.rectOf(1), (Rect{2048, 0, 1024, 1440}));
@@ -179,25 +313,25 @@ TEST(Settings, LayoutOptsWidthsAreMadeToFitTooAndTheWarningNamesTheWorkspace) {
 }
 
 TEST(Settings, AGlobalWidthMadeToFitGivesTheSameWarningOnEveryWorkspace) {
-    const Settings global{.leftWidth = 0.5, .stackWidth = 0.5};
+    const Settings global{.leftWidth = 0.5, .rightWidth = 0.5};
     Workspace      a{AREA};
     Workspace      b{AREA};
 
-    const auto     warningsA = a.setSettings(global, {}, "1");
-    const auto     warningsB = b.setSettings(global, {}, "2");
+    const auto     warningsA = a.setSettings(global, {}, "1").warnings;
+    const auto     warningsB = b.setSettings(global, {}, "2").warnings;
 
     ASSERT_EQ(warningsA.size(), 1u);
     EXPECT_EQ(warningsA, warningsB);
 }
 
 TEST(SettingsReport, OneConfigLoadGivesOneNoticeListingEachProblemOnce) {
-    const Settings global{.leftWidth = 0.5, .stackWidth = 0.5};
+    const Settings global{.leftWidth = 0.5, .rightWidth = 0.5};
     Workspace      a{AREA};
     Workspace      b{AREA};
     SettingsReport report;
 
-    std::vector<std::string> warnings = a.setSettings(global, LayoutOpts{{"typo", "1"}}, "1");
-    std::ranges::copy(b.setSettings(global, {}, "2"), std::back_inserter(warnings));
+    std::vector<std::string> warnings = a.setSettings(global, LayoutOpts{{"typo", "1"}}, "1").warnings;
+    std::ranges::copy(b.setSettings(global, {}, "2").warnings, std::back_inserter(warnings));
 
     report.configLoaded();
     const auto notice = report.notice(warnings);
@@ -215,13 +349,13 @@ TEST(SettingsReport, NoProblemsGiveNoNotice) {
 
     report.configLoaded();
 
-    EXPECT_FALSE(report.notice(ws.setSettings(Settings{}, LayoutOpts{{"left_width", "0.3"}}, "1")));
+    EXPECT_FALSE(report.notice(ws.setSettings(Settings{}, LayoutOpts{{"left_width", "0.3"}}, "1").warnings));
 }
 
 TEST(SettingsReport, ProblemsAlreadyShownForThisConfigLoadAreNotShownAgain) {
     Workspace      ws{AREA};
     SettingsReport report;
-    const auto     warnings = ws.setSettings(Settings{}, LayoutOpts{{"typo", "1"}}, "1");
+    const auto     warnings = ws.setSettings(Settings{}, LayoutOpts{{"typo", "1"}}, "1").warnings;
 
     report.configLoaded();
     ASSERT_TRUE(report.notice(warnings));
@@ -235,11 +369,11 @@ TEST(SettingsReport, AWorkspaceCreatedLaterWithANewProblemGivesANotice) {
     Workspace      first{AREA};
     Workspace      later{AREA};
     SettingsReport report;
-    auto           warnings = first.setSettings(Settings{}, LayoutOpts{{"typo", "1"}}, "1");
+    auto           warnings = first.setSettings(Settings{}, LayoutOpts{{"typo", "1"}}, "1").warnings;
 
     report.configLoaded();
     report.notice(warnings);
-    std::ranges::copy(later.setSettings(Settings{}, LayoutOpts{{"left_rows", "0"}}, "2"), std::back_inserter(warnings));
+    std::ranges::copy(later.setSettings(Settings{}, LayoutOpts{{"left_rows", "-1"}}, "2").warnings, std::back_inserter(warnings));
     const auto notice = report.notice(warnings);
 
     ASSERT_TRUE(notice);
@@ -249,7 +383,7 @@ TEST(SettingsReport, AWorkspaceCreatedLaterWithANewProblemGivesANotice) {
 TEST(SettingsReport, EveryConfigLoadShowsItsProblemsAgain) {
     Workspace      ws{AREA};
     SettingsReport report;
-    const auto     warnings = ws.setSettings(Settings{}, LayoutOpts{{"typo", "1"}}, "1");
+    const auto     warnings = ws.setSettings(Settings{}, LayoutOpts{{"typo", "1"}}, "1").warnings;
 
     report.configLoaded();
     report.notice(warnings);
@@ -259,13 +393,43 @@ TEST(SettingsReport, EveryConfigLoadShowsItsProblemsAgain) {
 }
 
 TEST(Settings, AGlobalProblemIsNotPinnedOnAWorkspaceThatOverridesAnotherWidth) {
-    const Settings global{.stackWidth = 0.05, .minWidth = 0.1};
+    const Settings global{.rightWidth = 0.05, .minWidth = 0.1};
     Workspace      plain{AREA};
     Workspace      overriding{AREA};
 
-    const auto     warningsPlain      = plain.setSettings(global, {}, "1");
-    const auto     warningsOverriding = overriding.setSettings(global, LayoutOpts{{"left_width", "0.3"}}, "web");
+    const auto     warningsPlain      = plain.setSettings(global, {}, "1").warnings;
+    const auto     warningsOverriding = overriding.setSettings(global, LayoutOpts{{"left_width", "0.3"}}, "web").warnings;
 
-    // Only the global stack_width is too small; both workspaces report it alike.
+    // Only the global right_width is too small; both workspaces report it alike.
     EXPECT_EQ(warningsPlain, warningsOverriding);
+}
+
+TEST(Settings, StackWidthIsNowAnUnknownLayoutOptsKey) {
+    Workspace ws{AREA};
+
+    const auto warnings = ws.setSettings(Settings{}, LayoutOpts{{"stack_width", "0.3"}}, "3").warnings;
+
+    EXPECT_EQ(ws.settings(), Settings{});
+    ASSERT_EQ(warnings.size(), 1u);
+    EXPECT_NE(warnings[0].find("unknown layout_opts key \"stack_width\""), std::string::npos) << warnings[0];
+}
+
+TEST(Settings, ByDefaultLeftIsBoundedToOneRowAndRightIsAStack) {
+    const Settings defaults;
+
+    EXPECT_EQ(defaults.leftRows, RowLimit{1});
+    EXPECT_EQ(defaults.leftRows.role(), Role::Bounded);
+    EXPECT_EQ(defaults.rightRows, RowLimit::unlimited());
+    EXPECT_EQ(defaults.rightRows.role(), Role::Stack);
+}
+
+TEST(Settings, AnUnlimitedRowLimitIsNoCount) {
+    const auto unlimited = RowLimit::unlimited();
+
+    EXPECT_EQ(unlimited.rows(), std::nullopt);
+    EXPECT_NE(unlimited, RowLimit{0});
+    EXPECT_NE(unlimited, RowLimit{-1});
+    EXPECT_EQ(RowLimit{0}.role(), Role::Missing);
+    EXPECT_EQ(RowLimit{3}.rows(), 3);
+    EXPECT_EQ(RowLimit{3}.role(), Role::Bounded);
 }

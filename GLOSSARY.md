@@ -1,45 +1,57 @@
 # threecol
 
-A custom Hyprland tiling layout that splits a workspace into three side-by-side zones, built for an ultrawide monitor.
+A custom Hyprland tiling layout that splits a workspace into up to three side-by-side zones, built for an ultrawide monitor.
 
 ## Language
 
 **Zone**:
-One of the three fixed areas of a workspace: Left, Master and Stack, from left to right.
+One of the fixed areas of a workspace: Left, Master and Right, from left to right. Left and Right are the side zones; either can be missing.
 _Avoid_: column, area, region
 
 **Master zone**:
-The middle zone, half the screen wide by default, holding exactly one window. The first window on a workspace lands here.
+The middle zone, holding exactly one window. The first window on a workspace lands here. It is half the screen wide by default and also takes the width of a missing side zone.
 _Avoid_: middle column, main, center
 
 **Left zone**:
-The zone on the left, a quarter of the screen by default, holding up to the Row limit of windows stacked top to bottom (one by default). Closing a window here closes the gap; the others share the height, as in the Stack zone.
+The side zone on the left, a quarter of the screen by default. Bounded, the Stack or missing.
 _Avoid_: left column, side
 
-**Stack zone**:
-The zone on the right, a quarter of the screen by default, holding all other windows stacked top to bottom. Closing a window here closes the gap; the others share the height.
-_Avoid_: right column, right stack, slave area
+**Right zone**:
+The side zone on the right, a quarter of the screen by default. Bounded, the Stack or missing.
+_Avoid_: right column, stack zone, slave area
+
+**Stack**:
+The role of a side zone with no Row limit: it holds any number of windows stacked top to bottom, and closing one closes the gap. Either side zone, both or neither may be a Stack.
+_Avoid_: stack zone, infinite zone, overflow zone
+
+**Bounded zone**:
+A side zone with a Row limit. Closing a window here closes the gap, and the others share the height. When its last window closes it leaves a Hole.
+_Avoid_: limited zone, fixed zone
+
+**Missing zone**:
+A side zone with a Row limit of zero. It has no width, no Divider and no place in the Chain.
+_Avoid_: disabled zone, hidden zone, empty zone
 
 **Hole**:
-An empty Master zone, or a Left zone whose last window closed. Other windows never slide into a hole; the next new window fills it.
+An empty Master zone, or a Bounded zone whose last window closed. Other windows never slide into a hole; the next new window fills it.
 _Avoid_: gap, empty slot
 
 **Fill order**:
-The order in which new windows take zones: Master, then the bottom of Left until it reaches its Row limit, then the bottom of the Stack.
+The order in which new windows take zones: Master, then the first side zone up to its Row limit, then the other side zone up to its own. Which side comes first is a setting. A missing zone is skipped. A window that finds no room floats.
 _Avoid_: opening order, spawn order
 
 **Divider**:
-One of the two vertical boundaries between zones on a workspace: Left|Master and Master|Stack. Resizing any zone means moving one or both dividers; each workspace keeps its own.
+A vertical boundary between Master and a side zone that isn't missing: Left|Master and Master|Right. Resizing any zone means moving one or both dividers; each workspace keeps its own.
 _Avoid_: edge, border, split
 
 **Chain**:
-The order H/L focus and moves walk through a workspace's windows: Left top to bottom, then Master, then Stack top to bottom. It has two ends and doesn't wrap; empty zones count as one step.
+The order H/L focus and moves walk through a workspace's windows: Left top to bottom, then Master, then Right top to bottom, as they sit on screen. It has two ends and doesn't wrap; an empty zone counts as one step, and a missing zone isn't in it.
 _Avoid_: cycle, focus order, walk
 
 **Row**:
-One window's slot in the Left or Stack zone, counted from the top. A height belongs to the Row, not the window: a window moved into a Row takes that Row's height.
+One window's slot in a side zone, counted from the top. A height belongs to the Row, not the window: a window moved into a Row takes that Row's height.
 _Avoid_: stack position, slot, cell
 
 **Row limit**:
-The most Rows the Left zone may hold, one by default. Lowering it moves the extra Left windows to the top of the Stack; raising it moves nothing.
+The most Rows a side zone may hold: a whole number, zero for a missing zone, or none for the Stack. Lowering it pushes the zone's bottom windows out: into a Stack on the other side, else into the other side's free Rows, else they float. They join that side at its end nearest Master.
 _Avoid_: cap, max rows, left count

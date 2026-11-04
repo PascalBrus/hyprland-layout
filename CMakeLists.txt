@@ -53,7 +53,7 @@ if(THREECOL_TESTS)
         tests/core/DividerStoreTest.cpp
         tests/core/MouseResizeTest.cpp
         tests/core/RowHeightsTest.cpp
-        tests/core/LeftRowsTest.cpp
+        tests/core/RowLimitTest.cpp
         tests/core/ChainTest.cpp
         tests/core/DragDropTest.cpp
         tests/core/DropIndicatorTest.cpp)

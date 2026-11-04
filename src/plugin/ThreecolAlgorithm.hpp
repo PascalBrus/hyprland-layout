@@ -4,6 +4,7 @@
 #include "plugin/DropIndicator.hpp"
 
 #include <hyprland/src/layout/algorithm/TiledAlgorithm.hpp>
+#include <hyprland/src/managers/eventLoop/EventLoopManager.hpp>
 
 #include <string>
 #include <utility>
@@ -82,7 +83,7 @@ namespace threecol {
 
         // Hands the model the current area, settings and the Dividers kept
         // for this workspace. Returns whether that moved any tile, e.g. a
-        // lower Row limit moving Left windows to the Stack.
+        // lower Row limit pushing windows out of a side zone.
         bool                                               refreshModel();
 
         // Every tile's rectangle in the model, in m_targets order.
@@ -107,8 +108,21 @@ namespace threecol {
         PHLWORKSPACEREF                                    m_dragWorkspace;
 
         // Hands the model the global settings and this workspace's
-        // layout_opts. Returns what was ignored or adjusted.
+        // layout_opts, floating the windows pushed out with no room.
+        // Returns what was ignored or adjusted.
         std::vector<std::string>                           applySettings();
+
+        // Floats a window that finds no room: a new one, one toggled back to
+        // tiled or one moved in. Not one of m_targets.
+        void                                               floatNoRoom(const SP<Layout::ITarget>& target);
+
+        // Floats `target` once Hyprland is done with what it is doing, if it
+        // is still a tile of this workspace that isn't tiled here again.
+        void                                               floatLater(const WP<Layout::ITarget>& target);
+        // Floats the queued targets that still need it, as floatLater says.
+        void                                               floatQueued();
+        std::vector<WP<Layout::ITarget>>                   m_toFloat;
+        UP<SEventLoopDoLaterLock>                          m_pendingFloat; // set while floating is queued
 
         // Where the dragged tile would land if dropped now: the box drop
         // would give it, with Hyprland's gaps and borders. Nothing when no
