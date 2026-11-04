@@ -622,10 +622,10 @@ namespace threecol {
         return rowOf(zoneRect(zone), rowsOf(zone)->heights.fitted(m_settings.minRowHeight), row);
     }
 
-    Rect Workspace::nextWindowRect() const {
+    std::optional<Rect> Workspace::nextWindowRect() const {
         const auto zone = nextZone();
         if (!zone)
-            return {};
+            return std::nullopt;
         const auto* rows = rowsOf(*zone);
         if (!rows)
             return masterZone();

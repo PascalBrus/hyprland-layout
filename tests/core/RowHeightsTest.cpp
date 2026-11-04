@@ -107,7 +107,7 @@ TEST(RowHeights, ANewRowGetsAnEqualShareAndTheOthersKeepTheirRatios) {
     Workspace ws = filled(4);
     ws.layoutMessage("resize taller", 3); // 792 / 648
 
-    EXPECT_TRUE(near(std::optional<Rect>{ws.nextWindowRect()}, rightRow(960, 480)));
+    EXPECT_TRUE(near(ws.nextWindowRect(), rightRow(960, 480)));
     ws.addWindow(5);
 
     EXPECT_TRUE(near(ws.rectOf(3), rightRow(0, 528)));

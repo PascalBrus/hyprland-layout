@@ -527,11 +527,11 @@ namespace threecol {
 
     std::optional<Vector2D> CThreecolAlgorithm::predictSizeForNewTarget() {
         refreshModel();
-        const Rect next = m_model.nextWindowRect();
+        const auto next = m_model.nextWindowRect();
         // No room: it will float, so the window picks its own size.
-        if (next == Rect{})
+        if (!next)
             return std::nullopt;
-        return Vector2D{next.w, next.h};
+        return Vector2D{next->w, next->h};
     }
 
 }

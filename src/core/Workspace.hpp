@@ -94,9 +94,9 @@ namespace threecol {
         // The window's rectangle, or nothing if it isn't on this workspace.
         std::optional<Rect> rectOf(WindowId id) const;
 
-        // The rectangle the next added window would get; an empty one if it
-        // would find no room.
-        Rect                nextWindowRect() const;
+        // The rectangle the next added window would get; nothing if it would
+        // find no room.
+        std::optional<Rect> nextWindowRect() const;
 
         // A layout message from the user; `focused` is the focused window.
         // Unknown messages, or ones that don't apply, do nothing. Returns

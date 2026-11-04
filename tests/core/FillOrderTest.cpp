@@ -92,7 +92,7 @@ TEST(FillOrder, NextWindowRectFollowsFillOrder) {
 TEST(FillOrder, NextWindowRectMatchesWhereTheWindowLands) {
     Workspace ws{AREA};
     for (threecol::WindowId id = 1; id <= 6; ++id) {
-        const Rect predicted = ws.nextWindowRect();
+        const auto predicted = ws.nextWindowRect();
         ws.addWindow(id);
         EXPECT_EQ(ws.rectOf(id), predicted) << "window " << id;
     }
@@ -226,7 +226,7 @@ TEST(FillOrder, WithBothSidesMissingMasterFillsTheWorkspaceAndTheNextWindowIsNot
 
     EXPECT_EQ(ws.rectOf(1), AREA);
     EXPECT_FALSE(ws.rectOf(2));
-    EXPECT_EQ(ws.nextWindowRect(), Rect{});
+    EXPECT_EQ(ws.nextWindowRect(), std::nullopt);
 }
 
 TEST(FillOrder, FillOrderSkipsAMissingFillFirstSide) {
