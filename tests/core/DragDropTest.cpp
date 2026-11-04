@@ -320,3 +320,36 @@ TEST(DropOnTheAddAreaTwoStacks, OfEitherSideAddsANewBottomRow) {
     EXPECT_TRUE(near(ws.rectOf(1), rightRow(0, 720)));
     EXPECT_TRUE(near(ws.rectOf(2), rightRow(720, 720)));
 }
+
+TEST(DragDrop, AMissingLeftZoneIsNeverADropTarget) {
+    Workspace ws = filled(0, 3); // 1 Master, Right 2 3
+
+    // Where Left would be is Master.
+    EXPECT_TRUE(ws.drop(3, 10, 1430));
+
+    EXPECT_EQ(ws.rectOf(3), (Rect{0, 0, 3840, 1440}));
+    EXPECT_EQ(ws.rectOf(1), (Rect{3840, 720, 1280, 720}));
+}
+
+TEST(DragDrop, AMissingRightZoneIsNeverADropTarget) {
+    Workspace ws{AREA};
+    ws.setSettings(Settings{.leftRows = RowLimit::unlimited(), .rightRows = 0});
+    for (WindowId id = 1; id <= 2; ++id)
+        ws.addWindow(id); // 1 Master, Left 2
+
+    // Where Right's "add" area would be is Master.
+    EXPECT_TRUE(ws.drop(2, 5110, 1430));
+
+    EXPECT_EQ(ws.rectOf(2), (Rect{1280, 0, 3840, 1440}));
+    EXPECT_EQ(ws.rectOf(1), LEFT_ZONE);
+}
+
+TEST(DragDrop, WithBothSidesMissingDroppingMasterAnywhereChangesNothing) {
+    Workspace ws{AREA};
+    ws.setSettings(Settings{.leftRows = 0, .rightRows = 0});
+    ws.addWindow(1);
+
+    for (const double x : {10.0, 2560.0, 5110.0})
+        EXPECT_FALSE(ws.drop(1, x, 1430)) << x;
+    EXPECT_EQ(ws.rectOf(1), AREA);
+}

@@ -473,3 +473,44 @@ TEST(ChainFocusTwoStacks, WalksLeftMasterThenRight) {
     EXPECT_EQ(focusAfter(ws, "focus l", 5), 4u);
     EXPECT_EQ(focusAfter(ws, "focus l", 4), 3u);
 }
+
+TEST(Chain, AMissingLeftZoneIsNoStepAndMasterIsTheChainsLeftEnd) {
+    Workspace ws = filled(0, 3); // 1 Master, Right 2 3
+
+    EXPECT_EQ(ws.layoutMessage("focus l", 1).focus, std::nullopt);
+    EXPECT_EQ(ws.layoutMessage("focus r", 1).focus, 2u);
+    EXPECT_EQ(ws.layoutMessage("focus l", 2).focus, 1u);
+}
+
+TEST(Chain, MovingMasterTowardAMissingLeftZoneDoesNothing) {
+    Workspace ws = filled(0, 2); // 1 Master, Right 2
+
+    EXPECT_FALSE(ws.layoutMessage("move l", 1));
+    EXPECT_FALSE(ws.move(1, Direction::Left));
+
+    EXPECT_EQ(ws.rectOf(1), (Rect{0, 0, 3840, 1440}));
+    EXPECT_EQ(ws.rectOf(2), RIGHT_ZONE);
+}
+
+TEST(Chain, MovingMasterTowardAMissingRightZoneDoesNothing) {
+    Workspace ws{AREA};
+    ws.setSettings(Settings{.leftRows = RowLimit::unlimited(), .rightRows = 0});
+    ws.addWindow(1);
+    ws.addWindow(2); // Left
+
+    EXPECT_EQ(ws.layoutMessage("focus r", 1).focus, std::nullopt);
+    EXPECT_FALSE(ws.layoutMessage("move r", 1));
+
+    EXPECT_EQ(ws.rectOf(1), (Rect{1280, 0, 3840, 1440}));
+    EXPECT_EQ(ws.rectOf(2), LEFT_ZONE);
+}
+
+TEST(Chain, WithBothSidesMissingMasterGoesNowhere) {
+    Workspace ws{AREA};
+    ws.setSettings(Settings{.leftRows = 0, .rightRows = 0});
+    ws.addWindow(1);
+
+    for (const char* message : {"move l", "move r", "move u", "move d"})
+        EXPECT_FALSE(ws.layoutMessage(message, 1)) << message;
+    EXPECT_EQ(ws.rectOf(1), AREA);
+}

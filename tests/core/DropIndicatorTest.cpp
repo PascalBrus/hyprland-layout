@@ -154,3 +154,18 @@ TEST(DropIndicator, OnTheAddAreaOfAFullRightShowsItsBottomRow) {
 
     EXPECT_TRUE(near(ws.dropIndicator(2, 4000, 1400), rightRow(0, 1440)));
 }
+
+TEST(DropIndicator, OverAMissingLeftZoneItShowsMaster) {
+    Workspace ws = filled(0, 3); // 1 Master, Right 2 3
+
+    EXPECT_EQ(ws.dropIndicator(3, 10, 1430), (Rect{0, 0, 3840, 1440}));
+}
+
+TEST(DropIndicator, WithBothSidesMissingItShowsNothing) {
+    Workspace ws{AREA};
+    ws.setSettings(Settings{.leftRows = 0, .rightRows = 0});
+    ws.addWindow(1);
+
+    EXPECT_EQ(ws.dropIndicator(1, 10, 1430), std::nullopt);
+    EXPECT_EQ(ws.dropIndicator(1, 5110, 1430), std::nullopt);
+}
