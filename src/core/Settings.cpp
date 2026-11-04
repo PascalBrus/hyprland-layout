@@ -75,8 +75,15 @@ namespace threecol {
             double right = hasRight ? settings.rightWidth : 0;
             if (!leaveMasterItsMinimum(left, right, settings.minMasterWidth))
                 return;
-            warnings.push_back(std::format("{}left_width {} and right_width {} leave Master less than min_master_width {}; using {:.3g} and {:.3g}",
-                                           prefix(overridden.left || overridden.right), settings.leftWidth, settings.rightWidth, settings.minMasterWidth, left, right));
+            // Only the zones that exist are named, as only they were counted.
+            if (hasLeft && hasRight)
+                warnings.push_back(std::format("{}left_width {} and right_width {} leave Master less than min_master_width {}; using {:.3g} and {:.3g}",
+                                               prefix(overridden.left || overridden.right), settings.leftWidth, settings.rightWidth, settings.minMasterWidth, left, right));
+            else {
+                const auto [key, width, fitted, fromLayoutOpts] =
+                    hasLeft ? std::tuple{"left_width", settings.leftWidth, left, overridden.left} : std::tuple{"right_width", settings.rightWidth, right, overridden.right};
+                warnings.push_back(std::format("{}{} {} leaves Master less than min_master_width {}; using {:.3g}", prefix(fromLayoutOpts), key, width, settings.minMasterWidth, fitted));
+            }
             if (hasLeft)
                 settings.leftWidth = left;
             if (hasRight)

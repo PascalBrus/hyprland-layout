@@ -230,6 +230,22 @@ TEST(Settings, AMissingZonesWidthIsNotCountedAgainstMastersMinimum) {
     EXPECT_EQ(ws.rectOf(2), (Rect{3840, 0, 1280, 1440}));
 }
 
+TEST(Settings, AMasterMinimumWarningLeavesAMissingZoneOut) {
+    for (const auto& [missing, present, opts] : {std::tuple{"left_width", "right_width", Settings{.rightWidth = 0.9, .leftRows = 0}},
+                                                 std::tuple{"right_width", "left_width", Settings{.leftWidth = 0.9, .rightRows = 0}}}) {
+        Workspace ws{AREA};
+
+        // The missing zone's width comes from layout_opts; the problem doesn't.
+        const auto warnings = ws.setSettings(opts, LayoutOpts{{missing, "0.3"}}, "3").warnings;
+
+        ASSERT_EQ(warnings.size(), 1u) << missing;
+        EXPECT_NE(warnings[0].find(present), std::string::npos) << warnings[0];
+        EXPECT_NE(warnings[0].find("min_master_width"), std::string::npos) << warnings[0];
+        EXPECT_EQ(warnings[0].find(missing), std::string::npos) << warnings[0];
+        EXPECT_EQ(warnings[0].find("workspace 3"), std::string::npos) << warnings[0];
+    }
+}
+
 TEST(Settings, AWholeNumberLeftRowsWrittenAsAFloatIsAccepted) {
     Workspace ws{AREA};
 
