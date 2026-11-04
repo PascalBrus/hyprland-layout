@@ -92,6 +92,9 @@ The saved Dividers live in `$XDG_STATE_HOME/threecol/dividers`, or `~/.local/sta
 - [x] Turning `persist` back on restores the old positions — *nested*
 - [x] A missing or corrupt state file counts as "nothing saved"; threecol still starts — *nested: missing on the first start; binary garbage at start-up gave the default widths, no error, and the next resize wrote a clean file. The file is read once per start, so a reload doesn't re-read it*
 - [x] Sizes still fit after a change of resolution or reserved space (bar on/off) — *nested: 2560→1920 wide, reserved top 60 + left 100, scale 1.25: windows stay inside the usable area and keep the saved fraction*
+- [ ] An unrecognised state file (e.g. header `threecol dividers 2`) is moved to `dividers.bak` on the next resize, and the new file holds only that resize (#34)
+- [ ] A state file with CRLF line endings is read: its workspaces come back at their saved widths (#34)
+- [ ] With `persist = false`, `hyprctl plugin load` doesn't restore saved widths, and a resize leaves the file unchanged (#34; Hyprland reloads the config right after a plugin load)
 
 ## Mouse resize (#23)
 

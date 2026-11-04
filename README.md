@@ -213,6 +213,8 @@ hl.workspace_rule({
 
 **Saved Dividers.** With `persist = true`, each workspace's Dividers are saved after every finished resize to `$XDG_STATE_HOME/threecol/dividers` (or `~/.local/state/threecol/dividers`), keyed by workspace name. Row heights are not saved; they go back to equal after a reboot. With `persist = false` the file is neither read nor written (but kept), and every reload resets all workspaces to the settings.
 
+A state file threecol can't fully read (from a newer threecol, or hand-edited into something it doesn't understand) counts as nothing saved, or loses just the lines it can't read. The next save moves it aside to `dividers.bak` first (replacing an older `dividers.bak`), so nothing in it is lost; Windows (CRLF) line endings are fine. The file is replaced in one step, so a crash never leaves half a file, but it isn't forced to disk: after a power cut some filesystems may lose it, and threecol then starts with nothing saved. Two Hyprland sessions with the same `XDG_STATE_HOME` (or `HOME`), such as a nested one, share the file, and the last one to save wins.
+
 ## After a Hyprland update
 
 A plugin must be built for the exact Hyprland it runs in. After a Hyprland update, threecol refuses to start and shows a notification that stays until dismissed:

@@ -7,6 +7,7 @@
 
 using threecol::Dividers;
 using threecol::DividerStore;
+using threecol::StateFileWrite;
 
 namespace {
 
@@ -15,6 +16,15 @@ namespace {
         DividerStore store;
         store.configLoaded(true, [&] { return file; });
         return store;
+    }
+
+    // The file a write left behind (nothing: no write).
+    std::optional<std::string> text(const std::optional<StateFileWrite>& write) {
+        return write ? std::optional{write->text} : std::nullopt;
+    }
+
+    DividerStore persisting(const std::optional<StateFileWrite>& write) {
+        return persisting(text(write));
     }
 
 }
@@ -72,7 +82,7 @@ TEST(DividerStore, NamesAndWidthsRoundTripExactly) {
 }
 
 TEST(DividerStore, AMissingFileMeansNothingSaved) {
-    EXPECT_EQ(persisting(std::nullopt).find("1"), std::nullopt);
+    EXPECT_EQ(persisting().find("1"), std::nullopt);
 }
 
 TEST(DividerStore, AFileThatIsNotAStateFileMeansNothingSaved) {
@@ -127,10 +137,10 @@ TEST(DividerStore, TurningPersistOffResetsAndTurningItBackOnRestoresTheFile) {
     DividerStore store = persisting();
     const auto   file  = store.set("1", Dividers{0.3, 0.2});
 
-    store.configLoaded(false, [&] { return file; });
+    store.configLoaded(false, [&] { return text(file); });
     EXPECT_EQ(store.find("1"), std::nullopt);
 
-    store.configLoaded(true, [&] { return file; });
+    store.configLoaded(true, [&] { return text(file); });
     EXPECT_EQ(store.find("1"), (Dividers{0.3, 0.2}));
 }
 
@@ -180,4 +190,77 @@ TEST(DividerStore, WithoutPersistARenameStillCarriesTheDividersButWritesNothing)
 
     EXPECT_EQ(store.rename("3", "code"), std::nullopt);
     EXPECT_EQ(store.find("code"), (Dividers{0.3, 0.2}));
+}
+
+TEST(DividerStore, AFileWithWindowsLineEndingsStillParses) {
+    const DividerStore store = persisting("threecol dividers 1\r\n"
+                                          "# left_width stack_width workspace\r\n"
+                                          "0.3 0.2 1\r\n"
+                                          "0.15 0.35 web\r\n");
+
+    EXPECT_EQ(store.find("1"), (Dividers{0.3, 0.2}));
+    EXPECT_EQ(store.find("web"), (Dividers{0.15, 0.35}));
+}
+
+TEST(DividerStore, ANameEndingInACarriageReturnRoundTrips) {
+    DividerStore before = persisting();
+    const auto   file   = before.set("web\r", Dividers{0.3, 0.2});
+    ASSERT_TRUE(file);
+
+    const DividerStore after = persisting(file);
+    EXPECT_EQ(after.find("web\r"), (Dividers{0.3, 0.2}));
+    EXPECT_EQ(after.find("web"), std::nullopt);
+}
+
+TEST(DividerStore, AWriteOverAFileThatDidNotFullyParseBacksItUpOnce) {
+    for (const std::string file : {"garbage", "threecol dividers 2\n0.3 0.2 1\n", "threecol dividers 1\n0.3 0.2 good\n0.3 bad\n"}) {
+        DividerStore store = persisting(file);
+
+        const auto first = store.set("1", Dividers{0.3, 0.2});
+        ASSERT_TRUE(first) << file;
+        EXPECT_TRUE(first->backUpOldFile) << file;
+        store.backedUp();
+
+        const auto second = store.set("1", Dividers{0.2, 0.2});
+        ASSERT_TRUE(second) << file;
+        EXPECT_FALSE(second->backUpOldFile) << file;
+    }
+}
+
+TEST(DividerStore, AWriteOverAMissingEmptyOrCleanFileDoesNotBackItUp) {
+    DividerStore saved = persisting();
+    const auto   clean = text(saved.set("2", Dividers{0.3, 0.2}));
+
+    for (const auto& file : {std::optional<std::string>{}, std::optional<std::string>{""}, clean}) {
+        DividerStore store = persisting(file);
+
+        const auto write = store.set("1", Dividers{0.3, 0.2});
+        ASSERT_TRUE(write);
+        EXPECT_FALSE(write->backUpOldFile);
+    }
+}
+
+TEST(DividerStore, ARenameOverAFileThatDidNotFullyParseBacksItUp) {
+    DividerStore store = persisting("threecol dividers 1\n0.3 0.2 3\n0.3 bad\n");
+
+    const auto write = store.rename("3", "code");
+    ASSERT_TRUE(write);
+    EXPECT_TRUE(write->backUpOldFile);
+}
+
+TEST(DividerStore, EveryWriteBacksUpTheOldFileUntilTheBackupIsMade) {
+    DividerStore store = persisting("garbage");
+
+    const auto failed = store.set("1", Dividers{0.3, 0.2});
+    ASSERT_TRUE(failed);
+    EXPECT_TRUE(failed->backUpOldFile);
+
+    const auto retried = store.set("1", Dividers{0.2, 0.2});
+    ASSERT_TRUE(retried);
+    EXPECT_TRUE(retried->backUpOldFile);
+
+    store.backedUp();
+    const auto after = store.set("1", Dividers{0.3, 0.3});
+    ASSERT_TRUE(after);
+    EXPECT_FALSE(after->backUpOldFile);
 }

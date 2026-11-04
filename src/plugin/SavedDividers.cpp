@@ -68,8 +68,10 @@ namespace threecol {
         }
 
         // Writes a temporary file and renames it over the old one, so a crash
-        // mid-write never leaves a half-written state file.
-        void writeStateFile(const std::string& text) {
+        // mid-write never leaves a half-written state file. There is no fsync:
+        // ext4 and btrfs flush a file renamed over another, and a file lost
+        // to a power cut only counts as nothing saved.
+        void writeStateFile(const StateFileWrite& write) {
             const auto path = stateFile();
             if (!path) {
                 LOG(Log::WARN, "[threecol] neither XDG_STATE_HOME nor HOME is set; Dividers aren't saved");
@@ -82,11 +84,23 @@ namespace threecol {
                 LOG(Log::ERR, "[threecol] could not create {}: {}", path->parent_path().string(), error.message());
                 return;
             }
+            if (write.backUpOldFile) {
+                auto backup = *path;
+                backup += ".bak";
+                std::filesystem::rename(*path, backup, error);
+                if (!error)
+                    LOG(Log::WARN, "[threecol] {} didn't fully parse; moved it aside to {}", path->string(), backup.string());
+                else if (error != std::errc::no_such_file_or_directory) {
+                    LOG(Log::ERR, "[threecol] could not move {} aside to {}: {}; Dividers aren't saved", path->string(), backup.string(), error.message());
+                    return;
+                }
+                g_store.backedUp();
+            }
             auto temp = *path;
             temp += ".tmp";
             {
                 std::ofstream file{temp, std::ios::binary | std::ios::trunc};
-                file << text;
+                file << write.text;
                 file.close();
                 if (!file) {
                     LOG(Log::ERR, "[threecol] could not write {}", temp.string());
@@ -98,9 +112,9 @@ namespace threecol {
                 LOG(Log::ERR, "[threecol] could not save Dividers to {}: {}", path->string(), error.message());
         }
 
-        void write(const std::optional<std::string>& text) {
-            if (text)
-                writeStateFile(*text);
+        void write(const std::optional<StateFileWrite>& write) {
+            if (write)
+                writeStateFile(*write);
         }
 
         void configLoaded() {

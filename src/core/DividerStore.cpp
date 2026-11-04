@@ -16,7 +16,8 @@ namespace threecol {
     //   0.15 0.35 web
     //
     // Widths are fractions written in their shortest exact form. The name is
-    // the rest of the line, with "\" written "\\" and a newline "\n".
+    // the rest of the line, with "\" written "\\", a newline "\n" and a
+    // carriage return "\r".
     namespace {
 
         constexpr std::string_view HEADER = "threecol dividers 1";
@@ -28,6 +29,8 @@ namespace threecol {
                     out += "\\\\";
                 else if (c == '\n')
                     out += "\\n";
+                else if (c == '\r')
+                    out += "\\r";
                 else
                     out += c;
             }
@@ -47,6 +50,8 @@ namespace threecol {
                     out += '\\';
                 else if (text[i] == 'n')
                     out += '\n';
+                else if (text[i] == 'r')
+                    out += '\r';
                 else
                     return std::nullopt;
             }
@@ -74,16 +79,29 @@ namespace threecol {
             return out;
         }
 
+        struct SParsed {
+            std::map<std::string, Dividers, std::less<>> dividers;
+            bool                                         complete = true; // nothing was skipped
+        };
+
         // The Dividers in a state file. Unknown or corrupt content counts as
         // nothing saved: a file without the header gives nothing, and a line
-        // that doesn't parse is skipped.
-        std::map<std::string, Dividers, std::less<>> parse(std::string_view text) {
-            std::map<std::string, Dividers, std::less<>> all;
+        // that doesn't parse is skipped. An empty file is complete.
+        SParsed parse(std::string_view text) {
+            if (text.empty())
+                return {};
+            SParsed parsed;
 
-            auto lines = text | std::views::split('\n') | std::views::transform([](auto line) { return std::string_view{line}; });
+            // A trailing "\r" is dropped, so a file saved with CRLF endings parses.
+            auto lines = text | std::views::split('\n') | std::views::transform([](auto range) {
+                             std::string_view line{range};
+                             if (line.ends_with('\r'))
+                                 line.remove_suffix(1);
+                             return line;
+                         });
             auto it    = lines.begin();
             if (it == lines.end() || *it != HEADER)
-                return {};
+                return {.dividers = {}, .complete = false};
 
             for (++it; it != lines.end(); ++it) {
                 std::string_view line = *it;
@@ -93,9 +111,11 @@ namespace threecol {
                 const auto stack = left ? takeWidth(line) : std::nullopt;
                 const auto name  = stack ? unescape(line) : std::nullopt;
                 if (name)
-                    all.insert_or_assign(*name, Dividers{*left, *stack});
+                    parsed.dividers.insert_or_assign(*name, Dividers{*left, *stack});
+                else
+                    parsed.complete = false;
             }
-            return all;
+            return parsed;
         }
 
     }
@@ -104,14 +124,16 @@ namespace threecol {
         m_persist = persist;
         if (!persist) {
             m_dividers.clear();
-            m_read = false;
+            m_read     = false;
+            m_unparsed = false;
             return;
         }
         if (std::exchange(m_read, true))
             return;
 
-        const auto file = readFile();
-        m_dividers      = file ? parse(*file) : decltype(m_dividers){};
+        auto parsed = parse(readFile().value_or(""));
+        m_dividers  = std::move(parsed.dividers);
+        m_unparsed  = !parsed.complete;
     }
 
     std::optional<Dividers> DividerStore::find(std::string_view workspace) const {
@@ -119,7 +141,7 @@ namespace threecol {
         return it == m_dividers.end() ? std::nullopt : std::optional{it->second};
     }
 
-    std::optional<std::string> DividerStore::set(std::string_view workspace, std::optional<Dividers> dividers) {
+    std::optional<StateFileWrite> DividerStore::set(std::string_view workspace, std::optional<Dividers> dividers) {
         const auto it = m_dividers.find(workspace);
         if (!dividers) {
             if (it == m_dividers.end())
@@ -134,7 +156,7 @@ namespace threecol {
         return changed();
     }
 
-    std::optional<std::string> DividerStore::rename(std::string_view from, std::string_view to) {
+    std::optional<StateFileWrite> DividerStore::rename(std::string_view from, std::string_view to) {
         if (from == to)
             return std::nullopt;
 
@@ -145,10 +167,14 @@ namespace threecol {
         return written ? written : erased;
     }
 
-    std::optional<std::string> DividerStore::changed() const {
+    void DividerStore::backedUp() {
+        m_unparsed = false;
+    }
+
+    std::optional<StateFileWrite> DividerStore::changed() const {
         if (!m_persist)
             return std::nullopt;
-        return serialise(m_dividers);
+        return StateFileWrite{.text = serialise(m_dividers), .backUpOldFile = m_unparsed};
     }
 
 }
