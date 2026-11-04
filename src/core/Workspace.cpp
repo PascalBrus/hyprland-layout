@@ -27,14 +27,18 @@ namespace threecol {
         m_area = area;
     }
 
-    std::vector<std::string> Workspace::setSettings(const Settings& global, const LayoutOpts& opts, std::string_view workspaceName) {
+    SettingsChange Workspace::setSettings(const Settings& global, const LayoutOpts& opts, std::string_view workspaceName) {
         auto resolved = resolveSettings(global, opts, workspaceName);
         m_settings    = resolved.settings;
+        SettingsChange change{.warnings = std::move(resolved.warnings), .noRoom = {}};
         // Moved windows change the Rows under a Row edge drag.
         const bool rowDrag = m_gesture && m_gesture->edge;
-        if (fitToRowLimits() && rowDrag)
+        if (fitToRowLimits(change.noRoom) && rowDrag)
             m_gesture->over = true;
-        return std::move(resolved.warnings);
+        // No more ticks come for a window that left.
+        if (m_gesture && std::ranges::contains(change.noRoom, m_gesture->id))
+            m_gesture.reset();
+        return change;
     }
 
     void Workspace::Rows::insert(std::size_t row, WindowId id) {
@@ -64,7 +68,7 @@ namespace threecol {
         return !limit || std::cmp_less(rowsOf(side)->windows.size(), *limit);
     }
 
-    bool Workspace::fitToRowLimits() {
+    bool Workspace::fitToRowLimits(std::vector<WindowId>& noRoom) {
         bool moved = false;
         for (const Zone side : {Zone::Left, Zone::Right}) {
             const auto limit = rowLimit(side).rows();
@@ -79,11 +83,16 @@ namespace threecol {
                 rows.windows.pop_back();
             }
 
-            // In Chain order, each after the one before.
-            auto&       other = *rowsOf(otherSide(side));
-            std::size_t row   = endNearestMaster(otherSide(side)) == End::Top ? 0 : other.windows.size();
-            for (const WindowId id : out)
-                other.insert(row++, id);
+            // In Chain order, each after the one before, while there's room.
+            const Zone  to    = otherSide(side);
+            auto&       other = *rowsOf(to);
+            std::size_t row   = endNearestMaster(to) == End::Top ? 0 : other.windows.size();
+            for (const WindowId id : out) {
+                if (hasRoom(to))
+                    other.insert(row++, id);
+                else
+                    noRoom.push_back(id);
+            }
             moved = true;
         }
         return moved;

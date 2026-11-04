@@ -52,6 +52,14 @@ namespace threecol {
         }
     };
 
+    // What a settings change did.
+    struct SettingsChange {
+        std::vector<std::string> warnings; // what was ignored or adjusted
+        // Windows a lower Row limit pushed out with no room anywhere, in Chain
+        // order. They have left the layout.
+        std::vector<WindowId>    noRoom;
+    };
+
     // The threecol layout of one workspace: which Zone and Row each window is
     // in, and the rectangle that gives it.
     class Workspace {
@@ -61,9 +69,13 @@ namespace threecol {
         void                setArea(Rect area);
 
         // The settings changed: the global values and this workspace's
-        // layout_opts, which win over them. Returns what was ignored or
-        // adjusted; `workspaceName` names the workspace in those warnings.
-        std::vector<std::string> setSettings(const Settings& global, const LayoutOpts& opts = {}, std::string_view workspaceName = {});
+        // layout_opts, which win over them. `workspaceName` names the
+        // workspace in warnings. A lower Row limit pushes the extra bottom
+        // windows of a side out to the other side, which they join at its end
+        // nearest Master, keeping their Chain order: all of them if it is a
+        // Stack, else as many as fit its free Rows, first in Chain order. The
+        // rest leave the layout, reported in `noRoom`.
+        SettingsChange      setSettings(const Settings& global, const LayoutOpts& opts = {}, std::string_view workspaceName = {});
 
         // The settings in use, after layout_opts and making them fit.
         const Settings&     settings() const;
@@ -298,9 +310,9 @@ namespace threecol {
         bool                    setHeights(Zone zone, std::vector<double> heights);
 
         // Pushes the bottom windows of each side zone past its Row limit out
-        // to the other side, where they join at its end nearest Master,
-        // keeping their Chain order. Returns whether any moved.
-        bool                    fitToRowLimits();
+        // to the other side, as setSettings says. Returns whether any moved,
+        // and adds the ones with no room to `noRoom`.
+        bool                    fitToRowLimits(std::vector<WindowId>& noRoom);
 
         // Keeps `dividers` if they differ from the ones in use.
         bool                    setResized(const Dividers& dividers);

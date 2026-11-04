@@ -248,7 +248,7 @@ TEST(RowLimit, AWindowJoiningLeftEndsTheDrag) {
 
 TEST(RowLimit, ALimitTooHighForTheMinimumRowHeightIsMadeToFit) {
     Workspace  ws{AREA};
-    const auto warnings = ws.setSettings(Settings{.minRowHeight = 0.3, .leftRows = 5});
+    const auto warnings = ws.setSettings(Settings{.minRowHeight = 0.3, .leftRows = 5}).warnings;
 
     EXPECT_EQ(ws.settings().leftRows, 3);
     ASSERT_EQ(warnings.size(), 1u);
@@ -262,7 +262,7 @@ TEST(RowLimit, ALimitTooHighForTheMinimumRowHeightIsMadeToFit) {
 
 TEST(RowLimit, ALayoutOptsLimitTooHighNamesTheWorkspace) {
     Workspace  ws{AREA};
-    const auto warnings = ws.setSettings(Settings{.minRowHeight = 0.25}, LayoutOpts{{"left_rows", "9"}}, "3");
+    const auto warnings = ws.setSettings(Settings{.minRowHeight = 0.25}, LayoutOpts{{"left_rows", "9"}}, "3").warnings;
 
     EXPECT_EQ(ws.settings().leftRows, 4);
     ASSERT_EQ(warnings.size(), 1u);
@@ -271,7 +271,7 @@ TEST(RowLimit, ALayoutOptsLimitTooHighNamesTheWorkspace) {
 
 TEST(RowLimit, ALimitThatFitsExactlyIsKept) {
     Workspace  ws{AREA};
-    const auto warnings = ws.setSettings(Settings{.minRowHeight = 0.1, .leftRows = 10});
+    const auto warnings = ws.setSettings(Settings{.minRowHeight = 0.1, .leftRows = 10}).warnings;
 
     EXPECT_EQ(ws.settings().leftRows, 10);
     EXPECT_TRUE(warnings.empty());
@@ -381,7 +381,7 @@ TEST(RowLimit, RaisingTheLimitLetsTheNextWindowJoinLeft) {
 
 TEST(RowLimit, ARightLimitTooHighForTheMinimumRowHeightIsMadeToFit) {
     Workspace  ws{AREA};
-    const auto warnings = ws.setSettings(Settings{.minRowHeight = 0.3, .leftRows = RowLimit::unlimited(), .rightRows = 5});
+    const auto warnings = ws.setSettings(Settings{.minRowHeight = 0.3, .leftRows = RowLimit::unlimited(), .rightRows = 5}).warnings;
 
     EXPECT_EQ(ws.settings().rightRows, 3);
     ASSERT_EQ(warnings.size(), 1u);
@@ -390,7 +390,7 @@ TEST(RowLimit, ARightLimitTooHighForTheMinimumRowHeightIsMadeToFit) {
 
 TEST(RowLimit, AStackIsNeverCappedByTheMinimumRowHeight) {
     Workspace  ws{AREA};
-    const auto warnings = ws.setSettings(Settings{.minRowHeight = 0.5, .leftRows = RowLimit::unlimited()});
+    const auto warnings = ws.setSettings(Settings{.minRowHeight = 0.5, .leftRows = RowLimit::unlimited()}).warnings;
 
     EXPECT_TRUE(warnings.empty());
     EXPECT_EQ(ws.settings().leftRows, RowLimit::unlimited());
@@ -523,4 +523,66 @@ TEST(RowLimit, AMasterHoleCountsAsRoom) {
     EXPECT_TRUE(ws.addWindow(5));
 
     EXPECT_TRUE(near(ws.rectOf(5), MASTER_ZONE));
+}
+
+// Windows pushed out by a lower Row limit go into a Stack on the other side,
+// else into its free Rows at its end nearest Master, in Chain order, else
+// out of the layout, reported so the plugin floats them.
+
+TEST(RowLimit, PushedOutLeftWindowsTakeFreeRightRowsAtTheTop) {
+    Workspace ws = bothBounded(3, 3, 5); // 2, 3, 4 Left; 5 Right
+
+    const auto change = ws.setSettings(Settings{.leftRows = 1, .rightRows = 3});
+
+    EXPECT_TRUE(change.noRoom.empty());
+    EXPECT_TRUE(near(ws.rectOf(2), LEFT_ZONE));
+    EXPECT_TRUE(near(ws.rectOf(3), rightRow(0, 480)));
+    EXPECT_TRUE(near(ws.rectOf(4), rightRow(480, 480)));
+    EXPECT_TRUE(near(ws.rectOf(5), rightRow(960, 480)));
+}
+
+TEST(RowLimit, PushedOutRightWindowsTakeFreeLeftRowsAtTheBottom) {
+    Workspace ws = bothBounded(1, 3, 5); // 2 Left; 3, 4, 5 Right
+
+    const auto change = ws.setSettings(Settings{.leftRows = 3, .rightRows = 1});
+
+    EXPECT_TRUE(change.noRoom.empty());
+    EXPECT_TRUE(near(ws.rectOf(2), leftRow(0, 480)));
+    EXPECT_TRUE(near(ws.rectOf(4), leftRow(480, 480)));
+    EXPECT_TRUE(near(ws.rectOf(5), leftRow(960, 480)));
+    EXPECT_TRUE(near(ws.rectOf(3), RIGHT_ZONE));
+}
+
+TEST(RowLimit, PushedOutWindowsFirstInChainOrderTakeTheFreeRowsAndTheRestLeave) {
+    Workspace ws = bothBounded(3, 2, 5); // 2, 3, 4 Left; 5 Right
+
+    const auto change = ws.setSettings(Settings{.leftRows = 1, .rightRows = 2});
+
+    EXPECT_EQ(change.noRoom, std::vector<WindowId>{4});
+    EXPECT_EQ(ws.rectOf(4), std::nullopt);
+    EXPECT_TRUE(near(ws.rectOf(2), LEFT_ZONE));
+    EXPECT_TRUE(near(ws.rectOf(3), rightRow(0, 720)));
+    EXPECT_TRUE(near(ws.rectOf(5), rightRow(720, 720)));
+}
+
+TEST(RowLimit, PushedOutWindowsWithNoRoomLeaveTheLayoutInChainOrder) {
+    Workspace ws = bothBounded(3, 1, 5); // 2, 3, 4 Left; 5 Right
+
+    const auto change = ws.setSettings(Settings{.leftRows = 1, .rightRows = 1});
+
+    EXPECT_EQ(change.noRoom, (std::vector<WindowId>{3, 4}));
+    EXPECT_EQ(ws.rectOf(3), std::nullopt);
+    EXPECT_EQ(ws.rectOf(4), std::nullopt);
+    EXPECT_TRUE(near(ws.rectOf(2), LEFT_ZONE));
+    EXPECT_TRUE(near(ws.rectOf(5), RIGHT_ZONE));
+    // Chain now: 2, 1, 5.
+    EXPECT_EQ(ws.removeWindow(2), 1u);
+}
+
+TEST(RowLimit, PushedOutWindowsIntoAStackLeaveNone) {
+    Workspace ws = filled(3, 5);
+
+    const auto change = ws.setSettings(Settings{.leftRows = 1});
+
+    EXPECT_TRUE(change.noRoom.empty());
 }

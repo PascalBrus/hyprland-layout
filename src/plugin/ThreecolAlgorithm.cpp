@@ -140,9 +140,9 @@ namespace threecol {
         std::vector<std::string> warnings;
         if (workspace) {
             const auto rule = Config::workspaceRuleMgr()->getWorkspaceRuleFor(workspace);
-            warnings        = m_model.setSettings(globalSettings(), rule ? rule->m_layoutopts : LayoutOpts{}, workspace->displayName());
+            warnings        = m_model.setSettings(globalSettings(), rule ? rule->m_layoutopts : LayoutOpts{}, workspace->displayName()).warnings;
         } else
-            warnings = m_model.setSettings(globalSettings());
+            warnings = m_model.setSettings(globalSettings()).warnings;
         keepDividersIfDragEnded(wasResizing);
         return warnings;
     }
