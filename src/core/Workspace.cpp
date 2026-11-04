@@ -417,20 +417,32 @@ namespace threecol {
         switch (zone) {
             case Zone::Left: left = moved(left, by, minWidth, 1 - right - minMaster); break;
             case Zone::Right: right = moved(right, by, minWidth, 1 - left - minMaster); break;
-            // Each Divider moves half the step, so Master stays centred.
-            case Zone::Master:
+            // Each Divider moves an equal share of the step, so Master stays
+            // centred: half each, or all of it for the only one. A missing
+            // zone has no Divider; with neither, nothing moves.
+            case Zone::Master: {
+                const bool hasLeft  = exists(Zone::Left);
+                const bool hasRight = exists(Zone::Right);
+                const int  count    = int{hasLeft} + int{hasRight};
+                if (count == 0)
+                    return false;
                 if (by > 0) {
                     // A side at min_width stays; the free side still moves.
-                    left  = moved(left, -by / 2, minWidth, left);
-                    right = moved(right, -by / 2, minWidth, right);
+                    if (hasLeft)
+                        left = moved(left, -by / count, minWidth, left);
+                    if (hasRight)
+                        right = moved(right, -by / count, minWidth, right);
                 } else {
                     // Narrowing stops when Master reaches min_master_width.
-                    const double room = std::max(0.0, 1 - left - right - minMaster);
-                    const double half = std::min(-by, room) / 2;
-                    left += half;
-                    right += half;
+                    const double room  = std::max(0.0, 1 - left - right - minMaster);
+                    const double share = std::min(-by, room) / count;
+                    if (hasLeft)
+                        left += share;
+                    if (hasRight)
+                        right += share;
                 }
                 break;
+            }
         }
         if (same(dividers, currentDividers()))
             return false;
