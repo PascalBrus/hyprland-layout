@@ -77,7 +77,7 @@ The saved Dividers live in `$XDG_STATE_HOME/threecol/dividers`, or `~/.local/sta
 - [x] A lone Master window can grow into the empty side zones
 - [x] Resize keys do nothing on floating, fullscreen or maximised windows, and on other layouts — *on dwindle the message returns dwindle's own error `Unknown dwindle layoutmsg: resize wider`; nothing changes*
 - [x] SUPER+R puts the workspace's Dividers back to the settings (`layout_opts`, else global) and Row heights back to equal — *agent: reset to the global settings ✓; nested: the SUPER+R bind's action resets a workspace with `layout_opts` (0.30 / 0.20) to that shape, Rows equal, saved entry removed*
-- [ ] SUPER+R also resets with a floating window focused, and under a fullscreen or maximised window; leaving fullscreen shows the reset tiles (#33)
+- [ ] SUPER+R also resets with a floating window focused, and under a fullscreen or maximised window; leaving fullscreen shows the reset tiles (#33) — *author: fails with a floating window focused, see #45*
 - [x] SUPER+R doesn't repeat when held — *nested: `repeat: false` on the bind. Author: held ~2 s, fired once*
 
 ## Saved Dividers (#22)
