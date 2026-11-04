@@ -94,7 +94,7 @@ Not run, and why (after the third pass):
 
 | Item | Why |
 |---|---|
-| README GIF plays on GitHub | needs recording; shot list in the checklist's Showcase section |
+| README GIF plays on GitHub | needs recording (#44); shot list in the checklist's Showcase section |
 
 Drop indicator screenshots from this run (scratchpad of the agent session, not committed): `ind_master_tl.png` (corner close-up: rounded cyan border, tint), `swap.png`, `hole.png`, `fullleft_add.png`, `noop_own.png` (no indicator), `after_release.png` and `after_close.png` (indicator gone), in `/tmp/claude-1000/-home-pascal-brus-Projects-work-hyprland-layout/5d2fd6c1-72d1-499a-b159-05db69748fa0/scratchpad/shots/`.
 

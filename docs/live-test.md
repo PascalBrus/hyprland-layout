@@ -171,7 +171,7 @@ The saved Dividers live in `$XDG_STATE_HOME/threecol/dividers`, or `~/.local/sta
 - [x] `examples/binds.lua` pasted into a fresh config gives every bind in the spec and no drag-arm bind — *nested: 17 binds, resize keys repeat, the rest don't*
 - [x] Every bind listed under "Will my existing binds still work?" behaves as the README says — *all three tables checked by `hyprctl`. See results for the `focusmaster` mismatch and the `window.resize` sign*
 - [x] The README's settings table matches the registered `plugin:threecol:*` values and defaults (`hyprctl getoption plugin:threecol:<name>`)
-- [ ] The README opens with the GIF from the Showcase below, and it plays on GitHub
+- [ ] The README opens with the GIF from the Showcase below, and it plays on GitHub — *needs recording: #44*
 - [x] The README explains the short dwindle fallback at start-up, and it matches what you saw under Install and load — *matches the simulated late load*
 - [x] The README's release checklist includes adding a `commit_pins` entry and running this checklist
 
