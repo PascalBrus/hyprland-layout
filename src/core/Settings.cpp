@@ -75,17 +75,6 @@ namespace threecol {
                                            prefix(overridden.left || overridden.right), left, right, settings.minMasterWidth, settings.leftWidth, settings.rightWidth));
         }
 
-        // Temporary, until a window that finds no room can float (#49): one
-        // side must be a Stack, so Right, the default Stack, becomes one.
-        void leaveAStack(Settings& settings, SOverridden overridden, std::string_view workspaceName, std::vector<std::string>& warnings) {
-            if (settings.leftRows.role() == Role::Stack || settings.rightRows.role() == Role::Stack)
-                return;
-            const bool fromLayoutOpts = overridden.leftRows || overridden.rightRows;
-            warnings.push_back(std::format("{}left_rows {} and right_rows {} leave no Stack for the other windows; using right_rows \"unlimited\"",
-                                           fromLayoutOpts ? workspaceLabel(workspaceName) + ": " : std::string{}, settings.leftRows.text(), settings.rightRows.text()));
-            settings.rightRows = RowLimit::unlimited();
-        }
-
         // Makes the Row limits fit: a Bounded zone uses only as many Rows as
         // can each be at least min_row_height tall, and always at least one.
         void makeRowLimitsFit(Settings& settings, SOverridden overridden, std::string_view workspaceName, std::vector<std::string>& warnings) {
@@ -156,7 +145,6 @@ namespace threecol {
         }
 
         makeWidthsFit(settings, overridden, workspaceName, resolved.warnings);
-        leaveAStack(settings, overridden, workspaceName, resolved.warnings);
         makeRowLimitsFit(settings, overridden, workspaceName, resolved.warnings);
 
         return resolved;

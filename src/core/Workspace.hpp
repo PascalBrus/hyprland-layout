@@ -69,7 +69,9 @@ namespace threecol {
         const Settings&     settings() const;
 
         // A window joins the workspace and takes its place in Fill order.
-        void                addWindow(WindowId id);
+        // Returns whether it is placed: false when it finds no room (Master
+        // taken and every side zone full), leaving it out of the layout.
+        bool                addWindow(WindowId id);
 
         // A window leaves the workspace. Closing Master or the last window of
         // a Bounded zone leaves a Hole; closing any other Row closes the gap. Returns the window

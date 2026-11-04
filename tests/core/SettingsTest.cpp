@@ -136,29 +136,24 @@ TEST(Settings, ARightRowsThatIsNotAWholeNumberOrUnlimitedIsIgnored) {
     }
 }
 
-// Until overflow windows can float (#49), every window must find room, so
-// one side has to be a Stack.
-
-TEST(Settings, WithNeitherSideAStackRightBecomesAStackWithAWarning) {
+TEST(Settings, BothSidesMayBeBounded) {
     Workspace ws{AREA};
 
     const auto warnings = ws.setSettings(Settings{.leftRows = 2, .rightRows = 3});
 
+    EXPECT_TRUE(warnings.empty());
     EXPECT_EQ(ws.settings().leftRows, 2);
-    EXPECT_EQ(ws.settings().rightRows, RowLimit::unlimited());
-    ASSERT_EQ(warnings.size(), 1u);
-    EXPECT_NE(warnings[0].find("right_rows"), std::string::npos) << warnings[0];
-    EXPECT_EQ(warnings[0].find("workspace"), std::string::npos) << warnings[0];
+    EXPECT_EQ(ws.settings().rightRows, 3);
 }
 
-TEST(Settings, LayoutOptsLeavingNoStackNameTheWorkspace) {
+TEST(Settings, LayoutOptsMayBoundBothSides) {
     Workspace ws{AREA};
 
     const auto warnings = ws.setSettings(Settings{}, LayoutOpts{{"right_rows", "2"}}, "3");
 
-    EXPECT_EQ(ws.settings().rightRows, RowLimit::unlimited());
-    ASSERT_EQ(warnings.size(), 1u);
-    EXPECT_NE(warnings[0].find("workspace 3"), std::string::npos) << warnings[0];
+    EXPECT_TRUE(warnings.empty());
+    EXPECT_EQ(ws.settings().leftRows, 1);
+    EXPECT_EQ(ws.settings().rightRows, 2);
 }
 
 TEST(Settings, BothSidesMayBeStacks) {

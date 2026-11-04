@@ -470,3 +470,57 @@ TEST(RowLimit, RaisingTheRightLimitMovesNothing) {
     EXPECT_TRUE(near(ws.rectOf(3), leftRow(720, 720)));
     EXPECT_TRUE(near(ws.rectOf(4), MASTER_ZONE));
 }
+
+// With both sides bounded, a window that finds no room isn't placed: the
+// plugin floats it instead.
+
+namespace {
+
+    // Left bounded to `leftRows`, Right to `rightRows`, windows 1..count
+    // added in Fill order.
+    Workspace bothBounded(int leftRows, int rightRows, WindowId count) {
+        Workspace ws{AREA};
+        ws.setSettings(Settings{.leftRows = leftRows, .rightRows = rightRows});
+        for (WindowId id = 1; id <= count; ++id)
+            ws.addWindow(id);
+        return ws;
+    }
+
+}
+
+TEST(RowLimit, WithBothSidesBoundedAndFullTheNextWindowIsNotPlaced) {
+    Workspace ws = bothBounded(1, 2, 4); // 1 Master; 2 Left; 3 and 4 Right
+
+    EXPECT_FALSE(ws.addWindow(5));
+
+    EXPECT_EQ(ws.rectOf(5), std::nullopt);
+    EXPECT_TRUE(near(ws.rectOf(2), LEFT_ZONE));
+    EXPECT_TRUE(near(ws.rectOf(3), rightRow(0, 720)));
+    EXPECT_TRUE(near(ws.rectOf(4), rightRow(720, 720)));
+}
+
+TEST(RowLimit, AWindowThatFindsRoomIsPlaced) {
+    Workspace ws = bothBounded(1, 2, 3);
+
+    EXPECT_TRUE(ws.addWindow(4));
+
+    EXPECT_TRUE(near(ws.rectOf(4), rightRow(720, 720)));
+}
+
+TEST(RowLimit, AHoleInABoundedZoneCountsAsRoom) {
+    Workspace ws = bothBounded(1, 2, 4);
+    ws.removeWindow(2); // Left's last window: a Hole
+
+    EXPECT_TRUE(ws.addWindow(5));
+
+    EXPECT_TRUE(near(ws.rectOf(5), LEFT_ZONE));
+}
+
+TEST(RowLimit, AMasterHoleCountsAsRoom) {
+    Workspace ws = bothBounded(1, 2, 4);
+    ws.removeWindow(1);
+
+    EXPECT_TRUE(ws.addWindow(5));
+
+    EXPECT_TRUE(near(ws.rectOf(5), MASTER_ZONE));
+}

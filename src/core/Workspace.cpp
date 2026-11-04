@@ -116,13 +116,13 @@ namespace threecol {
         return std::nullopt;
     }
 
-    void Workspace::addWindow(WindowId id) {
+    bool Workspace::addWindow(WindowId id) {
         if (rectOf(id))
-            return;
+            return true;
 
         const auto zone = nextZone();
         if (!zone)
-            return;
+            return false;
         if (m_gesture && zoneOf(m_gesture->id) == zone)
             m_gesture->over = true;
 
@@ -131,6 +131,7 @@ namespace threecol {
             rows->insert(rows->windows.size(), id);
         else
             m_master = id;
+        return true;
     }
 
     std::vector<WindowId> Workspace::windowsInChainOrder() const {
