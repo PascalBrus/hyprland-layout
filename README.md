@@ -1,6 +1,6 @@
 # threecol
 
-A three-zone tiling layout for Hyprland, built for ultrawide monitors.
+A three-zone tiling layout for Hyprland, built for ultrawide monitors. Three columns aren't forced: drop a zone, per workspace, for two columns or just one.
 
 ![threecol: windows filling the Left, Master and Stack zones, Holes, mouse and keyboard resize, drag-and-drop, then workspaces with two Left Rows, a mirrored shape, two columns and one column](docs/threecol.gif)
 
@@ -19,7 +19,7 @@ threecol splits each workspace into three **Zones**, side by side. By default Le
    ¼ wide          ½ wide          ¼ wide
 ```
 
-Either side can be the Stack, or both: `left_rows = "unlimited"` with `right_rows = 1` mirrors the layout. A Row limit of `0` drops a side altogether, and Master takes its width (see [Settings](#settings)).
+Either side can be the Stack, or both: `left_rows = "unlimited"` with `right_rows = 1` mirrors the layout. A Row limit of `0` drops a side altogether, and Master takes its width: `left_rows = 0` gives two columns, and both sides at `0` gives one, with further windows floating (see [Settings](#settings)).
 
 - **Fill order.** The first window goes to Master, then the `fill_first` side (Left by default) up to its **Row limit**, then the other side up to its own. New windows join a side at its bottom. By default that is Master, one window in Left, and the rest at the bottom of the Stack on the right. A lone window sits in the middle, not stretched across the whole screen.
 - **No room.** With both sides limited, a window that finds no room (Master taken and both sides full) floats at its own size, centred. It stays floating when room frees up.
