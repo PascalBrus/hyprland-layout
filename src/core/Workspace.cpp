@@ -476,15 +476,21 @@ namespace threecol {
 
     }
 
-    Workspace::Divider Workspace::dividerFor(Zone zone, Corner corner) {
+    std::optional<Workspace::Divider> Workspace::dividerFor(Zone zone, Corner corner) const {
         switch (zone) {
             case Zone::Left: return Divider::LeftMaster;
             case Zone::Right: return Divider::MasterRight;
-            // The grabbed half is the side of the nearer Divider. With no
-            // corner, the right one, as Hyprland grows a window to the right.
-            case Zone::Master: return isLeft(corner) ? Divider::LeftMaster : Divider::MasterRight;
+            case Zone::Master:
+                // A missing zone has no Divider: Master moves the other one.
+                if (!exists(Zone::Left))
+                    return exists(Zone::Right) ? std::optional{Divider::MasterRight} : std::nullopt;
+                if (!exists(Zone::Right))
+                    return Divider::LeftMaster;
+                // The grabbed half is the side of the nearer Divider. With no
+                // corner, the right one, as Hyprland grows a window to the right.
+                return isLeft(corner) ? Divider::LeftMaster : Divider::MasterRight;
         }
-        return Divider::MasterRight;
+        return std::nullopt;
     }
 
     std::optional<Workspace::Edge> Workspace::edgeFor(WindowId id, Corner corner) const {
@@ -504,12 +510,14 @@ namespace threecol {
         return rows && rows->heights.set(std::move(heights), m_settings.minRowHeight);
     }
 
-    Dividers Workspace::moveDivider(Divider divider, Dividers from, double px) const {
+    Dividers Workspace::moveDivider(std::optional<Divider> divider, Dividers from, double px) const {
+        if (!divider)
+            return from;
         auto& [left, right]   = from;
         const double by       = px / m_area.w;
         const double minWidth = m_settings.minWidth;
         const double room     = 1 - m_settings.minMasterWidth;
-        switch (divider) {
+        switch (*divider) {
             case Divider::LeftMaster: left = within(left + by, minWidth, room - right); break;
             case Divider::MasterRight: right = within(right - by, minWidth, room - left); break;
         }

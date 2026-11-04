@@ -299,7 +299,7 @@ namespace threecol {
         // its later ticks don't start a new one.
         struct Gesture {
             WindowId            id;
-            Divider             divider;
+            std::optional<Divider> divider;
             Dividers            atPress;
             std::optional<Edge> edge    = std::nullopt;
             double              travelX = 0;
@@ -308,7 +308,9 @@ namespace threecol {
         };
         std::optional<Gesture>  m_gesture;
 
-        static Divider          dividerFor(Zone zone, Corner corner);
+        // The Divider a resize of `zone` grabbed at `corner` moves; nothing
+        // when it has none, i.e. Master with both side zones missing.
+        std::optional<Divider>  dividerFor(Zone zone, Corner corner) const;
 
         // The Rows of `zone`, or nothing for Master.
         Rows*                   rowsOf(Zone zone);
@@ -329,8 +331,9 @@ namespace threecol {
         // Keeps `dividers` if they differ from the ones in use.
         bool                    setResized(const Dividers& dividers);
 
-        // `from` with `divider` moved `px` pixels right, within its limits.
-        Dividers                moveDivider(Divider divider, Dividers from, double px) const;
+        // `from` with `divider` moved `px` pixels right, within its limits;
+        // `from` itself with no Divider.
+        Dividers                moveDivider(std::optional<Divider> divider, Dividers from, double px) const;
 
         // The Zone at (`x`, `y`), or nothing outside the workspace.
         std::optional<Zone>     zoneAt(double x, double y) const;

@@ -347,6 +347,47 @@ TEST(RowLimit, LoweringTheLimitKeepsADividerOnlyDrag) {
     EXPECT_TRUE(near(ws.rectOf(1), {1280, 0, 2760, 1440}));
 }
 
+TEST(RowLimit, APushedOutWindowWithNoRoomEndsItsOwnDividerOnlyDrag) {
+    Workspace ws{AREA};
+    ws.setSettings(Settings{.leftRows = 1, .rightRows = 1});
+    for (WindowId id = 1; id <= 3; ++id)
+        ws.addWindow(id); // 1 Master, 2 Left, 3 Right
+    ws.dragResize(2, 100, 0, Corner::BottomRight); // a lone Row: Left|Master only
+    ASSERT_TRUE(ws.resizing());
+
+    const auto noRoom = ws.setSettings(Settings{.leftRows = 0, .rightRows = 1}).noRoom;
+
+    EXPECT_EQ(noRoom, std::vector<WindowId>{2});
+    EXPECT_FALSE(ws.resizing());
+}
+
+TEST(RowLimit, SettingALimitToZeroPushesTheSidesWindowsToTheTopOfTheOtherSidesStack) {
+    Workspace ws = filled(2, 4); // 1 Master, Left 2 3, Right 4
+
+    const auto noRoom = ws.setSettings(Settings{.leftRows = 0}).noRoom;
+
+    EXPECT_TRUE(noRoom.empty());
+    EXPECT_TRUE(near(ws.rectOf(1), {0, 0, 3840, 1440}));
+    EXPECT_TRUE(near(ws.rectOf(2), rightRow(0, 480)));
+    EXPECT_TRUE(near(ws.rectOf(3), rightRow(480, 480)));
+    EXPECT_TRUE(near(ws.rectOf(4), rightRow(960, 480)));
+}
+
+TEST(RowLimit, SettingALimitToZeroFillsTheOtherSidesFreeRowsThenFloats) {
+    Workspace ws{AREA};
+    ws.setSettings(Settings{.leftRows = 3, .rightRows = 2});
+    for (WindowId id = 1; id <= 5; ++id)
+        ws.addWindow(id); // 1 Master, Left 2 3 4, Right 5
+
+    const auto noRoom = ws.setSettings(Settings{.leftRows = 0, .rightRows = 2}).noRoom;
+
+    EXPECT_EQ(noRoom, (std::vector<WindowId>{3, 4}));
+    EXPECT_TRUE(near(ws.rectOf(2), rightRow(0, 720)));
+    EXPECT_TRUE(near(ws.rectOf(5), rightRow(720, 720)));
+    EXPECT_FALSE(ws.rectOf(3));
+    EXPECT_FALSE(ws.rectOf(4));
+}
+
 TEST(RowLimit, ALimitChangeThatMovesNothingKeepsADrag) {
     Workspace ws = filled(2, 3);
     ws.dragResize(2, 100, 0, Corner::None);
