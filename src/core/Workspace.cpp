@@ -64,6 +64,10 @@ namespace threecol {
         return side == Zone::Left ? m_settings.leftRows : m_settings.rightRows;
     }
 
+    bool Workspace::exists(Zone side) const {
+        return rowLimit(side).role() != Role::Missing;
+    }
+
     bool Workspace::hasRoom(Zone side) const {
         const auto limit = rowLimit(side).rows();
         return !limit || std::cmp_less(rowsOf(side)->windows.size(), *limit);
@@ -201,15 +205,25 @@ namespace threecol {
         m_dividers = dividers;
     }
 
-    Dividers Workspace::currentDividers() const {
-        if (!m_dividers)
-            return {m_settings.leftWidth, m_settings.rightWidth};
+    Dividers Workspace::savedDividers() const {
+        return m_dividers.value_or(Dividers{m_settings.leftWidth, m_settings.rightWidth});
+    }
 
+    Dividers Workspace::currentDividers() const {
         // Limits may have changed since the resize: clamp the way settings
-        // are made to fit, keeping m_dividers so a looser limit brings them back.
-        Dividers fitted{std::max(m_dividers->leftWidth, m_settings.minWidth), std::max(m_dividers->rightWidth, m_settings.minWidth)};
+        // are made to fit, keeping m_dividers so a looser limit brings them
+        // back. A missing zone has no width, Master taking it.
+        const Dividers saved = savedDividers();
+        Dividers       fitted{exists(Zone::Left) ? std::max(saved.leftWidth, m_settings.minWidth) : 0,
+                        exists(Zone::Right) ? std::max(saved.rightWidth, m_settings.minWidth) : 0};
         leaveMasterItsMinimum(fitted.leftWidth, fitted.rightWidth, m_settings.minMasterWidth);
         return fitted;
+    }
+
+    void Workspace::keepDividers(const Dividers& dividers) {
+        // A missing zone's saved width stays, so it comes back where it was.
+        const Dividers saved = savedDividers();
+        m_dividers           = Dividers{exists(Zone::Left) ? dividers.leftWidth : saved.leftWidth, exists(Zone::Right) ? dividers.rightWidth : saved.rightWidth};
     }
 
     std::optional<Workspace::Zone> Workspace::zoneOf(WindowId id) const {
@@ -420,7 +434,7 @@ namespace threecol {
         }
         if (same(dividers, currentDividers()))
             return false;
-        m_dividers = dividers;
+        keepDividers(dividers);
         return true;
     }
 
@@ -526,7 +540,7 @@ namespace threecol {
     bool Workspace::setResized(const Dividers& dividers) {
         if (same(dividers, currentDividers()))
             return false;
-        m_dividers = dividers;
+        keepDividers(dividers);
         return true;
     }
 

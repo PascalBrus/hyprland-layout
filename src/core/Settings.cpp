@@ -34,7 +34,7 @@ namespace threecol {
             if (text == "unlimited")
                 return RowLimit::unlimited();
             const auto value = parseNumber(text);
-            if (!value || *value < 1 || *value != std::floor(*value) || *value > std::numeric_limits<int>::max())
+            if (!value || *value < 0 || *value != std::floor(*value) || *value > std::numeric_limits<int>::max())
                 return std::nullopt;
             return RowLimit{static_cast<int>(*value)};
         }
@@ -53,26 +53,34 @@ namespace threecol {
 
         // Makes the widths fit the limits: Left and Right at least min_width,
         // and Master at least min_master_width. When both can't hold, Master
-        // keeps its minimum and Left and Right shrink in proportion.
+        // keeps its minimum and Left and Right shrink in proportion. Only side
+        // zones that exist count: a missing zone's width is left as it is,
+        // unused, so it is neither raised, counted nor warned about.
         // A warning names the workspace only when its own layout_opts caused
         // it, so a global problem reads the same on every workspace.
         void makeWidthsFit(Settings& settings, SOverridden overridden, std::string_view workspaceName, std::vector<std::string>& warnings) {
-            const auto prefix = [&](bool fromLayoutOpts) { return fromLayoutOpts ? workspaceLabel(workspaceName) + ": " : std::string{}; };
+            const auto prefix   = [&](bool fromLayoutOpts) { return fromLayoutOpts ? workspaceLabel(workspaceName) + ": " : std::string{}; };
+            const bool hasLeft  = settings.leftRows.role() != Role::Missing;
+            const bool hasRight = settings.rightRows.role() != Role::Missing;
 
-            for (auto [key, width, fromLayoutOpts] :
-                 {std::tuple{"left_width", &settings.leftWidth, overridden.left}, std::tuple{"right_width", &settings.rightWidth, overridden.right}}) {
-                if (*width >= settings.minWidth)
+            for (auto [key, width, fromLayoutOpts, exists] : {std::tuple{"left_width", &settings.leftWidth, overridden.left, hasLeft},
+                                                                std::tuple{"right_width", &settings.rightWidth, overridden.right, hasRight}}) {
+                if (!exists || *width >= settings.minWidth)
                     continue;
                 warnings.push_back(std::format("{}{} {} is below min_width {}; using {}", prefix(fromLayoutOpts), key, *width, settings.minWidth, settings.minWidth));
                 *width = settings.minWidth;
             }
 
-            const double left  = settings.leftWidth;
-            const double right = settings.rightWidth;
-            if (!leaveMasterItsMinimum(settings.leftWidth, settings.rightWidth, settings.minMasterWidth))
+            double left  = hasLeft ? settings.leftWidth : 0;
+            double right = hasRight ? settings.rightWidth : 0;
+            if (!leaveMasterItsMinimum(left, right, settings.minMasterWidth))
                 return;
             warnings.push_back(std::format("{}left_width {} and right_width {} leave Master less than min_master_width {}; using {:.3g} and {:.3g}",
-                                           prefix(overridden.left || overridden.right), left, right, settings.minMasterWidth, settings.leftWidth, settings.rightWidth));
+                                           prefix(overridden.left || overridden.right), settings.leftWidth, settings.rightWidth, settings.minMasterWidth, left, right));
+            if (hasLeft)
+                settings.leftWidth = left;
+            if (hasRight)
+                settings.rightWidth = right;
         }
 
         // Makes the Row limits fit: a Bounded zone uses only as many Rows as
@@ -155,7 +163,7 @@ namespace threecol {
                     limit                                                           = *value;
                     (key == "left_rows" ? overridden.leftRows : overridden.rightRows) = true;
                 } else
-                    warnIgnored(key, text, "a whole number of at least 1 or \"unlimited\"", limit.text());
+                    warnIgnored(key, text, "a whole number of at least 0 or \"unlimited\"", limit.text());
             } else if (key == "fill_first") {
                 if (const auto side = parseSide(text))
                     settings.fillFirst = *side;

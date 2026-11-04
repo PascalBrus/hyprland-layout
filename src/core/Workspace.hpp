@@ -224,15 +224,27 @@ namespace threecol {
         // The Row limit of side zone `side`, as resolved.
         RowLimit                rowLimit(Zone side) const;
 
+        // Whether side zone `side` exists: it isn't a missing zone.
+        bool                    exists(Zone side) const;
+
         // Whether side zone `side` can take another Row: a Stack, or a
         // Bounded zone below its Row limit.
         bool                    hasRoom(Zone side) const;
 
-        // Set by resizing; until then the Dividers follow the settings.
+        // Set by resizing; until then the Dividers follow the settings. A
+        // missing zone's width is kept here too, unused until it comes back.
         std::optional<Dividers> m_dividers;
 
-        // The Dividers in use.
+        // The Dividers set by resizing, else the settings, unclamped.
+        Dividers                savedDividers() const;
+
+        // The Dividers in use: the saved ones made to fit, a missing zone's
+        // width 0.
         Dividers                currentDividers() const;
+
+        // Keeps `dividers`, the ones in use after a resize, as resized. A
+        // missing zone keeps its saved width.
+        void                    keepDividers(const Dividers& dividers);
 
         // The Zone `id` is in, or nothing if it isn't on this workspace.
         std::optional<Zone>     zoneOf(WindowId id) const;

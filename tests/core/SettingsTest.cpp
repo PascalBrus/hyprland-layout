@@ -115,8 +115,8 @@ TEST(Settings, AnOutOfRangeLayoutOptsWidthIsIgnoredAndTheGlobalValueUsed) {
     }
 }
 
-TEST(Settings, ALeftRowsThatIsNotAWholeNumberOfAtLeastOneIsIgnored) {
-    for (const char* bad : {"0", "-2", "1.5", "two"}) {
+TEST(Settings, ALeftRowsThatIsNotAWholeNumberIsIgnored) {
+    for (const char* bad : {"-2", "1.5", "two"}) {
         Workspace ws{AREA};
 
         const auto warnings = ws.setSettings(Settings{.leftRows = 2}, LayoutOpts{{"left_rows", bad}}, "3").warnings;
@@ -195,6 +195,39 @@ TEST(Settings, BothSidesMayBeStacks) {
     EXPECT_TRUE(warnings.empty());
     EXPECT_EQ(ws.settings().leftRows, RowLimit::unlimited());
     EXPECT_EQ(ws.settings().rightRows, RowLimit::unlimited());
+}
+
+TEST(Settings, ARowLimitOfZeroInLayoutOptsMakesAMissingZone) {
+    for (const char* key : {"left_rows", "right_rows"}) {
+        Workspace ws{AREA};
+
+        const auto warnings = ws.setSettings(Settings{}, LayoutOpts{{key, "0"}}, "3").warnings;
+
+        const auto& limit = std::string{key} == "left_rows" ? ws.settings().leftRows : ws.settings().rightRows;
+        EXPECT_EQ(limit, 0) << key;
+        EXPECT_EQ(limit.role(), Role::Missing) << key;
+        EXPECT_TRUE(warnings.empty()) << key;
+    }
+}
+
+TEST(Settings, AMissingZonesWidthIsNotRaisedToMinWidthNorWarnedAbout) {
+    Workspace ws{AREA};
+
+    const auto warnings = ws.setSettings(Settings{.leftWidth = 0.05, .minWidth = 0.1, .leftRows = 0}).warnings;
+
+    EXPECT_TRUE(warnings.empty());
+}
+
+TEST(Settings, AMissingZonesWidthIsNotCountedAgainstMastersMinimum) {
+    Workspace ws{AREA};
+    ws.addWindow(1);
+    ws.addWindow(2); // Right
+
+    // 0.7 + 0.25 would leave Master less than 0.2, but Left is missing.
+    const auto warnings = ws.setSettings(Settings{.leftWidth = 0.7, .leftRows = 0}).warnings;
+
+    EXPECT_TRUE(warnings.empty());
+    EXPECT_EQ(ws.rectOf(2), (Rect{3840, 0, 1280, 1440}));
 }
 
 TEST(Settings, AWholeNumberLeftRowsWrittenAsAFloatIsAccepted) {
@@ -324,7 +357,7 @@ TEST(SettingsReport, AWorkspaceCreatedLaterWithANewProblemGivesANotice) {
 
     report.configLoaded();
     report.notice(warnings);
-    std::ranges::copy(later.setSettings(Settings{}, LayoutOpts{{"left_rows", "0"}}, "2").warnings, std::back_inserter(warnings));
+    std::ranges::copy(later.setSettings(Settings{}, LayoutOpts{{"left_rows", "-1"}}, "2").warnings, std::back_inserter(warnings));
     const auto notice = report.notice(warnings);
 
     ASSERT_TRUE(notice);

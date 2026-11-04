@@ -188,3 +188,62 @@ TEST(FillOrder, AStackAsTheFillFirstSideStarvesTheOtherSide) {
     EXPECT_EQ(ws.rectOf(3), (Rect{3840, 720, 1280, 720}));
     EXPECT_EQ(ws.nextWindowRect(), (Rect{3840, 960, 1280, 480}));
 }
+
+TEST(FillOrder, MasterTakesAMissingLeftZonesWidthAndReachesTheEdge) {
+    Workspace ws{AREA};
+    ws.setSettings(Settings{.leftRows = 0});
+    for (WindowId id = 1; id <= 2; ++id)
+        ws.addWindow(id);
+
+    EXPECT_EQ(ws.rectOf(1), (Rect{0, 0, 3840, 1440}));
+    EXPECT_EQ(ws.rectOf(2), RIGHT_ZONE);
+}
+
+TEST(FillOrder, MasterTakesAMissingRightZonesWidthAndReachesTheEdge) {
+    Workspace ws{AREA};
+    ws.setSettings(Settings{.leftRows = RowLimit::unlimited(), .rightRows = 0});
+    for (WindowId id = 1; id <= 2; ++id)
+        ws.addWindow(id);
+
+    EXPECT_EQ(ws.rectOf(1), (Rect{1280, 0, 3840, 1440}));
+    EXPECT_EQ(ws.rectOf(2), LEFT_ZONE);
+}
+
+TEST(FillOrder, AMissingZonesWidthSettingIsIgnored) {
+    Workspace ws{AREA};
+    ws.setSettings(Settings{.leftWidth = 0.4, .leftRows = 0});
+    ws.addWindow(1);
+
+    EXPECT_EQ(ws.rectOf(1), (Rect{0, 0, 3840, 1440}));
+}
+
+TEST(FillOrder, WithBothSidesMissingMasterFillsTheWorkspaceAndTheNextWindowIsNotPlaced) {
+    Workspace ws{AREA};
+    ws.setSettings(Settings{.leftRows = 0, .rightRows = 0});
+
+    EXPECT_TRUE(ws.addWindow(1));
+    EXPECT_FALSE(ws.addWindow(2));
+
+    EXPECT_EQ(ws.rectOf(1), AREA);
+    EXPECT_FALSE(ws.rectOf(2));
+    EXPECT_EQ(ws.nextWindowRect(), Rect{});
+}
+
+TEST(FillOrder, FillOrderSkipsAMissingFillFirstSide) {
+    Workspace ws{AREA};
+    ws.setSettings(Settings{.leftRows = 0});
+    ws.addWindow(1);
+
+    EXPECT_EQ(ws.nextWindowRect(), RIGHT_ZONE);
+}
+
+TEST(FillOrder, FillFirstRightWithRightMissingFillsLeft) {
+    Workspace ws{AREA};
+    ws.setSettings(Settings{.leftRows = RowLimit::unlimited(), .rightRows = 0, .fillFirst = Side::Right});
+    for (WindowId id = 1; id <= 3; ++id)
+        ws.addWindow(id);
+
+    EXPECT_EQ(ws.rectOf(1), (Rect{1280, 0, 3840, 1440}));
+    EXPECT_EQ(ws.rectOf(2), (Rect{0, 0, 1280, 720}));
+    EXPECT_EQ(ws.rectOf(3), (Rect{0, 720, 1280, 720}));
+}
