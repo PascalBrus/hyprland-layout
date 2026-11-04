@@ -4,8 +4,6 @@ A three-zone tiling layout for Hyprland, built for ultrawide monitors.
 
 ![threecol: windows filling the Left, Master and Stack zones, then a mouse resize and a drag-and-drop swap](docs/threecol.gif)
 
-<!-- Recorded from the Showcase list in docs/live-test.md. -->
-
 ## What it is
 
 threecol splits each workspace into three **Zones**, side by side:
@@ -261,7 +259,7 @@ For a new Hyprland release:
 
 1. Update Hyprland and restart it.
 2. Fix any build errors against the new headers, then run `cmake --build build -j && ctest --test-dir build`.
-3. Load the build on the live session and run the checklist in [`docs/live-test.md`](docs/live-test.md).
+3. Load the build on the live session and check that it works.
 4. If the plugin's version changed, bump it in both `CMakeLists.txt` (`project(… VERSION …)`) and `src/plugin/main.cpp` (`PLUGIN_INIT`'s return value).
 5. Commit and push.
 6. Add a `commit_pins` entry to `hyprpm.toml`: `["<Hyprland commit>", "<threecol commit>"]`, with a comment naming the Hyprland version. The Hyprland commit is the full hash from `hyprctl version`. The threecol commit is the one from step 5. A commit can't pin itself, so the pin is a commit of its own.
