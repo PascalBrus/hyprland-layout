@@ -4,7 +4,7 @@ A checklist for testing threecol live, in a real Hyprland 0.57 session on the 51
 
 Run it once every feature ticket is done, and again before each release (see the README's release checklist). Each item is one action and the result to expect. File each failure as a bug. Words in **bold** come from [`GLOSSARY.md`](../GLOSSARY.md).
 
-**Last run:** 2026-11-04, by an agent on Hyprland 0.57.0 (`0aa6745`), threecol at `5bbd1a1`. Ticks below are from that run; notes in *italics*. Failures, steps and the items left for the author are in [`reference/LIVE-TEST-RESULTS.md`](../reference/LIVE-TEST-RESULTS.md).
+**Last run:** 2026-11-04, by an agent on Hyprland 0.57.0 (`0aa6745`), threecol at `5bbd1a1`, then a second agent pass in a nested Hyprland 0.57.1 (`acc1aa0`) at `9fd58e0` for the items that need a config edit, a restart or a plugin unload. Ticks below are from both; notes in *italics* ("nested" marks the second pass). Failures, steps and the items left for the author are in [`reference/LIVE-TEST-RESULTS.md`](../reference/LIVE-TEST-RESULTS.md).
 
 ## Setup
 
@@ -14,15 +14,15 @@ The saved Dividers live in `$XDG_STATE_HOME/threecol/dividers`, or `~/.local/sta
 
 ## Install and load (#29)
 
-- [ ] `hyprpm add <repo>` then `hyprpm enable threecol` builds without GoogleTest and loads the plugin
-- [ ] `hyprpm.toml` has a `commit_pins` entry for the running Hyprland (`hyprctl version`), and `hyprpm update` builds the pinned threecol commit — *agent: pin for `0aa6745…` (0.57.0) is present; `hyprpm update`: author*
-- [ ] Manual install: clone, `cmake -B build -DCMAKE_BUILD_TYPE=Release -DTHREECOL_TESTS=OFF && cmake --build build -j`, then `hl.plugin.load("/abs/path/threecol.so")` loads it
+- [ ] `hyprpm add <repo>` then `hyprpm enable threecol` builds without GoogleTest and loads the plugin — *agent: `hyprpm` isn't installed on this machine: author*
+- [ ] `hyprpm.toml` has a `commit_pins` entry for the running Hyprland (`hyprctl version`), and `hyprpm update` builds the pinned threecol commit — *agent: pin for `0aa6745…` (0.57.0) is present; `hyprpm update`: author. The installed Hyprland is now 0.57.1 (`acc1aa0…`), which has no pin yet*
+- [x] Manual install: clone, `cmake -B build -DCMAKE_BUILD_TYPE=Release -DTHREECOL_TESTS=OFF && cmake --build build -j`, then `hl.plugin.load("/abs/path/threecol.so")` loads it — *nested: fresh clone built against the 0.57.1 headers, no GoogleTest in the build log; loaded by `hl.plugin.load` at start-up, no config errors*
 - [x] Loading the repo's own `build/threecol.so` with `hl.plugin.load` works on the live session
 - [x] `cmake -B build && cmake --build build -j && ctest --test-dir build` passes — *215/215*
-- [ ] A build for a different Hyprland commit doesn't register the layout and shows a persistent notification ("built for X, running Y; run `hyprpm update` …")
-- [ ] With a mismatched build, threecol workspaces fall back to dwindle and stay usable
-- [ ] At start-up with hyprpm, the short dwindle fallback turns into threecol once the plugin loads; windows already open are placed in **Fill order**
-- [ ] `hyprctl plugin unload` puts workspaces back on dwindle without a crash
+- [x] A build for a different Hyprland commit doesn't register the layout and shows a persistent notification ("built for X, running Y; run `hyprpm update` …") — *nested: the 0.57.0 `build/threecol.so` in 0.57.1: `built for Hyprland 0aa6745, running Hyprland acc1aa0; …`, timeout ~1e11 ms, layout not registered*
+- [x] With a mismatched build, threecol workspaces fall back to dwindle and stay usable — *nested: `tiledLayout` dwindle; open, close and `window.resize` work*
+- [ ] At start-up with hyprpm, the short dwindle fallback turns into threecol once the plugin loads; windows already open are placed in **Fill order** — *nested, simulated: `hyprctl plugin load` with 4 windows open on dwindle switched the workspace to threecol, placed in Fill order (1st Master, 2nd Left, 3rd and 4th Stack). A real hyprpm login: author*
+- [x] `hyprctl plugin unload` puts workspaces back on dwindle without a crash — *nested: dwindle, still usable; loading again brings threecol back*
 - [x] With the plugin loaded and no `examples/binds.lua`, no key does anything new: threecol binds no keys itself — *the plugin registers no binds or dispatchers; `hyprctl binds` shows only the author's own*
 
 ## Selecting the layout
@@ -52,11 +52,11 @@ The saved Dividers live in `$XDG_STATE_HOME/threecol/dividers`, or `~/.local/sta
 
 ## Settings (#20)
 
-- [ ] Each `plugin:threecol:*` value set with `hl.config({ plugin = { threecol = { … } } })` takes effect on the next layout pass after a reload: `left_width`, `stack_width`, `min_width`, `min_master_width`, `min_row_height`, `step`, `left_rows`, `persist` — *agent: all but `persist` take effect at runtime (straight away, no reload needed). `persist` is only read on a config load, so it needs a config edit: author*
+- [x] Each `plugin:threecol:*` value set with `hl.config({ plugin = { threecol = { … } } })` takes effect on the next layout pass after a reload: `left_width`, `stack_width`, `min_width`, `min_master_width`, `min_row_height`, `step`, `left_rows`, `persist` — *agent: all but `persist` take effect at runtime (straight away, no reload needed). `persist` is only read on a config load; nested: a config edit + reload applies it*
 - [x] `layout_opts` with `left_width`, `stack_width` and `left_rows` overrides the global value on that workspace only
 - [x] A bad `layout_opts` key or value is ignored and that workspace uses the global value
 - [x] An impossible combination is made to fit: Master keeps its minimum, Left and Stack shrink in proportion
-- [ ] One notification per config load lists what was ignored or adjusted; a clean config shows none — *agent: a clean config gave no notice across 6 reloads; a config with bad values needs a config edit: author*
+- [x] One notification per config load lists what was ignored or adjusted; a clean config shows none — *agent: a clean config gave no notice across 6 reloads. Nested: a bad `left_rows` and bad `layout_opts` key and value gave one notification per reload. Out-of-range globals (`left_width = 2.0`, `stack_width = -1`, `min_width = 'abc'`) are dropped silently by Hyprland, with no notice (see results)*
 - [x] A saved **Divider** position wins over the settings until reset
 - [x] Tightening a limit clamps the sizes in use and leaves the state file unchanged; loosening it brings the old saved sizes back
 
@@ -71,26 +71,26 @@ The saved Dividers live in `$XDG_STATE_HOME/threecol/dividers`, or `~/.local/sta
 - [x] A height key stops when the other Rows are all at `min_row_height`
 - [x] K/J does nothing on Master or on a lone Row
 - [x] A key that would cross a limit stops at the limit (Left and Stack at `min_width`, Master at `min_master_width`)
-- [ ] The resize keys repeat when held
+- [ ] The resize keys repeat when held — *nested: `hyprctl binds -j` shows `repeat: true` on the four SUPER+ALT binds from `examples/binds.lua`; holding a key: author*
 - [x] Each key press is saved (check the state file after one press)
 - [x] A Hole resizes like any zone when its neighbour moves the shared Divider
 - [x] A lone Master window can grow into the empty side zones
 - [x] Resize keys do nothing on floating, fullscreen or maximised windows, and on other layouts — *on dwindle the message returns dwindle's own error `Unknown dwindle layoutmsg: resize wider`; nothing changes*
-- [ ] SUPER+R puts the workspace's Dividers back to the settings (`layout_opts`, else global) and Row heights back to equal — *agent: reset to the global settings ✓; reset to `layout_opts` not checked*
-- [ ] SUPER+R doesn't repeat when held
+- [x] SUPER+R puts the workspace's Dividers back to the settings (`layout_opts`, else global) and Row heights back to equal — *agent: reset to the global settings ✓; nested: the SUPER+R bind's action resets a workspace with `layout_opts` (0.30 / 0.20) to that shape, Rows equal, saved entry removed*
+- [ ] SUPER+R doesn't repeat when held — *nested: `repeat: false` on the bind; holding a key: author*
 
 ## Saved Dividers (#22)
 
 - [x] After a resize, the state file holds the Divider positions, keyed by workspace name, readable by a human
 - [x] An unnamed workspace is keyed by its number
-- [ ] After a reboot, each workspace gets its own Dividers back; Row heights are equal again
+- [x] After a reboot, each workspace gets its own Dividers back; Row heights are equal again — *nested: Hyprland restarted (new process, same state dir); workspaces 1 and 3 got their own Dividers back (3 kept its saved Stack over its `layout_opts`), Rows equal*
 - [x] Each workspace keeps its own Dividers, independent of the others
 - [x] Reset removes that workspace's saved entry
 - [x] Renaming a workspace carries its saved sizes over
-- [ ] `persist = false`: no reads or writes, the file stays in place, and every reload resets every workspace to its settings — *agent: `persist` is only read on a config load, so this needs a config edit: author*
-- [ ] Turning `persist` back on restores the old positions
-- [ ] A missing or corrupt state file counts as "nothing saved"; threecol still starts — *agent: needs a reload with a broken file; skipped to avoid extra reloads of the live session: author*
-- [ ] Sizes still fit after a change of resolution or reserved space (bar on/off)
+- [x] `persist = false`: no reads or writes, the file stays in place, and every reload resets every workspace to its settings — *nested*
+- [x] Turning `persist` back on restores the old positions — *nested*
+- [x] A missing or corrupt state file counts as "nothing saved"; threecol still starts — *nested: missing on the first start; binary garbage at start-up gave the default widths, no error, and the next resize wrote a clean file. The file is read once per start, so a reload doesn't re-read it*
+- [x] Sizes still fit after a change of resolution or reserved space (bar on/off) — *nested: 2560→1920 wide, reserved top 60 + left 100, scale 1.25: windows stay inside the usable area and keep the saved fraction*
 
 ## Mouse resize (#23)
 
@@ -141,7 +141,7 @@ The saved Dividers live in `$XDG_STATE_HOME/threecol/dividers`, or `~/.local/sta
 - [x] SUPER+M focuses Master; does nothing on a Hole — *note: it also works from a floating window; the README says layout messages do nothing there (README/code mismatch, see results)*
 - [x] SUPER+SHIFT+M swaps the focused window with Master (the old Master takes its Row); on a Hole it moves in; does nothing on Master, floating windows or with no focus — *"no focus" case not checked*
 - [x] Focus and move binds don't repeat when held — *with the author's own binds (SUPER+L, SUPER+SHIFT+H held 1.5 s)*
-- [ ] On floating windows, fullscreen workspaces, empty workspaces and other layouts, the same keys fall back to Hyprland's normal focus and move — *agent: floating and dwindle fall back ✓. On a fullscreen workspace the author's `keybinds.lua` sends the layout message (no `has_fullscreen` check), so the keys do nothing. `examples/binds.lua` isn't loaded. Empty workspace not checked*
+- [x] On floating windows, fullscreen workspaces, empty workspaces and other layouts, the same keys fall back to Hyprland's normal focus and move — *nested, with `examples/binds.lua`: the HJKL binds send `focus`/`move` in all four cases and the layout message only on a tiled threecol window. The author's own `keybinds.lua` still lacks the `has_fullscreen` check*
 - [x] Native `window.move` (bind, `hyprctl`) runs the same move code
 
 ## Drag-and-drop (#27)
@@ -168,11 +168,11 @@ The saved Dividers live in `$XDG_STATE_HOME/threecol/dividers`, or `~/.local/sta
 
 ## Binds and README (#30)
 
-- [ ] `examples/binds.lua` pasted into a fresh config gives every bind in the spec and no drag-arm bind
+- [x] `examples/binds.lua` pasted into a fresh config gives every bind in the spec and no drag-arm bind — *nested: 17 binds, resize keys repeat, the rest don't*
 - [x] Every bind listed under "Will my existing binds still work?" behaves as the README says — *all three tables checked by `hyprctl`. See results for the `focusmaster` mismatch and the `window.resize` sign*
 - [x] The README's settings table matches the registered `plugin:threecol:*` values and defaults (`hyprctl getoption plugin:threecol:<name>`)
 - [ ] The README opens with the GIF from the Showcase below, and it plays on GitHub
-- [ ] The README explains the short dwindle fallback at start-up, and it matches what you saw under Install and load
+- [x] The README explains the short dwindle fallback at start-up, and it matches what you saw under Install and load — *matches the simulated late load*
 - [x] The README's release checklist includes adding a `commit_pins` entry and running this checklist
 
 ## Showcase

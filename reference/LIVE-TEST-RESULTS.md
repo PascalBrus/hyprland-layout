@@ -6,7 +6,9 @@ The agent run of [`docs/live-test.md`](../docs/live-test.md) (#32), following [`
 - DP-1 5120x1440, default `plugin:threecol:*` values. Test windows: `ghostty` on workspaces 8–10 only.
 - Tools: [`livetest.py`](livetest.py) for `hyprctl`, [`uinput.py`](uinput.py) for mouse and keys (new: right-drag, pause mid-drag, held keys, refuses SUPER+ALT+L, checks the active workspace before every press and step).
 
-**Result:** 97 items pass, 24 open (2 failures, 22 left for the author). 3 bugs (one found under an item that otherwise passes), 1 question.
+**Result (after the second pass below):** 112 items pass, 9 open (2 failures, 7 left for the author). 3 bugs (one found under an item that otherwise passes), 1 question, 3 notes from the second pass.
+
+First pass alone: 97 pass, 24 open.
 
 ## Bugs
 
@@ -59,30 +61,31 @@ Expected: T4's place follows the close rules and no other window moves. Where to
 - **The author's `keybinds.lua`** `threecol_active()` doesn't check `has_fullscreen`, unlike `examples/binds.lua`. On a fullscreen workspace SUPER+HJKL send the layout message, which threecol ignores, so the keys do nothing instead of falling back.
 - **Resize keys on dwindle** do nothing, but dwindle returns its own error (`Unknown dwindle layoutmsg: resize wider`). The README says "the resize and reset keys do nothing on other layouts", which is true for the layout.
 
+## Second pass: nested Hyprland (2026-11-04)
+
+The items left for the author that need only a config edit, a restart or a plugin unload, run in a **nested Hyprland** (a second instance running as a window on the author's workspace 4) with its own config and `XDG_STATE_HOME` in the agent's scratchpad. Nothing was sent to the author's session except launching that window (silently, without focus). No synthetic keys or mouse: binds from `examples/binds.lua` were run by recording each bind's action at config load and calling it through `hyprctl dispatch`.
+
+- Nested Hyprland **0.57.1** (`acc1aa0`), the version now installed (the author's session still runs 0.57.0). threecol `9fd58e0`, a fresh clone built Release with tests off. The full suite also passes against the 0.57.1 headers (215/215).
+- 15 more items pass (see the checklist, notes marked "nested").
+
+### Notes
+
+1. **Hyprland 0.57.1 is installed but not pinned.** The session runs 0.57.0; the next login runs 0.57.1. `build/threecol.so` (built for `0aa6745`) is then refused with the mismatch notification and every workspace uses dwindle until it's rebuilt. `hyprpm.toml` has no `commit_pins` entry for `acc1aa0bfd4bd575dcb0f76c35ccf12b660a1ab9`; `9fd58e0` builds and passes the nested run on it.
+2. **Out-of-range global settings are dropped silently.** `hl.config({ plugin = { threecol = { left_width = 2.0, stack_width = -1, min_width = 'abc' } } })`: Hyprland drops each value (range 0–1 from `Config.cpp`), `getoption` shows the default with `set: false`, and there's no config error and no threecol notice. Only values that pass Hyprland's check reach threecol's report. The checklist item asks threecol to list what it ignored or adjusted, so it passes, but the user gets no feedback for these.
+3. **Float noise in the notice.** `left_rows 99 doesn't fit min_row_height 0.10000000149011612; using 9`: the value is a float widened to double. `{:.3g}` (as the width warning already uses) would print `0.1`.
+
 ## Left for the author
 
-Not run, and why:
+Not run, and why (after the second pass):
 
 | Item | Why |
 |---|---|
-| `hyprpm add` / `enable`; `hyprpm update` builds the pinned commit (the pin itself is present) | needs hyprpm and a plugin reload |
-| Manual install with `hl.plugin.load` | needs a config edit and plugin reload |
-| Mismatched build: notification; dwindle fallback | needs a second build loaded |
-| Start-up dwindle fallback turns into threecol | needs a login |
-| `hyprctl plugin unload` | not allowed (handoff rule 4) |
-| `persist` in the Settings item; `persist = false`; `persist` back on | `persist` is only read on a config load, so these need a config edit |
-| Settings notification for a bad config | needs a config edit (a clean config showed none) |
-| SUPER+R resets to `layout_opts` (global reset passes) | not checked |
-| Resize keys repeat when held; SUPER+R doesn't repeat | bind options; needs `examples/binds.lua` loaded (handoff rule 3) |
-| After a reboot each workspace gets its Dividers back | reboot |
-| Missing or corrupt state file | needs a reload with a broken file; skipped to keep reloads of the live session to a minimum |
-| Sizes still fit after a resolution or bar change | changes the live monitor |
-| Fallback keys on fullscreen and empty workspaces | the author's binds don't fall back on fullscreen (see notes); `examples/binds.lua` not loaded; empty workspace not checked |
+| `hyprpm add` / `enable`; `hyprpm update` builds the pinned commit (the pin itself is present) | `hyprpm` isn't installed on this machine |
+| Start-up with hyprpm turns the dwindle fallback into threecol | needs a hyprpm login; the late load was simulated in the nested pass and matches the README |
+| Resize keys repeat when held; SUPER+R doesn't repeat | needs a held key; the bind flags are right (nested) |
 | Drop indicator: colour, gradient and fill look right | visual; screenshots below |
 | New window opens without a visible jump (visual part) | visual; reported size check passes |
-| `examples/binds.lua` in a fresh config | needs a config edit |
 | README GIF plays on GitHub | needs recording |
-| README's start-up fallback matches what you saw | depends on the start-up item |
 
 Drop indicator screenshots from this run (scratchpad of the agent session, not committed): `ind_master_tl.png` (corner close-up: rounded cyan border, tint), `swap.png`, `hole.png`, `fullleft_add.png`, `noop_own.png` (no indicator), `after_release.png` and `after_close.png` (indicator gone), in `/tmp/claude-1000/-home-pascal-brus-Projects-work-hyprland-layout/5d2fd6c1-72d1-499a-b159-05db69748fa0/scratchpad/shots/`.
 
