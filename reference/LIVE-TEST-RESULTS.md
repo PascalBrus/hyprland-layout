@@ -6,7 +6,7 @@ The agent run of [`docs/live-test.md`](../docs/live-test.md) (#32), following [`
 - DP-1 5120x1440, default `plugin:threecol:*` values. Test windows: `ghostty` on workspaces 8–10 only.
 - Tools: [`livetest.py`](livetest.py) for `hyprctl`, [`uinput.py`](uinput.py) for mouse and keys (new: right-drag, pause mid-drag, held keys, refuses SUPER+ALT+L, checks the active workspace before every press and step).
 
-**Result:** 97 items pass, 25 open (2 failures, 23 left for the author). 3 bugs (one found under an item that otherwise passes), 1 question.
+**Result:** 97 items pass, 24 open (2 failures, 22 left for the author). 3 bugs (one found under an item that otherwise passes), 1 question.
 
 ## Bugs
 
@@ -70,7 +70,6 @@ Not run, and why:
 | Mismatched build: notification; dwindle fallback | needs a second build loaded |
 | Start-up dwindle fallback turns into threecol | needs a login |
 | `hyprctl plugin unload` | not allowed (handoff rule 4) |
-| Rollback to `lua:threecol` | needs a config edit |
 | `persist` in the Settings item; `persist = false`; `persist` back on | `persist` is only read on a config load, so these need a config edit |
 | Settings notification for a bad config | needs a config edit (a clean config showed none) |
 | SUPER+R resets to `layout_opts` (global reset passes) | not checked |
