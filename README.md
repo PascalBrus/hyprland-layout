@@ -166,33 +166,35 @@ hl.config({
     plugin = {
         threecol = {
             left_width  = 0.25,
-            stack_width = 0.25,
+            right_width = 0.25,
             left_rows   = 2,
         },
     },
 })
 ```
 
-Sizes are fractions of the workspace area (0 to 1). Master gets whatever Left and Stack leave.
+Sizes are fractions of the workspace area (0 to 1). Master gets whatever Left and Right leave.
+
+> **`stack_width` is now `right_width`.** If your config or a `layout_opts` sets `stack_width`, rename it to `right_width` once. The old name is no longer read: globally Hyprland reports it as an unknown setting, and in `layout_opts` threecol warns about an unknown key. Saved Divider positions carry over unchanged.
 
 | Setting | Type | Default | Per workspace | Meaning |
 |---|---|---|---|---|
 | `left_width` | float | 0.25 | yes | Left zone width |
-| `stack_width` | float | 0.25 | yes | Stack zone width |
+| `right_width` | float | 0.25 | yes | Right zone width (was `stack_width`) |
 | `left_rows` | int | 1 | yes | **Row limit**: most windows the Left zone holds (≥ 1) |
-| `min_width` | float | 0.10 | no | Smallest Left / Stack width |
+| `min_width` | float | 0.10 | no | Smallest Left / Right width |
 | `min_master_width` | float | 0.20 | no | Smallest Master width |
-| `min_row_height` | float | 0.10 | no | Smallest Row height (Left and Stack) |
+| `min_row_height` | float | 0.10 | no | Smallest Row height (Left and Right) |
 | `step` | float | 0.05 | no | Keyboard resize step |
 | `persist` | bool | true | no | Save Divider positions across reloads and reboots |
 
-**Per workspace.** `left_width`, `stack_width` and `left_rows` can be overridden with a workspace rule's `layout_opts`, using the same names:
+**Per workspace.** `left_width`, `right_width` and `left_rows` can be overridden with a workspace rule's `layout_opts`, using the same names:
 
 ```lua
 hl.workspace_rule({
     workspace   = "3",
     layout      = "threecol",
-    layout_opts = { left_width = 0.30, stack_width = 0.20, left_rows = 2 },
+    layout_opts = { left_width = 0.30, right_width = 0.20, left_rows = 2 },
 })
 ```
 
