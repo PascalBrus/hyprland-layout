@@ -22,6 +22,7 @@ threecol splits each workspace into three **Zones**, side by side. By default Le
 Either side can be the Stack, or both: `left_rows = "unlimited"` with `right_rows = 1` mirrors the layout (see [Settings](#settings)).
 
 - **Fill order.** The first window goes to Master, then Left up to its **Row limit**, then Right up to its own. New windows join a side at its bottom. By default that is Master, one window in Left, and the rest at the bottom of the Stack on the right. A lone window sits in the middle, not stretched across the whole screen.
+- **No room.** With both sides limited, a window that finds no room (Master taken and both sides full) floats at its own size, centred. It stays floating when room frees up.
 - **Holes.** Close the Master window and its place stays empty; nothing slides in. The next new window fills it.
 - **Rows.** Each side holds one window per **Row**. A Stack holds any number; a side with a Row limit (`left_rows`, `right_rows`) holds up to that many. By default Left holds one and Right is the Stack; mirrored, it's the other way round.
 - **Resizing.** SUPER+right-drag moves the **Dividers** between zones and the edges between Rows. SUPER+ALT+HJKL does the same in steps, and SUPER+R resets. Each workspace keeps its own Dividers, saved across reboots.
@@ -147,7 +148,7 @@ Mostly yes. Hyprland's own dispatchers fall into three groups on a threecol work
 | `window.drag()` (mouse bind) | Native drag-and-drop |
 | `window.swap({ with = … })`, `window.swap({ next = true })` | Swaps the two windows; each takes the other's Zone and Row |
 | `layout("focusmaster")`, `layout("swapwithmaster")` | Same names as the master layout, so existing binds keep working |
-| `window.float`, `window.fullscreen`, `window.close`, moving to another workspace | Hyprland's own. A window that comes back tiled (or arrives from another workspace) is placed in Fill order |
+| `window.float`, `window.fullscreen`, `window.close`, moving to another workspace | Hyprland's own. A window that comes back tiled (or arrives from another workspace) is placed in Fill order, or floats again if there's no room |
 
 **They are geometric.** Hyprland picks the target by screen position, not by the Chain. They work, but can land somewhere other than the threecol bind would, e.g. around Holes or between Rows:
 
@@ -216,7 +217,20 @@ hl.config({
 
 Fill order still goes Master, then Left, so in a mirrored layout every new window after Master joins the Left Stack; Right fills when you move (`move r` from Master) or drag a window there. Moves, drops, close rules and the Chain are the mirror image of the default. Both sides may be `"unlimited"` (two Stacks).
 
-For now one side must be a Stack: if neither is, `right_rows` is set to `"unlimited"` with a warning.
+**Both sides limited.** Neither side has to be a Stack. Give both a Row limit and windows that find no room float instead:
+
+```lua
+hl.config({
+    plugin = {
+        threecol = {
+            left_rows  = 1,
+            right_rows = 2,
+        },
+    },
+})
+```
+
+Here the fifth window floats at its own size, centred, as does any later one while all four places are taken. A floated window stays floating when a place frees up; toggle it back to tiled with `window.float` to place it.
 
 **Which value wins.** A Divider you moved by hand wins until you reset (SUPER+R). Then the `layout_opts` value, then the global setting.
 
@@ -228,7 +242,7 @@ For now one side must be a Stack: if neither is, `right_rows` is set to `"unlimi
 
 **Changing settings.** Changes to `plugin:threecol:*` apply as soon as the config reloads.
 
-- Lowering a Row limit, or switching a side from `"unlimited"` to a number, moves that side's extra bottom windows into the Stack on the other side, at its end nearest Master (the top of Right, the bottom of Left), keeping their order. Raising it moves nothing.
+- Lowering a Row limit, or switching a side from `"unlimited"` to a number, pushes that side's extra bottom windows out to the other side, at its end nearest Master (the top of Right, the bottom of Left), keeping their order. A Stack takes them all; a side with a Row limit takes as many as it has free Rows, first in Chain order; the rest float. Raising a limit moves nothing.
 - Tighter limits clamp the saved Dividers in use but don't rewrite the saved file, so loosening them again brings the old sizes back.
 
 **Saved Dividers.** With `persist = true`, each workspace's Dividers are saved after every finished resize to `$XDG_STATE_HOME/threecol/dividers` (or `~/.local/state/threecol/dividers`), keyed by workspace name. Row heights are not saved; they go back to equal after a reboot. With `persist = false` the file is neither read nor written (but kept), and every reload resets all workspaces to the settings.

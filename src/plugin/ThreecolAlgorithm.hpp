@@ -108,7 +108,7 @@ namespace threecol {
         PHLWORKSPACEREF                                    m_dragWorkspace;
 
         // Hands the model the global settings and this workspace's
-        // layout_opts, floating the windows that pushed out found no room.
+        // layout_opts, floating the windows pushed out with no room.
         // Returns what was ignored or adjusted.
         std::vector<std::string>                           applySettings();
 
