@@ -4,10 +4,13 @@
 
 #include <cmath>
 #include <optional>
+#include <vector>
 
 using threecol::Corner;
+using threecol::Direction;
 using threecol::LayoutOpts;
 using threecol::Rect;
+using threecol::RowLimit;
 using threecol::Settings;
 using threecol::WindowId;
 using threecol::Workspace;
@@ -53,9 +56,27 @@ namespace {
                                              << ", " << expected.y << ", " << expected.w << ", " << expected.h << "}";
     }
 
+
+    // A mirrored layout: Left a Stack, Right bounded to `rightRows` (or a
+    // second Stack). Windows land through Fill order and moves: `right` top
+    // to bottom, then `master`, then `left` top to bottom.
+    Workspace mirrored(RowLimit rightRows, const std::vector<WindowId>& left, WindowId master, const std::vector<WindowId>& right) {
+        Workspace ws{AREA};
+        ws.setSettings(Settings{.leftRows = RowLimit::unlimited(), .rightRows = rightRows});
+        // Each joins Right at its top, so the bottom one goes first.
+        for (auto id = right.rbegin(); id != right.rend(); ++id) {
+            ws.addWindow(*id);
+            ws.move(*id, Direction::Right);
+        }
+        ws.addWindow(master);
+        for (const WindowId id : left)
+            ws.addWindow(id);
+        return ws;
+    }
+
 }
 
-TEST(LeftRows, FillOrderFillsTheBottomOfLeftUpToTheRowLimitThenTheStack) {
+TEST(RowLimit, FillOrderFillsTheBottomOfLeftUpToTheRowLimitThenTheStack) {
     Workspace ws = filled(2, 4);
 
     EXPECT_TRUE(near(ws.rectOf(1), MASTER_ZONE));
@@ -64,7 +85,7 @@ TEST(LeftRows, FillOrderFillsTheBottomOfLeftUpToTheRowLimitThenTheStack) {
     EXPECT_TRUE(near(ws.rectOf(4), RIGHT_ZONE));
 }
 
-TEST(LeftRows, LayoutOptsSetTheRowLimitForOneWorkspace) {
+TEST(RowLimit, LayoutOptsSetTheRowLimitForOneWorkspace) {
     Workspace ws{AREA};
     ws.setSettings(Settings{.leftRows = 1}, LayoutOpts{{"left_rows", "3"}}, "3");
     for (WindowId id = 1; id <= 5; ++id)
@@ -76,7 +97,7 @@ TEST(LeftRows, LayoutOptsSetTheRowLimitForOneWorkspace) {
     EXPECT_TRUE(near(ws.rectOf(5), RIGHT_ZONE));
 }
 
-TEST(LeftRows, ClosingMasterLeavesAHoleAndTheLeftRowsStay) {
+TEST(RowLimit, ClosingMasterLeavesAHoleAndTheLeftRowsStay) {
     Workspace ws = filled(2, 3); // 1 Master, 2 and 3 Left
 
     ws.removeWindow(1);
@@ -86,7 +107,7 @@ TEST(LeftRows, ClosingMasterLeavesAHoleAndTheLeftRowsStay) {
     EXPECT_TRUE(near(ws.nextWindowRect(), MASTER_ZONE));
 }
 
-TEST(LeftRows, ClosingALeftRowClosesTheGapAndTheOthersShareTheHeight) {
+TEST(RowLimit, ClosingALeftRowClosesTheGapAndTheOthersShareTheHeight) {
     Workspace ws = filled(3, 5); // 2, 3 and 4 Left, 5 Stack
 
     ws.removeWindow(3);
@@ -96,7 +117,7 @@ TEST(LeftRows, ClosingALeftRowClosesTheGapAndTheOthersShareTheHeight) {
     EXPECT_TRUE(near(ws.rectOf(5), RIGHT_ZONE));
 }
 
-TEST(LeftRows, ClosingTheLastLeftWindowLeavesALeftHole) {
+TEST(RowLimit, ClosingTheLastLeftWindowLeavesALeftHole) {
     Workspace ws = filled(2, 4);
 
     ws.removeWindow(2);
@@ -107,7 +128,7 @@ TEST(LeftRows, ClosingTheLastLeftWindowLeavesALeftHole) {
     EXPECT_TRUE(near(ws.nextWindowRect(), LEFT_ZONE));
 }
 
-TEST(LeftRows, AClosedLeftRowIsRefilledBeforeTheStack) {
+TEST(RowLimit, AClosedLeftRowIsRefilledBeforeTheStack) {
     Workspace ws = filled(2, 4);
     ws.removeWindow(2);
 
@@ -118,7 +139,7 @@ TEST(LeftRows, AClosedLeftRowIsRefilledBeforeTheStack) {
     EXPECT_TRUE(near(ws.rectOf(4), RIGHT_ZONE));
 }
 
-TEST(LeftRows, FocusAfterCloseWalksTheChainThroughLeftRows) {
+TEST(RowLimit, FocusAfterCloseWalksTheChainThroughLeftRows) {
     Workspace ws = filled(2, 4); // Chain: 2, 3, 1, 4
 
     EXPECT_EQ(ws.removeWindow(2), 3u);
@@ -127,7 +148,7 @@ TEST(LeftRows, FocusAfterCloseWalksTheChainThroughLeftRows) {
 
 // Left Rows follow the Stack's height and resize rules.
 
-TEST(LeftRows, TallerGrowsTheFocusedLeftRowAndTheOthersGiveWayInProportion) {
+TEST(RowLimit, TallerGrowsTheFocusedLeftRowAndTheOthersGiveWayInProportion) {
     Workspace ws = filled(3, 4); // 2, 3 and 4 share Left, 480 px each
 
     EXPECT_TRUE(ws.layoutMessage("resize taller", 3));
@@ -137,7 +158,7 @@ TEST(LeftRows, TallerGrowsTheFocusedLeftRowAndTheOthersGiveWayInProportion) {
     EXPECT_TRUE(near(ws.rectOf(4), leftRow(996, 444)));
 }
 
-TEST(LeftRows, ALeftRowsHeightLeavesTheStackAlone) {
+TEST(RowLimit, ALeftRowsHeightLeavesTheStackAlone) {
     Workspace ws = filled(2, 5); // 4 and 5 share the Stack
 
     ws.layoutMessage("resize taller", 2);
@@ -146,7 +167,7 @@ TEST(LeftRows, ALeftRowsHeightLeavesTheStackAlone) {
     EXPECT_TRUE(near(ws.rectOf(5), rightRow(720, 720)));
 }
 
-TEST(LeftRows, HeightKeysDoNothingOnALoneLeftRow) {
+TEST(RowLimit, HeightKeysDoNothingOnALoneLeftRow) {
     Workspace ws = filled(2, 2);
 
     EXPECT_FALSE(ws.layoutMessage("resize taller", 2));
@@ -154,7 +175,7 @@ TEST(LeftRows, HeightKeysDoNothingOnALoneLeftRow) {
     EXPECT_TRUE(near(ws.rectOf(2), LEFT_ZONE));
 }
 
-TEST(LeftRows, ShorterStopsAtTheMinimumRowHeight) {
+TEST(RowLimit, ShorterStopsAtTheMinimumRowHeight) {
     Workspace ws = filled(2, 3);
     for (int i = 0; i < 20; ++i)
         ws.layoutMessage("resize shorter", 2);
@@ -164,7 +185,7 @@ TEST(LeftRows, ShorterStopsAtTheMinimumRowHeight) {
     EXPECT_TRUE(near(ws.rectOf(3), leftRow(144, 1296)));
 }
 
-TEST(LeftRows, WiderOnAnyLeftRowWidensTheWholeLeftZone) {
+TEST(RowLimit, WiderOnAnyLeftRowWidensTheWholeLeftZone) {
     Workspace ws = filled(2, 3);
 
     EXPECT_TRUE(ws.layoutMessage("resize wider", 3));
@@ -173,7 +194,7 @@ TEST(LeftRows, WiderOnAnyLeftRowWidensTheWholeLeftZone) {
     EXPECT_TRUE(near(ws.rectOf(3), {0, 720, 1536, 720}));
 }
 
-TEST(LeftRows, ResetMakesTheLeftRowsEqualAgain) {
+TEST(RowLimit, ResetMakesTheLeftRowsEqualAgain) {
     Workspace ws = filled(2, 3);
     ws.layoutMessage("resize taller", 2);
 
@@ -183,7 +204,7 @@ TEST(LeftRows, ResetMakesTheLeftRowsEqualAgain) {
     EXPECT_TRUE(near(ws.rectOf(3), leftRow(720, 720)));
 }
 
-TEST(LeftRows, DraggingALeftRowDownMovesItsBottomEdgeAndTheDivider) {
+TEST(RowLimit, DraggingALeftRowDownMovesItsBottomEdgeAndTheDivider) {
     Workspace ws = filled(3, 4);
 
     // The middle Row grabbed at its bottom half: its bottom edge moves.
@@ -195,7 +216,7 @@ TEST(LeftRows, DraggingALeftRowDownMovesItsBottomEdgeAndTheDivider) {
     EXPECT_TRUE(near(ws.rectOf(4), {0, 1060, 1380, 380}));
 }
 
-TEST(LeftRows, DraggingTheTopLeftRowUpMovesItsBottomEdgeOnly) {
+TEST(RowLimit, DraggingTheTopLeftRowUpMovesItsBottomEdgeOnly) {
     Workspace ws = filled(2, 3);
 
     // The top Row has only a bottom edge, whichever half is grabbed.
@@ -205,7 +226,7 @@ TEST(LeftRows, DraggingTheTopLeftRowUpMovesItsBottomEdgeOnly) {
     EXPECT_TRUE(near(ws.rectOf(3), leftRow(600, 840)));
 }
 
-TEST(LeftRows, ALoneLeftRowDragsSidewaysOnly) {
+TEST(RowLimit, ALoneLeftRowDragsSidewaysOnly) {
     Workspace ws = filled(2, 2);
 
     ws.dragResize(2, 100, 200, Corner::BottomRight);
@@ -213,7 +234,7 @@ TEST(LeftRows, ALoneLeftRowDragsSidewaysOnly) {
     EXPECT_TRUE(near(ws.rectOf(2), {0, 0, 1380, 1440}));
 }
 
-TEST(LeftRows, AWindowJoiningLeftEndsTheDrag) {
+TEST(RowLimit, AWindowJoiningLeftEndsTheDrag) {
     Workspace ws = filled(2, 2);
     ws.dragResize(2, 100, 0, Corner::BottomRight);
 
@@ -225,7 +246,7 @@ TEST(LeftRows, AWindowJoiningLeftEndsTheDrag) {
 
 // Left uses only as many Rows as fit min_row_height.
 
-TEST(LeftRows, ALimitTooHighForTheMinimumRowHeightIsMadeToFit) {
+TEST(RowLimit, ALimitTooHighForTheMinimumRowHeightIsMadeToFit) {
     Workspace  ws{AREA};
     const auto warnings = ws.setSettings(Settings{.minRowHeight = 0.3, .leftRows = 5});
 
@@ -239,7 +260,7 @@ TEST(LeftRows, ALimitTooHighForTheMinimumRowHeightIsMadeToFit) {
     EXPECT_TRUE(near(ws.rectOf(5), RIGHT_ZONE));
 }
 
-TEST(LeftRows, ALayoutOptsLimitTooHighNamesTheWorkspace) {
+TEST(RowLimit, ALayoutOptsLimitTooHighNamesTheWorkspace) {
     Workspace  ws{AREA};
     const auto warnings = ws.setSettings(Settings{.minRowHeight = 0.25}, LayoutOpts{{"left_rows", "9"}}, "3");
 
@@ -248,7 +269,7 @@ TEST(LeftRows, ALayoutOptsLimitTooHighNamesTheWorkspace) {
     EXPECT_NE(warnings[0].find("workspace 3"), std::string::npos);
 }
 
-TEST(LeftRows, ALimitThatFitsExactlyIsKept) {
+TEST(RowLimit, ALimitThatFitsExactlyIsKept) {
     Workspace  ws{AREA};
     const auto warnings = ws.setSettings(Settings{.minRowHeight = 0.1, .leftRows = 10});
 
@@ -259,7 +280,7 @@ TEST(LeftRows, ALimitThatFitsExactlyIsKept) {
 // Lowering the limit moves the extra bottom Left windows to the top of the
 // Stack in Chain order; raising it moves nothing.
 
-TEST(LeftRows, LoweringTheLimitMovesTheExtraBottomLeftWindowsToTheTopOfTheStack) {
+TEST(RowLimit, LoweringTheLimitMovesTheExtraBottomLeftWindowsToTheTopOfTheStack) {
     Workspace ws = filled(4, 6); // 2, 3, 4, 5 Left; 6 Stack
 
     ws.setSettings(Settings{.leftRows = 2});
@@ -272,7 +293,7 @@ TEST(LeftRows, LoweringTheLimitMovesTheExtraBottomLeftWindowsToTheTopOfTheStack)
     EXPECT_TRUE(near(ws.rectOf(1), MASTER_ZONE));
 }
 
-TEST(LeftRows, LoweringTheLimitKeepsTheChainOrder) {
+TEST(RowLimit, LoweringTheLimitKeepsTheChainOrder) {
     Workspace ws = filled(3, 5); // Chain: 2, 3, 4, 1, 5
 
     ws.setSettings(Settings{.leftRows = 1});
@@ -282,7 +303,7 @@ TEST(LeftRows, LoweringTheLimitKeepsTheChainOrder) {
     EXPECT_EQ(ws.removeWindow(4), 5u);
 }
 
-TEST(LeftRows, LoweringTheLimitThroughLayoutOptsMovesWindowsToo) {
+TEST(RowLimit, LoweringTheLimitThroughLayoutOptsMovesWindowsToo) {
     Workspace ws{AREA};
     ws.setSettings(Settings{}, LayoutOpts{{"left_rows", "3"}}, "3");
     for (WindowId id = 1; id <= 4; ++id)
@@ -295,7 +316,7 @@ TEST(LeftRows, LoweringTheLimitThroughLayoutOptsMovesWindowsToo) {
     EXPECT_TRUE(near(ws.rectOf(4), rightRow(720, 720)));
 }
 
-TEST(LeftRows, RaisingTheMinimumRowHeightLowersTheLimitAndMovesWindows) {
+TEST(RowLimit, RaisingTheMinimumRowHeightLowersTheLimitAndMovesWindows) {
     Workspace ws = filled(4, 5);
 
     ws.setSettings(Settings{.minRowHeight = 0.4, .leftRows = 4});
@@ -306,7 +327,7 @@ TEST(LeftRows, RaisingTheMinimumRowHeightLowersTheLimitAndMovesWindows) {
     EXPECT_TRUE(near(ws.rectOf(5), rightRow(720, 720)));
 }
 
-TEST(LeftRows, LoweringTheLimitEndsARowEdgeDrag) {
+TEST(RowLimit, LoweringTheLimitEndsARowEdgeDrag) {
     Workspace ws = filled(2, 5); // 4 and 5 share the Stack
     ws.dragResize(4, 0, 50, Corner::None);
 
@@ -315,7 +336,7 @@ TEST(LeftRows, LoweringTheLimitEndsARowEdgeDrag) {
     EXPECT_FALSE(ws.resizing());
 }
 
-TEST(LeftRows, LoweringTheLimitKeepsADividerOnlyDrag) {
+TEST(RowLimit, LoweringTheLimitKeepsADividerOnlyDrag) {
     Workspace ws = filled(2, 4);
     ws.dragResize(1, 100, 0, Corner::BottomRight); // Master|Right
 
@@ -326,7 +347,7 @@ TEST(LeftRows, LoweringTheLimitKeepsADividerOnlyDrag) {
     EXPECT_TRUE(near(ws.rectOf(1), {1280, 0, 2760, 1440}));
 }
 
-TEST(LeftRows, ALimitChangeThatMovesNothingKeepsADrag) {
+TEST(RowLimit, ALimitChangeThatMovesNothingKeepsADrag) {
     Workspace ws = filled(2, 3);
     ws.dragResize(2, 100, 0, Corner::None);
 
@@ -335,7 +356,7 @@ TEST(LeftRows, ALimitChangeThatMovesNothingKeepsADrag) {
     EXPECT_TRUE(ws.resizing());
 }
 
-TEST(LeftRows, RaisingTheLimitMovesNothing) {
+TEST(RowLimit, RaisingTheLimitMovesNothing) {
     Workspace ws = filled(1, 4); // 2 Left; 3 and 4 Stack
 
     ws.setSettings(Settings{.leftRows = 3});
@@ -345,7 +366,7 @@ TEST(LeftRows, RaisingTheLimitMovesNothing) {
     EXPECT_TRUE(near(ws.rectOf(4), rightRow(720, 720)));
 }
 
-TEST(LeftRows, RaisingTheLimitLetsTheNextWindowJoinLeft) {
+TEST(RowLimit, RaisingTheLimitLetsTheNextWindowJoinLeft) {
     Workspace ws = filled(1, 3);
     ws.setSettings(Settings{.leftRows = 2});
 
@@ -354,4 +375,98 @@ TEST(LeftRows, RaisingTheLimitLetsTheNextWindowJoinLeft) {
     EXPECT_TRUE(near(ws.rectOf(2), leftRow(0, 720)));
     EXPECT_TRUE(near(ws.rectOf(4), leftRow(720, 720)));
     EXPECT_TRUE(near(ws.rectOf(3), RIGHT_ZONE));
+}
+
+// min_row_height caps the Row limit of a Bounded Right as it does Left's.
+
+TEST(RowLimit, ARightLimitTooHighForTheMinimumRowHeightIsMadeToFit) {
+    Workspace  ws{AREA};
+    const auto warnings = ws.setSettings(Settings{.minRowHeight = 0.3, .leftRows = RowLimit::unlimited(), .rightRows = 5});
+
+    EXPECT_EQ(ws.settings().rightRows, 3);
+    ASSERT_EQ(warnings.size(), 1u);
+    EXPECT_NE(warnings[0].find("right_rows"), std::string::npos) << warnings[0];
+}
+
+TEST(RowLimit, AStackIsNeverCappedByTheMinimumRowHeight) {
+    Workspace  ws{AREA};
+    const auto warnings = ws.setSettings(Settings{.minRowHeight = 0.5, .leftRows = RowLimit::unlimited()});
+
+    EXPECT_TRUE(warnings.empty());
+    EXPECT_EQ(ws.settings().leftRows, RowLimit::unlimited());
+    EXPECT_EQ(ws.settings().rightRows, RowLimit::unlimited());
+}
+
+// Lowering a Right limit pushes its extra bottom windows to the bottom of
+// the Left Stack, its end nearest Master, keeping their Chain order.
+
+TEST(RowLimit, LoweringTheRightLimitMovesItsExtraBottomWindowsToTheBottomOfTheLeftStack) {
+    Workspace ws = mirrored(3, {2}, 1, {3, 4, 5});
+
+    ws.setSettings(Settings{.leftRows = RowLimit::unlimited(), .rightRows = 1});
+
+    EXPECT_TRUE(near(ws.rectOf(3), RIGHT_ZONE));
+    EXPECT_TRUE(near(ws.rectOf(2), leftRow(0, 480)));
+    EXPECT_TRUE(near(ws.rectOf(4), leftRow(480, 480)));
+    EXPECT_TRUE(near(ws.rectOf(5), leftRow(960, 480)));
+    EXPECT_TRUE(near(ws.rectOf(1), MASTER_ZONE));
+}
+
+TEST(RowLimit, LoweringTheRightLimitKeepsTheChainOrder) {
+    Workspace ws = mirrored(3, {2}, 1, {3, 4, 5}); // Chain: 2, 1, 3, 4, 5
+
+    ws.setSettings(Settings{.leftRows = RowLimit::unlimited(), .rightRows = 1});
+
+    // Chain now: 2, 4, 5, 1, 3.
+    EXPECT_EQ(ws.removeWindow(2), 4u);
+    EXPECT_EQ(ws.removeWindow(5), 1u);
+}
+
+TEST(RowLimit, SwitchingRightFromUnlimitedToANumberPushesItsExtrasIntoTheLeftStack) {
+    Workspace ws = filled(1, 5); // 2 Left; 3, 4 and 5 Right
+
+    ws.setSettings(Settings{.leftRows = RowLimit::unlimited(), .rightRows = 1});
+
+    EXPECT_TRUE(near(ws.rectOf(3), RIGHT_ZONE));
+    EXPECT_TRUE(near(ws.rectOf(2), leftRow(0, 480)));
+    EXPECT_TRUE(near(ws.rectOf(4), leftRow(480, 480)));
+    EXPECT_TRUE(near(ws.rectOf(5), leftRow(960, 480)));
+}
+
+TEST(RowLimit, SwitchingLeftFromUnlimitedToANumberPushesItsExtrasToTheTopOfRight) {
+    Workspace ws = mirrored(RowLimit::unlimited(), {2, 3, 4}, 1, {5}); // two Stacks
+
+    ws.setSettings(Settings{});
+
+    EXPECT_TRUE(near(ws.rectOf(2), LEFT_ZONE));
+    EXPECT_TRUE(near(ws.rectOf(3), rightRow(0, 480)));
+    EXPECT_TRUE(near(ws.rectOf(4), rightRow(480, 480)));
+    EXPECT_TRUE(near(ws.rectOf(5), rightRow(960, 480)));
+}
+
+TEST(RowLimit, LoweringTheRightLimitThroughLayoutOptsMovesWindowsToo) {
+    Workspace ws{AREA};
+    ws.setSettings(Settings{}, LayoutOpts{{"left_rows", "unlimited"}, {"right_rows", "unlimited"}}, "3");
+    for (WindowId id = 1; id <= 2; ++id)
+        ws.addWindow(id);
+    ws.layoutMessage("move r", 1); // Right: 1
+    ws.addWindow(3);               // Master
+    ws.layoutMessage("move r", 3); // Right: 3, 1
+
+    ws.setSettings(Settings{}, LayoutOpts{{"left_rows", "unlimited"}, {"right_rows", "1"}}, "3");
+
+    EXPECT_TRUE(near(ws.rectOf(3), RIGHT_ZONE));
+    EXPECT_TRUE(near(ws.rectOf(2), leftRow(0, 720)));
+    EXPECT_TRUE(near(ws.rectOf(1), leftRow(720, 720)));
+}
+
+TEST(RowLimit, RaisingTheRightLimitMovesNothing) {
+    Workspace ws = mirrored(1, {2, 3}, 4, {1});
+
+    ws.setSettings(Settings{.leftRows = RowLimit::unlimited(), .rightRows = 3});
+
+    EXPECT_TRUE(near(ws.rectOf(1), RIGHT_ZONE));
+    EXPECT_TRUE(near(ws.rectOf(2), leftRow(0, 720)));
+    EXPECT_TRUE(near(ws.rectOf(3), leftRow(720, 720)));
+    EXPECT_TRUE(near(ws.rectOf(4), MASTER_ZONE));
 }

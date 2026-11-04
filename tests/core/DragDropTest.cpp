@@ -4,8 +4,11 @@
 
 #include <cmath>
 #include <optional>
+#include <vector>
 
+using threecol::Direction;
 using threecol::Rect;
+using threecol::RowLimit;
 using threecol::Settings;
 using threecol::WindowId;
 using threecol::Workspace;
@@ -47,6 +50,24 @@ namespace {
             return ::testing::AssertionSuccess();
         return ::testing::AssertionFailure() << "got {" << actual->x << ", " << actual->y << ", " << actual->w << ", " << actual->h << "}, expected {" << expected.x
                                              << ", " << expected.y << ", " << expected.w << ", " << expected.h << "}";
+    }
+
+
+    // A mirrored layout: Left a Stack, Right bounded to `rightRows` (or a
+    // second Stack). Windows land through Fill order and moves: `right` top
+    // to bottom, then `master`, then `left` top to bottom.
+    Workspace mirrored(RowLimit rightRows, const std::vector<WindowId>& left, WindowId master, const std::vector<WindowId>& right) {
+        Workspace ws{AREA};
+        ws.setSettings(Settings{.leftRows = RowLimit::unlimited(), .rightRows = rightRows});
+        // Each joins Right at its top, so the bottom one goes first.
+        for (auto id = right.rbegin(); id != right.rend(); ++id) {
+            ws.addWindow(*id);
+            ws.move(*id, Direction::Right);
+        }
+        ws.addWindow(master);
+        for (const WindowId id : left)
+            ws.addWindow(id);
+        return ws;
     }
 
 }
@@ -248,4 +269,54 @@ TEST(Drop, EndsAMouseResize) {
     EXPECT_TRUE(ws.drop(3, 2000, 700));
 
     EXPECT_FALSE(ws.resizing());
+}
+
+// Mirrored: the add area works by role, on either side.
+
+TEST(DropOnTheAddAreaMirrored, OfAFullRightSwapsWithItsBottomRow) {
+    Workspace ws = mirrored(1, {2, 3}, 4, {1});
+
+    EXPECT_TRUE(ws.drop(2, 4000, 1400));
+
+    EXPECT_TRUE(near(ws.rectOf(2), RIGHT_ZONE));
+    EXPECT_TRUE(near(ws.rectOf(1), leftRow(0, 720)));
+}
+
+TEST(DropOnTheAddAreaMirrored, OfARightBelowItsRowLimitAddsANewBottomRow) {
+    Workspace ws = mirrored(2, {2, 3}, 4, {1});
+
+    EXPECT_TRUE(ws.drop(2, 4000, 1400));
+
+    EXPECT_TRUE(near(ws.rectOf(1), rightRow(0, 720)));
+    EXPECT_TRUE(near(ws.rectOf(2), rightRow(720, 720)));
+    EXPECT_TRUE(near(ws.rectOf(3), LEFT_ZONE));
+}
+
+TEST(DropOnTheAddAreaMirrored, OfTheLeftStackAddsANewBottomRow) {
+    Workspace ws = mirrored(1, {2, 3}, 4, {1});
+
+    EXPECT_TRUE(ws.drop(4, 600, 1400));
+
+    EXPECT_TRUE(near(ws.rectOf(2), leftRow(0, 480)));
+    EXPECT_TRUE(near(ws.rectOf(3), leftRow(480, 480)));
+    EXPECT_TRUE(near(ws.rectOf(4), leftRow(960, 480)));
+    EXPECT_EQ(ws.nextWindowRect(), MASTER_ZONE);
+}
+
+TEST(DropOnAWindowMirrored, SwapsWithThatWindowInAFullRight) {
+    Workspace ws = mirrored(2, {2}, 4, {5, 1});
+
+    EXPECT_TRUE(ws.drop(2, 4000, 300)); // onto 5, the top Right Row
+
+    EXPECT_TRUE(near(ws.rectOf(2), rightRow(0, 720)));
+    EXPECT_TRUE(near(ws.rectOf(5), LEFT_ZONE));
+}
+
+TEST(DropOnTheAddAreaTwoStacks, OfEitherSideAddsANewBottomRow) {
+    Workspace ws = mirrored(RowLimit::unlimited(), {2, 3}, 4, {1});
+
+    EXPECT_TRUE(ws.drop(2, 4000, 1400));
+
+    EXPECT_TRUE(near(ws.rectOf(1), rightRow(0, 720)));
+    EXPECT_TRUE(near(ws.rectOf(2), rightRow(720, 720)));
 }

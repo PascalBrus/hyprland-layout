@@ -3,6 +3,9 @@
 #include <gtest/gtest.h>
 
 using threecol::Rect;
+using threecol::RowLimit;
+using threecol::Settings;
+using threecol::WindowId;
 using threecol::Workspace;
 
 namespace {
@@ -122,4 +125,31 @@ TEST(Workspace, AddingAWindowTwiceKeepsItInOneZone) {
 
     EXPECT_EQ(ws.rectOf(1), MASTER_ZONE);
     EXPECT_EQ(ws.rectOf(2), LEFT_ZONE);
+}
+
+// Mirrored (left_rows = "unlimited", right_rows = 1): Left is the Stack.
+// Fill order still goes Master, then Left up to its Row limit, so the Left
+// Stack takes every window after Master and Right fills only by moves.
+
+TEST(FillOrder, MirroredTheLeftStackTakesEveryWindowAfterMaster) {
+    Workspace ws{AREA};
+    ws.setSettings(Settings{.leftRows = RowLimit::unlimited(), .rightRows = 1});
+    for (WindowId id = 1; id <= 3; ++id)
+        ws.addWindow(id);
+
+    EXPECT_EQ(ws.rectOf(1), MASTER_ZONE);
+    EXPECT_EQ(ws.rectOf(2), (Rect{0, 0, 1280, 720}));
+    EXPECT_EQ(ws.rectOf(3), (Rect{0, 720, 1280, 720}));
+    EXPECT_EQ(ws.nextWindowRect(), (Rect{0, 960, 1280, 480}));
+}
+
+TEST(FillOrder, WithTwoStacksLeftTakesEveryWindowAfterMaster) {
+    Workspace ws{AREA};
+    ws.setSettings(Settings{.leftRows = RowLimit::unlimited()});
+    for (WindowId id = 1; id <= 3; ++id)
+        ws.addWindow(id);
+
+    EXPECT_EQ(ws.rectOf(1), MASTER_ZONE);
+    EXPECT_EQ(ws.rectOf(2), (Rect{0, 0, 1280, 720}));
+    EXPECT_EQ(ws.rectOf(3), (Rect{0, 720, 1280, 720}));
 }

@@ -2,7 +2,12 @@
 
 #include <gtest/gtest.h>
 
+#include <vector>
+
+using threecol::Direction;
 using threecol::Rect;
+using threecol::RowLimit;
+using threecol::Settings;
 using threecol::WindowId;
 using threecol::Workspace;
 
@@ -19,6 +24,24 @@ namespace {
     Workspace filled(WindowId count) {
         Workspace ws{AREA};
         for (WindowId id = 1; id <= count; ++id)
+            ws.addWindow(id);
+        return ws;
+    }
+
+
+    // A mirrored layout: Left a Stack, Right bounded to `rightRows` (or a
+    // second Stack). Windows land through Fill order and moves: `right` top
+    // to bottom, then `master`, then `left` top to bottom.
+    Workspace mirrored(RowLimit rightRows, const std::vector<WindowId>& left, WindowId master, const std::vector<WindowId>& right) {
+        Workspace ws{AREA};
+        ws.setSettings(Settings{.leftRows = RowLimit::unlimited(), .rightRows = rightRows});
+        // Each joins Right at its top, so the bottom one goes first.
+        for (auto id = right.rbegin(); id != right.rend(); ++id) {
+            ws.addWindow(*id);
+            ws.move(*id, Direction::Right);
+        }
+        ws.addWindow(master);
+        for (const WindowId id : left)
             ws.addWindow(id);
         return ws;
     }
@@ -206,4 +229,50 @@ TEST(Reload, ZoneAssignmentsAndHolesSurviveReplacing) {
     EXPECT_EQ(ws.rectOf(4), (Rect{3840, 480, 1280, 480}));
     EXPECT_EQ(ws.rectOf(5), (Rect{3840, 960, 1280, 480}));
     EXPECT_EQ(ws.nextWindowRect(), MASTER_ZONE);
+}
+
+// Mirrored: a Bounded Right and a Left Stack follow the same close rules
+// as a Bounded Left and a Right Stack.
+
+TEST(CloseRulesMirrored, ClosingTheLastRightWindowLeavesARightHole) {
+    Workspace ws = mirrored(1, {2, 3}, 4, {1});
+
+    ws.removeWindow(1);
+
+    EXPECT_EQ(ws.rectOf(4), MASTER_ZONE);
+    EXPECT_EQ(ws.rectOf(2), (Rect{0, 0, 1280, 720}));
+    // The Hole has room: Master moves into it whole.
+    EXPECT_TRUE(ws.layoutMessage("move r", 4));
+    EXPECT_EQ(ws.rectOf(4), RIGHT_ZONE);
+}
+
+TEST(CloseRulesMirrored, ClosingARightRowClosesTheGap) {
+    Workspace ws = mirrored(2, {2}, 4, {5, 1});
+
+    ws.removeWindow(5);
+
+    EXPECT_EQ(ws.rectOf(1), RIGHT_ZONE);
+}
+
+TEST(CloseRulesMirrored, ClosingALeftStackRowClosesTheGap) {
+    Workspace ws = mirrored(1, {2, 3}, 4, {1});
+
+    EXPECT_EQ(ws.removeWindow(2), 3u);
+
+    EXPECT_EQ(ws.rectOf(3), LEFT_ZONE);
+}
+
+TEST(CloseRulesMirrored, ClosingTheLastLeftStackWindowLeavesTheOtherZonesInPlace) {
+    Workspace ws = mirrored(1, {2}, 4, {1});
+
+    ws.removeWindow(2);
+
+    EXPECT_EQ(ws.rectOf(4), MASTER_ZONE);
+    EXPECT_EQ(ws.rectOf(1), RIGHT_ZONE);
+}
+
+TEST(CloseRulesMirrored, ClosingMasterFocusesTheTopOfRight) {
+    Workspace ws = mirrored(1, {2, 3}, 4, {1});
+
+    EXPECT_EQ(ws.removeWindow(4), 1u);
 }

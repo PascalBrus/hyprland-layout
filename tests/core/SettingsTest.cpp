@@ -60,6 +60,16 @@ TEST(Settings, LayoutOptsLeftRowsWinsOverTheGlobalRowLimit) {
     EXPECT_EQ(ws.settings().leftRows, 3);
 }
 
+TEST(Settings, LayoutOptsRightRowsWinsOverTheGlobalRowLimit) {
+    Workspace ws{AREA};
+
+    const auto warnings = ws.setSettings(Settings{}, LayoutOpts{{"right_rows", "2"}, {"left_rows", "unlimited"}}, "3");
+
+    EXPECT_TRUE(warnings.empty());
+    EXPECT_EQ(ws.settings().rightRows, 2);
+    EXPECT_EQ(ws.settings().leftRows, RowLimit::unlimited());
+}
+
 TEST(Settings, AWorkspaceWithoutLayoutOptsUsesTheGlobalValues) {
     Workspace ws{AREA};
     const Settings global{.leftWidth = 0.3, .rightWidth = 0.2, .leftRows = 2};
@@ -112,6 +122,53 @@ TEST(Settings, ALeftRowsThatIsNotAWholeNumberOfAtLeastOneIsIgnored) {
         EXPECT_EQ(ws.settings().leftRows, 2) << "value: " << bad;
         EXPECT_EQ(warnings.size(), 1u) << "value: " << bad;
     }
+}
+
+TEST(Settings, ARightRowsThatIsNotAWholeNumberOrUnlimitedIsIgnored) {
+    for (const char* bad : {"-2", "1.5", "infinite", "Unlimited"}) {
+        Workspace ws{AREA};
+
+        const auto warnings = ws.setSettings(Settings{}, LayoutOpts{{"right_rows", bad}}, "3");
+
+        EXPECT_EQ(ws.settings().rightRows, RowLimit::unlimited()) << "value: " << bad;
+        ASSERT_EQ(warnings.size(), 1u) << "value: " << bad;
+        EXPECT_NE(warnings[0].find("right_rows"), std::string::npos) << warnings[0];
+    }
+}
+
+// Until overflow windows can float (#49), every window must find room, so
+// one side has to be a Stack.
+
+TEST(Settings, WithNeitherSideAStackRightBecomesAStackWithAWarning) {
+    Workspace ws{AREA};
+
+    const auto warnings = ws.setSettings(Settings{.leftRows = 2, .rightRows = 3});
+
+    EXPECT_EQ(ws.settings().leftRows, 2);
+    EXPECT_EQ(ws.settings().rightRows, RowLimit::unlimited());
+    ASSERT_EQ(warnings.size(), 1u);
+    EXPECT_NE(warnings[0].find("right_rows"), std::string::npos) << warnings[0];
+    EXPECT_EQ(warnings[0].find("workspace"), std::string::npos) << warnings[0];
+}
+
+TEST(Settings, LayoutOptsLeavingNoStackNameTheWorkspace) {
+    Workspace ws{AREA};
+
+    const auto warnings = ws.setSettings(Settings{}, LayoutOpts{{"right_rows", "2"}}, "3");
+
+    EXPECT_EQ(ws.settings().rightRows, RowLimit::unlimited());
+    ASSERT_EQ(warnings.size(), 1u);
+    EXPECT_NE(warnings[0].find("workspace 3"), std::string::npos) << warnings[0];
+}
+
+TEST(Settings, BothSidesMayBeStacks) {
+    Workspace ws{AREA};
+
+    const auto warnings = ws.setSettings(Settings{.leftRows = RowLimit::unlimited()});
+
+    EXPECT_TRUE(warnings.empty());
+    EXPECT_EQ(ws.settings().leftRows, RowLimit::unlimited());
+    EXPECT_EQ(ws.settings().rightRows, RowLimit::unlimited());
 }
 
 TEST(Settings, AWholeNumberLeftRowsWrittenAsAFloatIsAccepted) {

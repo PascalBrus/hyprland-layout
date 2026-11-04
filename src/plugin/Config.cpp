@@ -24,6 +24,7 @@ namespace threecol {
             SP<CFloatValue> minRowHeight;
             SP<CFloatValue> step;
             SP<CIntValue>   leftRows;
+            SP<CIntValue>   rightRows;
             SP<CBoolValue>  persist;
         } g_values;
 
@@ -33,6 +34,23 @@ namespace threecol {
 
         SP<CFloatValue> fraction(const char* name, const char* description, double def) {
             return makeShared<CFloatValue>(name, description, def, Config::Values::SFloatValueOptions{.min = 0, .max = 1, .refresh = REFRESH_LAYOUTS});
+        }
+
+        // How a Row limit of "unlimited" reads back. Hyprland skips the
+        // minimum for a map entry, so a negative sentinel works while a typed
+        // negative number is still rejected.
+        constexpr Config::INTEGER UNLIMITED = -1;
+
+        // A whole number of at least 1, or "unlimited" for a Stack.
+        // TODO(#50): .min = 0 once a Row limit of 0 (a missing zone) works.
+        SP<CIntValue> rowLimit(const char* name, const char* description, RowLimit def) {
+            return makeShared<CIntValue>(name, description, def.rows().value_or(UNLIMITED),
+                                         Config::Values::SIntValueOptions{.min = 1, .map = Config::Values::OptionMap{{"unlimited", UNLIMITED}}, .refresh = REFRESH_LAYOUTS});
+        }
+
+        RowLimit rowLimitOf(const SP<CIntValue>& value) {
+            const auto rows = value->value();
+            return rows == UNLIMITED ? RowLimit::unlimited() : RowLimit{static_cast<int>(rows)};
         }
 
     }
@@ -45,14 +63,14 @@ namespace threecol {
             .minMasterWidth = fraction("plugin:threecol:min_master_width", "smallest Master width", DEFAULTS.minMasterWidth),
             .minRowHeight   = fraction("plugin:threecol:min_row_height", "smallest Row height (Left and Right)", DEFAULTS.minRowHeight),
             .step           = fraction("plugin:threecol:step", "keyboard resize step", DEFAULTS.step),
-            .leftRows       = makeShared<CIntValue>("plugin:threecol:left_rows", "most Rows the Left zone holds", *DEFAULTS.leftRows.rows(),
-                                                    Config::Values::SIntValueOptions{.min = 1, .refresh = REFRESH_LAYOUTS}),
+            .leftRows       = rowLimit("plugin:threecol:left_rows", "most Rows the Left zone holds, or \"unlimited\"", DEFAULTS.leftRows),
+            .rightRows      = rowLimit("plugin:threecol:right_rows", "most Rows the Right zone holds, or \"unlimited\"", DEFAULTS.rightRows),
             .persist        = makeShared<CBoolValue>("plugin:threecol:persist", "save Divider positions across reloads and reboots", DEFAULTS.persist,
                                                      Config::Values::SBoolValueOptions{.refresh = REFRESH_LAYOUTS}),
         };
 
         const std::initializer_list<SP<Config::Values::IValue>> all{
-            g_values.leftWidth, g_values.rightWidth, g_values.minWidth, g_values.minMasterWidth, g_values.minRowHeight, g_values.step, g_values.leftRows, g_values.persist,
+            g_values.leftWidth, g_values.rightWidth, g_values.minWidth, g_values.minMasterWidth, g_values.minRowHeight, g_values.step, g_values.leftRows, g_values.rightRows, g_values.persist,
         };
 
         bool ok = true;
@@ -73,7 +91,8 @@ namespace threecol {
             .minMasterWidth = g_values.minMasterWidth->value(),
             .minRowHeight   = g_values.minRowHeight->value(),
             .step           = g_values.step->value(),
-            .leftRows       = static_cast<int>(g_values.leftRows->value()),
+            .leftRows       = rowLimitOf(g_values.leftRows),
+            .rightRows      = rowLimitOf(g_values.rightRows),
             .persist        = g_values.persist->value(),
         };
     }

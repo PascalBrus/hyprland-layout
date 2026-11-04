@@ -4,8 +4,11 @@
 
 #include <cmath>
 #include <optional>
+#include <vector>
 
+using threecol::Direction;
 using threecol::Rect;
+using threecol::RowLimit;
 using threecol::Settings;
 using threecol::WindowId;
 using threecol::Workspace;
@@ -41,6 +44,24 @@ namespace {
             return ::testing::AssertionSuccess();
         return ::testing::AssertionFailure() << "got {" << actual->x << ", " << actual->y << ", " << actual->w << ", " << actual->h << "}, expected {" << expected.x
                                              << ", " << expected.y << ", " << expected.w << ", " << expected.h << "}";
+    }
+
+
+    // A mirrored layout: Left a Stack, Right bounded to `rightRows` (or a
+    // second Stack). Windows land through Fill order and moves: `right` top
+    // to bottom, then `master`, then `left` top to bottom.
+    Workspace mirrored(RowLimit rightRows, const std::vector<WindowId>& left, WindowId master, const std::vector<WindowId>& right) {
+        Workspace ws{AREA};
+        ws.setSettings(Settings{.leftRows = RowLimit::unlimited(), .rightRows = rightRows});
+        // Each joins Right at its top, so the bottom one goes first.
+        for (auto id = right.rbegin(); id != right.rend(); ++id) {
+            ws.addWindow(*id);
+            ws.move(*id, Direction::Right);
+        }
+        ws.addWindow(master);
+        for (const WindowId id : left)
+            ws.addWindow(id);
+        return ws;
     }
 
 }
@@ -107,4 +128,29 @@ TEST(DropIndicator, AgreesWithTheDropEverywhere) {
             }
         }
     }
+}
+
+TEST(DropIndicator, AgreesWithTheDropEverywhereWhenMirrored) {
+    // A Left Stack of three, a full Right of two, uneven heights.
+    Workspace start = mirrored(2, {2, 3, 4}, 1, {5, 6});
+    start.layoutMessage("resize taller", 3);
+
+    for (WindowId dragged = 1; dragged <= 6; ++dragged) {
+        for (double x = 40; x < 5120; x += 160) {
+            for (double y = 20; y < 1440; y += 60) {
+                Workspace  dropped   = start;
+                const auto indicator = start.dropIndicator(dragged, x, y);
+                if (dropped.drop(dragged, x, y))
+                    EXPECT_TRUE(near(indicator, *dropped.rectOf(dragged))) << "window " << dragged << " at " << x << ", " << y;
+                else
+                    EXPECT_EQ(indicator, std::nullopt) << "window " << dragged << " at " << x << ", " << y;
+            }
+        }
+    }
+}
+
+TEST(DropIndicator, OnTheAddAreaOfAFullRightShowsItsBottomRow) {
+    const Workspace ws = mirrored(1, {2, 3}, 4, {1});
+
+    EXPECT_TRUE(near(ws.dropIndicator(2, 4000, 1400), rightRow(0, 1440)));
 }

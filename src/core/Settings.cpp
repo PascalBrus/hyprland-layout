@@ -30,11 +30,13 @@ namespace threecol {
             return value;
         }
 
-        std::optional<int> parseRowLimit(const std::string& text) {
+        std::optional<RowLimit> parseRowLimit(const std::string& text) {
+            if (text == "unlimited")
+                return RowLimit::unlimited();
             const auto value = parseNumber(text);
             if (!value || *value < 1 || *value != std::floor(*value) || *value > std::numeric_limits<int>::max())
                 return std::nullopt;
-            return static_cast<int>(*value);
+            return RowLimit{static_cast<int>(*value)};
         }
 
         std::string workspaceLabel(std::string_view name) {
@@ -71,6 +73,17 @@ namespace threecol {
                 return;
             warnings.push_back(std::format("{}left_width {} and right_width {} leave Master less than min_master_width {}; using {:.3g} and {:.3g}",
                                            prefix(overridden.left || overridden.right), left, right, settings.minMasterWidth, settings.leftWidth, settings.rightWidth));
+        }
+
+        // Temporary, until a window that finds no room can float (#49): one
+        // side must be a Stack, so Right, the default Stack, becomes one.
+        void leaveAStack(Settings& settings, SOverridden overridden, std::string_view workspaceName, std::vector<std::string>& warnings) {
+            if (settings.leftRows.role() == Role::Stack || settings.rightRows.role() == Role::Stack)
+                return;
+            const bool fromLayoutOpts = overridden.leftRows || overridden.rightRows;
+            warnings.push_back(std::format("{}left_rows {} and right_rows {} leave no Stack for the other windows; using right_rows \"unlimited\"",
+                                           fromLayoutOpts ? workspaceLabel(workspaceName) + ": " : std::string{}, settings.leftRows.text(), settings.rightRows.text()));
+            settings.rightRows = RowLimit::unlimited();
         }
 
         // Makes the Row limits fit: a Bounded zone uses only as many Rows as
@@ -131,17 +144,19 @@ namespace threecol {
                     (key == "left_width" ? overridden.left : overridden.right) = true;
                 } else
                     warnIgnored(key, text, "a number from 0 to 1", std::format("{}", width));
-            } else if (key == "left_rows") {
+            } else if (key == "left_rows" || key == "right_rows") {
+                RowLimit& limit = key == "left_rows" ? settings.leftRows : settings.rightRows;
                 if (const auto value = parseRowLimit(text)) {
-                    settings.leftRows   = *value;
-                    overridden.leftRows = true;
+                    limit                                                           = *value;
+                    (key == "left_rows" ? overridden.leftRows : overridden.rightRows) = true;
                 } else
-                    warnIgnored(key, text, "a whole number of at least 1", settings.leftRows.text());
+                    warnIgnored(key, text, "a whole number of at least 1 or \"unlimited\"", limit.text());
             } else
                 resolved.warnings.push_back(std::format("{}: unknown layout_opts key \"{}\", ignored", workspaceLabel(workspaceName), key));
         }
 
         makeWidthsFit(settings, overridden, workspaceName, resolved.warnings);
+        leaveAStack(settings, overridden, workspaceName, resolved.warnings);
         makeRowLimitsFit(settings, overridden, workspaceName, resolved.warnings);
 
         return resolved;
