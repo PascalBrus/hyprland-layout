@@ -96,6 +96,22 @@ namespace threecol {
 
     }
 
+    std::string_view sideName(Side side) {
+        return side == Side::Left ? "left" : "right";
+    }
+
+    std::ostream& operator<<(std::ostream& out, Side side) {
+        return out << sideName(side);
+    }
+
+    std::optional<Side> parseSide(std::string_view text) {
+        if (text == "left")
+            return Side::Left;
+        if (text == "right")
+            return Side::Right;
+        return std::nullopt;
+    }
+
     std::string RowLimit::text() const {
         return m_rows ? std::to_string(*m_rows) : std::string{"unlimited"};
     }
@@ -140,6 +156,11 @@ namespace threecol {
                     (key == "left_rows" ? overridden.leftRows : overridden.rightRows) = true;
                 } else
                     warnIgnored(key, text, "a whole number of at least 1 or \"unlimited\"", limit.text());
+            } else if (key == "fill_first") {
+                if (const auto side = parseSide(text))
+                    settings.fillFirst = *side;
+                else
+                    warnIgnored(key, text, "\"left\" or \"right\"", std::string{sideName(settings.fillFirst)});
             } else
                 resolved.warnings.push_back(std::format("{}: unknown layout_opts key \"{}\", ignored", workspaceLabel(workspaceName), key));
         }

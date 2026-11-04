@@ -2,7 +2,9 @@
 
 #include <hyprland/src/config/values/ConfigValues.hpp>
 
+#include <expected>
 #include <initializer_list>
+#include <string>
 
 namespace threecol {
 
@@ -11,6 +13,7 @@ namespace threecol {
         using Config::Values::CBoolValue;
         using Config::Values::CFloatValue;
         using Config::Values::CIntValue;
+        using Config::Values::CStringValue;
         using Config::Supplementary::REFRESH_LAYOUTS;
 
         const Settings DEFAULTS{};
@@ -24,8 +27,9 @@ namespace threecol {
             SP<CFloatValue> minRowHeight;
             SP<CFloatValue> step;
             SP<CIntValue>   leftRows;
-            SP<CIntValue>   rightRows;
-            SP<CBoolValue>  persist;
+            SP<CIntValue>    rightRows;
+            SP<CStringValue> fillFirst;
+            SP<CBoolValue>   persist;
         } g_values;
 
         // False until every value is registered. An unregistered value never
@@ -53,6 +57,18 @@ namespace threecol {
             return rows == UNLIMITED ? RowLimit::unlimited() : RowLimit{static_cast<int>(rows)};
         }
 
+        // "left" or "right" only. A string value, not an int map, so 0 and 1
+        // aren't accepted too.
+        SP<CStringValue> side(const char* name, const char* description, Side def) {
+            const auto validator = [](const Config::STRING& text) -> std::expected<void, std::string> {
+                if (parseSide(text))
+                    return {};
+                return std::unexpected(std::string{"expected \"left\" or \"right\""});
+            };
+            return makeShared<CStringValue>(name, description, Config::STRING{sideName(def)},
+                                            Config::Values::SStringValueOptions{.validator = validator, .refresh = REFRESH_LAYOUTS});
+        }
+
     }
 
     bool registerConfigValues(HANDLE handle) {
@@ -65,12 +81,13 @@ namespace threecol {
             .step           = fraction("plugin:threecol:step", "keyboard resize step", DEFAULTS.step),
             .leftRows       = rowLimit("plugin:threecol:left_rows", "most Rows the Left zone holds, or \"unlimited\"", DEFAULTS.leftRows),
             .rightRows      = rowLimit("plugin:threecol:right_rows", "most Rows the Right zone holds, or \"unlimited\"", DEFAULTS.rightRows),
+            .fillFirst      = side("plugin:threecol:fill_first", "side new windows go to after Master: \"left\" or \"right\"", DEFAULTS.fillFirst),
             .persist        = makeShared<CBoolValue>("plugin:threecol:persist", "save Divider positions across reloads and reboots", DEFAULTS.persist,
                                                      Config::Values::SBoolValueOptions{.refresh = REFRESH_LAYOUTS}),
         };
 
         const std::initializer_list<SP<Config::Values::IValue>> all{
-            g_values.leftWidth, g_values.rightWidth, g_values.minWidth, g_values.minMasterWidth, g_values.minRowHeight, g_values.step, g_values.leftRows, g_values.rightRows, g_values.persist,
+            g_values.leftWidth, g_values.rightWidth, g_values.minWidth, g_values.minMasterWidth, g_values.minRowHeight, g_values.step, g_values.leftRows, g_values.rightRows, g_values.fillFirst, g_values.persist,
         };
 
         bool ok = true;
@@ -93,6 +110,7 @@ namespace threecol {
             .step           = g_values.step->value(),
             .leftRows       = rowLimitOf(g_values.leftRows),
             .rightRows      = rowLimitOf(g_values.rightRows),
+            .fillFirst      = parseSide(g_values.fillFirst->value()).value_or(DEFAULTS.fillFirst),
             .persist        = g_values.persist->value(),
         };
     }

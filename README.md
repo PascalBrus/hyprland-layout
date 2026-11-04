@@ -21,7 +21,7 @@ threecol splits each workspace into three **Zones**, side by side. By default Le
 
 Either side can be the Stack, or both: `left_rows = "unlimited"` with `right_rows = 1` mirrors the layout (see [Settings](#settings)).
 
-- **Fill order.** The first window goes to Master, then Left up to its **Row limit**, then Right up to its own. New windows join a side at its bottom. By default that is Master, one window in Left, and the rest at the bottom of the Stack on the right. A lone window sits in the middle, not stretched across the whole screen.
+- **Fill order.** The first window goes to Master, then the `fill_first` side (Left by default) up to its **Row limit**, then the other side up to its own. New windows join a side at its bottom. By default that is Master, one window in Left, and the rest at the bottom of the Stack on the right. A lone window sits in the middle, not stretched across the whole screen.
 - **No room.** With both sides limited, a window that finds no room (Master taken and both sides full) floats at its own size, centred. It stays floating when room frees up.
 - **Holes.** Close the Master window and its place stays empty; nothing slides in. The next new window fills it.
 - **Rows.** Each side holds one window per **Row**. A Stack holds any number; a side with a Row limit (`left_rows`, `right_rows`) holds up to that many. By default Left holds one and Right is the Stack; mirrored, it's the other way round.
@@ -186,13 +186,14 @@ Sizes are fractions of the workspace area (0 to 1). Master gets whatever Left an
 | `right_width` | float | 0.25 | yes | Right zone width (was `stack_width`) |
 | `left_rows` | int or `"unlimited"` | 1 | yes | **Row limit**: most windows the Left zone holds (≥ 1), or `"unlimited"` for a Stack |
 | `right_rows` | int or `"unlimited"` | `"unlimited"` | yes | **Row limit** of the Right zone, the same way |
+| `fill_first` | `"left"` or `"right"` | `"left"` | yes | The side new windows go to after Master, before the other side |
 | `min_width` | float | 0.10 | no | Smallest Left / Right width |
 | `min_master_width` | float | 0.20 | no | Smallest Master width |
 | `min_row_height` | float | 0.10 | no | Smallest Row height (Left and Right); also caps both Row limits |
 | `step` | float | 0.05 | no | Keyboard resize step |
 | `persist` | bool | true | no | Save Divider positions across reloads and reboots |
 
-**Per workspace.** `left_width`, `right_width`, `left_rows` and `right_rows` can be overridden with a workspace rule's `layout_opts`, using the same names:
+**Per workspace.** `left_width`, `right_width`, `left_rows`, `right_rows` and `fill_first` can be overridden with a workspace rule's `layout_opts`, using the same names:
 
 ```lua
 hl.workspace_rule({
@@ -202,7 +203,7 @@ hl.workspace_rule({
 })
 ```
 
-**Mirrored.** Make Left the Stack and give Right a Row limit:
+**Mirrored.** Make Left the Stack, give Right a Row limit, and fill Right first:
 
 ```lua
 hl.config({
@@ -210,12 +211,15 @@ hl.config({
         threecol = {
             left_rows  = "unlimited",
             right_rows = 1,
+            fill_first = "right",
         },
     },
 })
 ```
 
-Fill order still goes Master, then Left, so in a mirrored layout every new window after Master joins the Left Stack; Right fills when you move (`move r` from Master) or drag a window there. Moves, drops, close rules and the Chain are the mirror image of the default. Both sides may be `"unlimited"` (two Stacks).
+New windows then go to Master, one to Right, and the rest to the bottom of the Left Stack. Moves, drops, close rules and the Chain are the mirror image of the default. Both sides may be `"unlimited"` (two Stacks).
+
+**`fill_first` and a Stack.** A Stack has no Row limit, so if the `fill_first` side is a Stack it takes every new window after Master. The other side then fills only when you move or drag a window there. That happens with `fill_first = "right"` on the default layout, or with the mirrored layout above if you leave out `fill_first`.
 
 **Both sides limited.** Neither side has to be a Stack. Give both a Row limit and windows that find no room float instead:
 

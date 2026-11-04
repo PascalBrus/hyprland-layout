@@ -16,6 +16,19 @@ namespace threecol {
         Stack,   // no Row limit
     };
 
+    // A side of Master.
+    enum class Side {
+        Left,
+        Right,
+    };
+
+    // "left" or "right", as the settings spell it.
+    std::string_view     sideName(Side side);
+    std::ostream&        operator<<(std::ostream& out, Side side);
+
+    // The side `text` names ("left" or "right"), or nothing.
+    std::optional<Side>  parseSide(std::string_view text);
+
     // The most Rows a side zone may hold: a count, or unlimited. Unlimited is
     // no count at all, so it can't be mistaken for one.
     class RowLimit {
@@ -62,6 +75,7 @@ namespace threecol {
         double   step           = 0.05;
         RowLimit leftRows       = 1;
         RowLimit rightRows      = RowLimit::unlimited();
+        Side     fillFirst      = Side::Left; // the side new windows go to after Master
         bool     persist        = true;
 
         friend bool operator==(const Settings&, const Settings&) = default;
