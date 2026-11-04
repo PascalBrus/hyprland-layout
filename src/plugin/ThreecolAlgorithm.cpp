@@ -317,6 +317,9 @@ namespace threecol {
         const bool     placed      = m_model.addWindow(id);
         keepDividersIfDragEnded(wasResizing);
         if (!placed) {
+            // A refresh, here or in predictSizeForNewTarget just before, may
+            // have pushed tiles out of a side zone without laying them out.
+            recalculate();
             floatNoRoom(target);
             return;
         }
