@@ -4,7 +4,7 @@ A checklist for testing threecol live, in a real Hyprland 0.57 session on the 51
 
 Run it once every feature ticket is done, and again before each release (see the README's release checklist). Each item is one action and the result to expect. File each failure as a bug. Words in **bold** come from [`GLOSSARY.md`](../GLOSSARY.md).
 
-**Last run:** 2026-11-04, by an agent on Hyprland 0.57.0 (`0aa6745`), threecol at `5bbd1a1`, then a second agent pass in a nested Hyprland 0.57.1 (`acc1aa0`) at `9fd58e0` for the items that need a config edit, a restart or a plugin unload. Ticks below are from both; notes in *italics* ("nested" marks the second pass). Failures, steps and the items left for the author are in [`reference/LIVE-TEST-RESULTS.md`](../reference/LIVE-TEST-RESULTS.md).
+**Last run:** 2026-11-04, by an agent on Hyprland 0.57.0 (`0aa6745`), threecol at `5bbd1a1`, then a second agent pass in a nested Hyprland 0.57.1 (`acc1aa0`) at `9fd58e0` for the items that need a config edit, a restart or a plugin unload, then the author on the live 0.57.1 session (held keys, visuals, hyprpm). Ticks below are from all three; notes in *italics* ("nested" marks the second pass, "author" the third). Failures, steps and the items left for the author are in [`reference/LIVE-TEST-RESULTS.md`](../reference/LIVE-TEST-RESULTS.md).
 
 ## Setup
 
@@ -14,14 +14,14 @@ The saved Dividers live in `$XDG_STATE_HOME/threecol/dividers`, or `~/.local/sta
 
 ## Install and load (#29)
 
-- [ ] `hyprpm add <repo>` then `hyprpm enable threecol` builds without GoogleTest and loads the plugin — *agent: `hyprpm` isn't installed on this machine: author*
-- [ ] `hyprpm.toml` has a `commit_pins` entry for the running Hyprland (`hyprctl version`), and `hyprpm update` builds the pinned threecol commit — *agent: pin for the running 0.57.1 (`acc1aa0…` → `9fd58e0`) is present, as is 0.57.0 (`0aa6745…`); `hyprpm update`: author*
+- [x] `hyprpm add <repo>` then `hyprpm enable threecol` builds without GoogleTest and loads the plugin — *author: on 0.57.1, `hyprpm add` matched the pin `9fd58e0`, built with `-DTHREECOL_TESTS=OFF` (no GoogleTest in the log), `hyprpm enable` loaded it. Needed `hyprland-protocols` ≥ 0.8.0 for the headers (see results)*
+- [x] `hyprpm.toml` has a `commit_pins` entry for the running Hyprland (`hyprctl version`), and `hyprpm update` builds the pinned threecol commit — *agent: pins for 0.57.1 (`acc1aa0…` → `9fd58e0`) and 0.57.0 (`0aa6745…`) present; author: `hyprpm update -f` rebuilt the headers and threecol at `9fd58e0` and loaded it*
 - [x] Manual install: clone, `cmake -B build -DCMAKE_BUILD_TYPE=Release -DTHREECOL_TESTS=OFF && cmake --build build -j`, then `hl.plugin.load("/abs/path/threecol.so")` loads it — *nested: fresh clone built against the 0.57.1 headers, no GoogleTest in the build log; loaded by `hl.plugin.load` at start-up, no config errors*
 - [x] Loading the repo's own `build/threecol.so` with `hl.plugin.load` works on the live session
 - [x] `cmake -B build && cmake --build build -j && ctest --test-dir build` passes — *215/215*
 - [x] A build for a different Hyprland commit doesn't register the layout and shows a persistent notification ("built for X, running Y; run `hyprpm update` …") — *nested: the 0.57.0 `build/threecol.so` in 0.57.1: `built for Hyprland 0aa6745, running Hyprland acc1aa0; …`, timeout ~1e11 ms, layout not registered*
 - [x] With a mismatched build, threecol workspaces fall back to dwindle and stay usable — *nested: `tiledLayout` dwindle; open, close and `window.resize` work*
-- [ ] At start-up with hyprpm, the short dwindle fallback turns into threecol once the plugin loads; windows already open are placed in **Fill order** — *nested, simulated: `hyprctl plugin load` with 4 windows open on dwindle switched the workspace to threecol, placed in Fill order (1st Master, 2nd Left, 3rd and 4th Stack). A real hyprpm login: author*
+- [x] At start-up with hyprpm, the short dwindle fallback turns into threecol once the plugin loads; windows already open are placed in **Fill order** — *author: login with the README's `hyprpm reload` hook; threecol loaded from `/var/cache/hyprpm/…`, every workspace on threecol. Windows-already-open half: nested, simulated with `hyprctl plugin load` (Fill order: 1st Master, 2nd Left, 3rd and 4th Stack)*
 - [x] `hyprctl plugin unload` puts workspaces back on dwindle without a crash — *nested: dwindle, still usable; loading again brings threecol back*
 - [x] With the plugin loaded and no `examples/binds.lua`, no key does anything new: threecol binds no keys itself — *the plugin registers no binds or dispatchers; `hyprctl binds` shows only the author's own*
 
@@ -36,7 +36,7 @@ The saved Dividers live in `$XDG_STATE_HOME/threecol/dividers`, or `~/.local/sta
 - [x] The first window lands in the **Master zone**, with empty space on both sides
 - [x] The second window lands in the **Left zone**
 - [x] The third window takes the whole **Stack zone**; further windows join the bottom of the Stack and the **Rows** share the height
-- [x] A new window opens straight at its final size, without a visible jump (`predictSizeForNewTarget`) — *first reported size = final size; the visual check is the author's*
+- [x] A new window opens straight at its final size, without a visible jump (`predictSizeForNewTarget`) — *first reported size = final size; author: no visible jump*
 
 ## Holes and close rules (#19)
 
@@ -71,13 +71,13 @@ The saved Dividers live in `$XDG_STATE_HOME/threecol/dividers`, or `~/.local/sta
 - [x] A height key stops when the other Rows are all at `min_row_height`
 - [x] K/J does nothing on Master or on a lone Row
 - [x] A key that would cross a limit stops at the limit (Left and Stack at `min_width`, Master at `min_master_width`)
-- [ ] The resize keys repeat when held — *nested: `hyprctl binds -j` shows `repeat: true` on the four SUPER+ALT binds from `examples/binds.lua`; holding a key: author*
+- [x] The resize keys repeat when held — *nested: `repeat: true` on the four SUPER+ALT binds from `examples/binds.lua`. Author: held ~2 s with the same flags, H fired 18×, K 10×, J 11× (L not held: it locks the author's screen)*
 - [x] Each key press is saved (check the state file after one press)
 - [x] A Hole resizes like any zone when its neighbour moves the shared Divider
 - [x] A lone Master window can grow into the empty side zones
 - [x] Resize keys do nothing on floating, fullscreen or maximised windows, and on other layouts — *on dwindle the message returns dwindle's own error `Unknown dwindle layoutmsg: resize wider`; nothing changes*
 - [x] SUPER+R puts the workspace's Dividers back to the settings (`layout_opts`, else global) and Row heights back to equal — *agent: reset to the global settings ✓; nested: the SUPER+R bind's action resets a workspace with `layout_opts` (0.30 / 0.20) to that shape, Rows equal, saved entry removed*
-- [ ] SUPER+R doesn't repeat when held — *nested: `repeat: false` on the bind; holding a key: author*
+- [x] SUPER+R doesn't repeat when held — *nested: `repeat: false` on the bind. Author: held ~2 s, fired once*
 
 ## Saved Dividers (#22)
 
@@ -160,7 +160,7 @@ The saved Dividers live in `$XDG_STATE_HOME/threecol/dividers`, or `~/.local/sta
 
 ## Drop indicator (#28)
 
-- [ ] While dragging, one rectangle shows where the window will land: active-border colour (gradient as Hyprland draws it), ~20% fill, the layout's gaps and rounding — *agent: screenshots taken (tint, rounded border, gaps); whether colour and gradient look right is the author's call*
+- [x] While dragging, one rectangle shows where the window will land: active-border colour (gradient as Hyprland draws it), ~20% fill, the layout's gaps and rounding — *agent: screenshots taken; author: looks right*
 - [x] It sits above the tiles and below the dragged window
 - [x] It follows the cursor live and always matches where the drop lands (swap, add, Hole)
 - [x] No indicator when the drop would change nothing

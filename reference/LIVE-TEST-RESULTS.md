@@ -6,9 +6,9 @@ The agent run of [`docs/live-test.md`](../docs/live-test.md) (#32), following [`
 - DP-1 5120x1440, default `plugin:threecol:*` values. Test windows: `ghostty` on workspaces 8–10 only.
 - Tools: [`livetest.py`](livetest.py) for `hyprctl`, [`uinput.py`](uinput.py) for mouse and keys (new: right-drag, pause mid-drag, held keys, refuses SUPER+ALT+L, checks the active workspace before every press and step).
 
-**Result (after the second pass below):** 112 items pass, 9 open (2 failures, 7 left for the author). 3 bugs (one found under an item that otherwise passes), 1 question, 3 notes from the second pass.
+**Result (after the author's pass below):** 118 items pass, 3 open (2 failures, 1 left for the author: the README GIF). 3 bugs (one found under an item that otherwise passes), 1 question, 3 notes from the second pass, 2 from the author's pass.
 
-First pass alone: 97 pass, 24 open.
+First pass alone: 97 pass, 24 open. After the second pass: 112 pass, 9 open.
 
 ## Bugs
 
@@ -74,18 +74,27 @@ The items left for the author that need only a config edit, a restart or a plugi
 2. **Out-of-range global settings are dropped silently.** `hl.config({ plugin = { threecol = { left_width = 2.0, stack_width = -1, min_width = 'abc' } } })`: Hyprland drops each value (range 0–1 from `Config.cpp`), `getoption` shows the default with `set: false`, and there's no config error and no threecol notice. Only values that pass Hyprland's check reach threecol's report. The checklist item asks threecol to list what it ignored or adjusted, so it passes, but the user gets no feedback for these.
 3. **Float noise in the notice.** `left_rows 99 doesn't fit min_row_height 0.10000000149011612; using 9`: the value is a float widened to double. `{:.3g}` (as the width warning already uses) would print `0.1`.
 
+## Third pass: the author (2026-11-04)
+
+The author, on the live Hyprland 0.57.1 session (`acc1aa0`), guided by a wizard script (not committed). Test windows on workspace 9 only; the state file was backed up first and matched the backup afterwards.
+
+- **Held keys.** Temporary runtime binds with the same flags as `examples/binds.lua`, each counting its calls and acting only on workspace 9. Held ~2 s: SUPER+ALT+H fired 18× (Left 1269 → 840 px), K 10×, J 11×; SUPER+R once. SUPER+ALT+L wasn't held (it locks the author's screen); it has the same flags as H.
+- **Visual.** Drop indicator and new windows (no visible jump) look right.
+- **hyprpm.** `hyprpm update` built the 0.57.1 headers; `hyprpm add https://github.com/PascalBrus/hyprland-layout` read the manifest from `master`, logged `commit pin 9fd58e0… matched hl`, and built with `-DTHREECOL_TESTS=OFF` (no GoogleTest in the log); `hyprpm enable threecol` loaded it. `hyprpm update -f` rebuilt headers and threecol at the same pin and loaded it.
+- **Start-up.** The author's `hyprland.lua` was switched from `hl.plugin.load(build/threecol.so)` to the README's `hyprpm reload` hook. After a login, threecol was loaded from `/var/cache/hyprpm/pascal.brus/threecol/threecol.so` and every workspace used it. The author kept the hyprpm setup (backup of the old config in `reference/testwizard/.run/`).
+
+### Notes
+
+1. **hyprpm needs current Hyprland build deps.** The first `hyprpm update` failed: building the 0.57.1 headers needs `hyprland-protocols >= 0.8.0`, and the machine had a stale AUR `hyprland-protocols-git` 0.7.0. Replacing it with `extra/hyprland-protocols` 0.8.0 fixed it. This is hyprpm building Hyprland itself, not threecol; the README's dependency line only covers the plugin build.
+2. **With hyprpm, the session runs the pinned build, not `build/`.** Local rebuilds no longer load at login; for development, load `build/threecol.so` by hand or switch the config back.
+
 ## Left for the author
 
-Not run, and why (after the second pass):
+Not run, and why (after the third pass):
 
 | Item | Why |
 |---|---|
-| `hyprpm add` / `enable`; `hyprpm update` builds the pinned commit (the pin itself is present) | `hyprpm` isn't installed on this machine |
-| Start-up with hyprpm turns the dwindle fallback into threecol | needs a hyprpm login; the late load was simulated in the nested pass and matches the README |
-| Resize keys repeat when held; SUPER+R doesn't repeat | needs a held key; the bind flags are right (nested) |
-| Drop indicator: colour, gradient and fill look right | visual; screenshots below |
-| New window opens without a visible jump (visual part) | visual; reported size check passes |
-| README GIF plays on GitHub | needs recording |
+| README GIF plays on GitHub | needs recording; shot list in the checklist's Showcase section |
 
 Drop indicator screenshots from this run (scratchpad of the agent session, not committed): `ind_master_tl.png` (corner close-up: rounded cyan border, tint), `swap.png`, `hole.png`, `fullleft_add.png`, `noop_own.png` (no indicator), `after_release.png` and `after_close.png` (indicator gone), in `/tmp/claude-1000/-home-pascal-brus-Projects-work-hyprland-layout/5d2fd6c1-72d1-499a-b159-05db69748fa0/scratchpad/shots/`.
 
