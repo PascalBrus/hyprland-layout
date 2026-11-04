@@ -193,6 +193,152 @@ Sizes are fractions of the workspace area (0 to 1). Master gets whatever Left an
 | `step` | float | 0.05 | no | Keyboard resize step |
 | `persist` | bool | true | no | Save Divider positions across reloads and reboots |
 
+### Settings at a glance
+
+Every setting, drawn on the screen it shapes:
+
+```
+  ◄── left_width ──► ◄────── Master: the rest ──────► ◄─ right_width ──►
+ ┌──────────────────┬────────────────────────────────┬──────────────────┐
+ │                  │                                │ Right 1          │
+ │  Left 1          │                                ├──────────────────┤ ▲
+ │                  │                                │ Right 2          │ │ each Row is at least
+ ├──────────────────┤             Master             ├──────────────────┤ ▼ min_row_height tall
+ │                  │                                │ Right 3          │
+ │  Left 2          │                                ├──────────────────┤
+ │                  │                                │ Right 4 …        │
+ └──────────────────┴────────────────────────────────┴──────────────────┘
+   left_rows = 2      at least                         right_rows = "unlimited"
+   at least           min_master_width wide            at least
+   min_width wide                                      min_width wide
+                    ▲                                ▲
+                    └── Dividers: SUPER+right-drag ──┘
+                       or SUPER+ALT+HJKL by `step`; saved if `persist`
+```
+
+`fill_first` doesn't change the shape, only which side new windows go to after Master. The numbers show the order windows arrive in:
+
+```
+ fill_first = "left" (default)          fill_first = "right"
+ left_rows = 2, right_rows = 2          left_rows = 2, right_rows = 2
+┌──────┬────────────┬──────┐           ┌──────┬────────────┬──────┐
+│  2   │            │  4   │           │  4   │            │  2   │
+├──────┤     1      ├──────┤           ├──────┤     1      ├──────┤
+│  3   │            │  5   │           │  5   │            │  3   │
+└──────┴────────────┴──────┘           └──────┴────────────┴──────┘
+```
+
+### Layout gallery
+
+`left_rows` and `right_rows` decide what each side is: a number is a side with a Row limit, `"unlimited"` is a Stack, and `0` removes the side. Together with the widths, they give all of these:
+
+**Default** · `left_rows = 1`, `right_rows = "unlimited"`
+
+```
+┌──────────┬────────────────────┬──────────┐
+│          │                    │ Right 1  │
+│   Left   │       Master       ├──────────┤
+│          │                    │ Right 2  │
+│          │                    ├──────────┤
+│          │                    │ Right 3  │
+└──────────┴────────────────────┴──────────┘
+```
+
+**Mirrored** · `left_rows = "unlimited"`, `right_rows = 1`, `fill_first = "right"`
+
+```
+┌──────────┬────────────────────┬──────────┐
+│ Left 1   │                    │          │
+├──────────┤       Master       │  Right   │
+│ Left 2   │                    │          │
+├──────────┤                    │          │
+│ Left 3   │                    │          │
+└──────────┴────────────────────┴──────────┘
+```
+
+**Two Stacks** · `left_rows = "unlimited"`, `right_rows = "unlimited"`
+
+```
+┌──────────┬────────────────────┬──────────┐
+│ Left 1   │                    │ Right 1  │
+├──────────┤       Master       ├──────────┤
+│ Left 2   │                    │ Right 2  │
+├──────────┤                    │          │
+│ Left 3   │                    │          │
+└──────────┴────────────────────┴──────────┘
+```
+
+With `fill_first = "left"`, the Left Stack takes every window after Master; move or drag windows to the Right Stack yourself.
+
+**No Left zone** · `left_rows = 0`
+
+```
+┌──────────────────────────────┬──────────┐
+│                              │ Right 1  │
+│            Master            ├──────────┤
+│                              │ Right 2  │
+│                              ├──────────┤
+│                              │ Right 3  │
+└──────────────────────────────┴──────────┘
+```
+
+**No Right zone** · `left_rows = "unlimited"`, `right_rows = 0`
+
+```
+┌──────────┬──────────────────────────────┐
+│ Left 1   │                              │
+├──────────┤            Master            │
+│ Left 2   │                              │
+├──────────┤                              │
+│ Left 3   │                              │
+└──────────┴──────────────────────────────┘
+```
+
+**Master only** · `left_rows = 0`, `right_rows = 0`
+
+```
+┌─────────────────────────────────────────┐
+│                                         │
+│                 Master                  │
+│              ┌──────────┐               │
+│              │ floating │               │
+│              └──────────┘               │
+│                                         │
+└─────────────────────────────────────────┘
+```
+
+One tiled window fills the workspace; every other window floats.
+
+**Both sides limited** · `left_rows = 1`, `right_rows = 2`
+
+```
+┌──────────┬────────────────────┬──────────┐
+│          │                    │ Right 1  │
+│   Left   │    ┌──────────┐    │          │
+│          │    │ window 5 │    ├──────────┤
+│          │    │ floats   │    │ Right 2  │
+│          │    └──────────┘    │          │
+└──────────┴────────────────────┴──────────┘
+```
+
+Four places; the fifth window and any later one float, centred, at their own size.
+
+**Different widths** · `left_width = 0.15`, `right_width = 0.35`
+
+```
+┌──────┬─────────────────────┬──────────────┐
+│      │                     │ Right 1      │
+│ Left │       Master        ├──────────────┤
+│      │                     │ Right 2      │
+│      │                     ├──────────────┤
+│      │                     │ Right 3      │
+└──────┴─────────────────────┴──────────────┘
+```
+
+Each of these can be set for one workspace only with `layout_opts` (see below), so a workspace on a second monitor can have, say, no Left zone while the ultrawide keeps all three.
+
+### Details
+
 **Per workspace.** `left_width`, `right_width`, `left_rows`, `right_rows` and `fill_first` can be overridden with a workspace rule's `layout_opts`, using the same names:
 
 ```lua
