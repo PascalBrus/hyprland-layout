@@ -658,3 +658,18 @@ TEST(RowLimit, PushedOutWindowsIntoAStackLeaveNone) {
 
     EXPECT_TRUE(change.noRoom.empty());
 }
+
+TEST(RowLimit, LoweringBothLimitsAtOnceKeepsEachSidesTopRowsAndTheRestLeaveInChainOrder) {
+    Workspace ws{AREA};
+    ws.setSettings(Settings{.leftRows = 3});
+    for (WindowId id = 1; id <= 6; ++id)
+        ws.addWindow(id); // 1 Master; 2, 3, 4 Left; 5, 6 Right
+
+    // Two Rows for five side windows: a full side has no room for the
+    // other's, so which leave doesn't depend on which side goes first.
+    const auto change = ws.setSettings(Settings{.leftRows = 1, .rightRows = 1});
+
+    EXPECT_EQ(change.noRoom, (std::vector<WindowId>{3, 4, 6}));
+    EXPECT_TRUE(near(ws.rectOf(2), LEFT_ZONE));
+    EXPECT_TRUE(near(ws.rectOf(5), RIGHT_ZONE));
+}
