@@ -30,7 +30,6 @@ The saved Dividers live in `$XDG_STATE_HOME/threecol/dividers`, or `~/.local/sta
 - [x] `general.layout = "threecol"` applies to every workspace
 - [x] `hl.workspace_rule({ workspace = …, layout = "threecol" })` applies it to that workspace only — *tested with runtime rules on workspaces 8 and 10*
 - [x] Workspaces on other layouts behave exactly as before (open, close, resize, move) — *dwindle on workspace 8 via a runtime rule: open, close, mouse resize, SUPER+H/L and SHIFT+L*
-- [ ] Rollback: `layout = "lua:threecol"` switches back to the Lua layout after a reload (only while `reference/threecol.lua` is still in the live config)
 
 ## Zones and Fill order (#18)
 
