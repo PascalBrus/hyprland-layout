@@ -179,22 +179,32 @@ namespace threecol {
 
     void CThreecolAlgorithm::floatLater(const WP<Layout::ITarget>& target) {
         m_toFloat.push_back(target);
-        if (m_pendingFloat || !g_pEventLoopManager)
+        if (m_pendingFloat)
             return;
+        // Hyprland has its event loop for as long as plugins are loaded; if
+        // it ever hasn't, floating now beats a window left out of the layout.
+        if (!g_pEventLoopManager) {
+            floatQueued();
+            return;
+        }
 
         // Settings are applied from the middle of Hyprland's own work, e.g. a
         // recalculate or a resize, so the floating waits for it to finish.
         m_pendingFloat = g_pEventLoopManager->doLaterLock([this] {
             m_pendingFloat.reset();
-            const auto parent = m_parent.lock();
-            for (const auto& weak : std::exchange(m_toFloat, {})) {
-                const auto target = weak.lock();
-                // Still one of this workspace's tiles, and not tiled here again.
-                if (!target || !parent || parent->tiledAlgo().get() != this || target->floating() || target->space() != parent->space() || idOf(target))
-                    continue;
-                parent->setFloating(target, true, /*reposition=*/true);
-            }
+            floatQueued();
         });
+    }
+
+    void CThreecolAlgorithm::floatQueued() {
+        const auto parent = m_parent.lock();
+        for (const auto& weak : std::exchange(m_toFloat, {})) {
+            const auto target = weak.lock();
+            // Still one of this workspace's tiles, and not tiled here again.
+            if (!target || !parent || parent->tiledAlgo().get() != this || target->floating() || target->space() != parent->space() || idOf(target))
+                continue;
+            parent->setFloating(target, true, /*reposition=*/true);
+        }
     }
 
     std::vector<std::string> applySettingsToAllWorkspaces() {

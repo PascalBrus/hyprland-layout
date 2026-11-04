@@ -119,6 +119,8 @@ namespace threecol {
         // Floats `target` once Hyprland is done with what it is doing, if it
         // is still a tile of this workspace that isn't tiled here again.
         void                                               floatLater(const WP<Layout::ITarget>& target);
+        // Floats the queued targets that still need it, as floatLater says.
+        void                                               floatQueued();
         std::vector<WP<Layout::ITarget>>                   m_toFloat;
         UP<SEventLoopDoLaterLock>                          m_pendingFloat; // set while floating is queued
 
