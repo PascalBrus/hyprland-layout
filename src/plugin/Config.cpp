@@ -45,11 +45,10 @@ namespace threecol {
         // negative number is still rejected.
         constexpr Config::INTEGER UNLIMITED = -1;
 
-        // A whole number of at least 1, or "unlimited" for a Stack.
-        // TODO(#50): .min = 0 once a Row limit of 0 (a missing zone) works.
+        // A whole number, 0 for a missing zone, or "unlimited" for a Stack.
         SP<CIntValue> rowLimit(const char* name, const char* description, RowLimit def) {
             return makeShared<CIntValue>(name, description, def.rows().value_or(UNLIMITED),
-                                         Config::Values::SIntValueOptions{.min = 1, .map = Config::Values::OptionMap{{"unlimited", UNLIMITED}}, .refresh = REFRESH_LAYOUTS});
+                                         Config::Values::SIntValueOptions{.min = 0, .map = Config::Values::OptionMap{{"unlimited", UNLIMITED}}, .refresh = REFRESH_LAYOUTS});
         }
 
         RowLimit rowLimitOf(const SP<CIntValue>& value) {

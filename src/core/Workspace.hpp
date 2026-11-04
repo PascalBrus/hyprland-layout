@@ -155,7 +155,8 @@ namespace threecol {
         //
         // Sideways, a Left window moves Left|Master and a Right window
         // Master|Right. Master moves the Divider on the grabbed half, or
-        // Master|Right with no corner.
+        // Master|Right with no corner. A missing zone has no Divider: with one
+        // side missing Master moves the other Divider, with both nothing.
         //
         // Up and down, a side zone Row moves the edge on the grabbed half, or its
         // bottom edge with no corner, changing only the two Rows either side.

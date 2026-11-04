@@ -19,7 +19,7 @@ threecol splits each workspace into three **Zones**, side by side. By default Le
    ¼ wide          ½ wide          ¼ wide
 ```
 
-Either side can be the Stack, or both: `left_rows = "unlimited"` with `right_rows = 1` mirrors the layout (see [Settings](#settings)).
+Either side can be the Stack, or both: `left_rows = "unlimited"` with `right_rows = 1` mirrors the layout. A Row limit of `0` drops a side altogether, and Master takes its width (see [Settings](#settings)).
 
 - **Fill order.** The first window goes to Master, then the `fill_first` side (Left by default) up to its **Row limit**, then the other side up to its own. New windows join a side at its bottom. By default that is Master, one window in Left, and the rest at the bottom of the Stack on the right. A lone window sits in the middle, not stretched across the whole screen.
 - **No room.** With both sides limited, a window that finds no room (Master taken and both sides full) floats at its own size, centred. It stays floating when room frees up.
@@ -184,7 +184,7 @@ Sizes are fractions of the workspace area (0 to 1). Master gets whatever Left an
 |---|---|---|---|---|
 | `left_width` | float | 0.25 | yes | Left zone width |
 | `right_width` | float | 0.25 | yes | Right zone width (was `stack_width`) |
-| `left_rows` | int or `"unlimited"` | 1 | yes | **Row limit**: most windows the Left zone holds (≥ 1), or `"unlimited"` for a Stack |
+| `left_rows` | int or `"unlimited"` | 1 | yes | **Row limit**: most windows the Left zone holds, `0` for no Left zone, or `"unlimited"` for a Stack |
 | `right_rows` | int or `"unlimited"` | `"unlimited"` | yes | **Row limit** of the Right zone, the same way |
 | `fill_first` | `"left"` or `"right"` | `"left"` | yes | The side new windows go to after Master, before the other side |
 | `min_width` | float | 0.10 | no | Smallest Left / Right width |
@@ -221,6 +221,29 @@ New windows then go to Master, one to Right, and the rest to the bottom of the L
 
 **`fill_first` and a Stack.** A Stack has no Row limit, so if the `fill_first` side is a Stack it takes every new window after Master. The other side then fills only when you move or drag a window there. That happens with `fill_first = "right"` on the default layout, or with the mirrored layout above if you leave out `fill_first`.
 
+**No Left zone.** A Row limit of `0` makes a side a **Missing zone**: it has no width, no Divider and no place in the Chain, and Master reaches the screen edge:
+
+```lua
+hl.config({
+    plugin = {
+        threecol = {
+            left_rows = 0,
+        },
+    },
+})
+```
+
+```
+┌──────────────────────────────┬──────────┐
+│                              │ Right 1  │
+│            Master            ├──────────┤
+│                              │ Right 2  │
+└──────────────────────────────┴──────────┘
+              ¾ wide              ¼ wide
+```
+
+New windows go to Master, then the Right Stack. Resizing Master moves only the Master|Right Divider, `move l` from Master does nothing, and a window dropped where Left would be lands on Master. The missing side's width setting is ignored: it isn't raised to `min_width`, counted against `min_master_width` or warned about. Its saved Divider is kept, so if the side comes back (by a reload or a `layout_opts` change) it returns where you left it. With both sides at `0`, Master fills the workspace, resizing does nothing, and every other window floats.
+
 **Both sides limited.** Neither side has to be a Stack. Give both a Row limit and windows that find no room float instead:
 
 ```lua
@@ -246,7 +269,7 @@ Here the fifth window floats at its own size, centred, as does any later one whi
 
 **Changing settings.** Changes to `plugin:threecol:*` apply as soon as the config reloads.
 
-- Lowering a Row limit, or switching a side from `"unlimited"` to a number, pushes that side's extra bottom windows out to the other side, at its end nearest Master (the top of Right, the bottom of Left), keeping their order. A Stack takes them all; a side with a Row limit takes as many as it has free Rows, first in Chain order; the rest float. Raising a limit moves nothing.
+- Lowering a Row limit, setting it to `0`, or switching a side from `"unlimited"` to a number, pushes that side's extra bottom windows out to the other side, at its end nearest Master (the top of Right, the bottom of Left), keeping their order. A Stack takes them all; a side with a Row limit takes as many as it has free Rows, first in Chain order; the rest float. Raising a limit moves nothing.
 - Tighter limits clamp the saved Dividers in use but don't rewrite the saved file, so loosening them again brings the old sizes back.
 
 **Saved Dividers.** With `persist = true`, each workspace's Dividers are saved after every finished resize to `$XDG_STATE_HOME/threecol/dividers` (or `~/.local/state/threecol/dividers`), keyed by workspace name. Row heights are not saved; they go back to equal after a reboot. With `persist = false` the file is neither read nor written (but kept), and every reload resets all workspaces to the settings.
