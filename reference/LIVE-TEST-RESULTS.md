@@ -85,7 +85,7 @@ The author, on the live Hyprland 0.57.1 session (`acc1aa0`), guided by a wizard 
 
 ### Notes
 
-1. **hyprpm needs current Hyprland build deps.** The first `hyprpm update` failed: building the 0.57.1 headers needs `hyprland-protocols >= 0.8.0`, and the machine had a stale AUR `hyprland-protocols-git` 0.7.0. Replacing it with `extra/hyprland-protocols` 0.8.0 fixed it. This is hyprpm building Hyprland itself, not threecol; the README's dependency line only covers the plugin build.
+1. **hyprpm needs current Hyprland build deps.** The first `hyprpm update` failed: building the 0.57.1 headers needs `hyprland-protocols >= 0.8.0`, and the machine had a stale AUR `hyprland-protocols-git` 0.7.0. Replacing it with `extra/hyprland-protocols` 0.8.0 fixed it. This is hyprpm building Hyprland itself, not threecol; the README's hyprpm section now says so.
 2. **With hyprpm, the session runs the pinned build, not `build/`.** Local rebuilds no longer load at login; for development, load `build/threecol.so` by hand or switch the config back.
 
 ## Left for the author

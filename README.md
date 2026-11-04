@@ -42,6 +42,8 @@ hyprpm enable threecol
 
 hyprpm builds the plugin (CMake, a C++23 compiler and `pkg-config`; no GoogleTest needed) and pins the threecol commit that matches your Hyprland.
 
+`hyprpm update` also builds Hyprland's headers from source, so it needs Hyprland's own build dependencies at the versions your Hyprland release asks for. An outdated one stops it with a CMake error. For example, 0.57.1 needs `hyprland-protocols` 0.8.0 or newer. Update the package it names and run `hyprpm update` again.
+
 **Load it at start-up.** hyprpm doesn't load plugins on its own. Add this to your `hyprland.lua`:
 
 ```lua
