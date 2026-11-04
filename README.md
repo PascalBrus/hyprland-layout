@@ -2,7 +2,7 @@
 
 A three-zone tiling layout for Hyprland, built for ultrawide monitors.
 
-![threecol: windows filling the Left, Master and Stack zones, then a mouse resize and a drag-and-drop swap](docs/threecol.gif)
+![threecol: windows filling the Left, Master and Stack zones, Holes, mouse and keyboard resize, drag-and-drop, then workspaces with two Left Rows, a mirrored shape, two columns and one column](docs/threecol.gif)
 
 ## What it is
 
@@ -194,6 +194,10 @@ Sizes are fractions of the workspace area (0 to 1). Master gets whatever Left an
 | `persist` | bool | true | no | Save Divider positions across reloads and reboots |
 
 ### Settings at a glance
+
+Every setting the GIF at the top doesn't show, one at a time:
+
+![threecol settings: zone widths, the min_width, min_master_width and min_row_height limits, step, persist and SUPER+R, per-workspace widths, fill_first, a window floating when both sides are full, Two Stacks and no Right zone](docs/threecol-settings.gif)
 
 Every setting, drawn on the screen it shapes:
 
