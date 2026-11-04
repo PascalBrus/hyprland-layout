@@ -17,7 +17,7 @@ namespace {
 
     constexpr Rect MASTER_ZONE{1280, 0, 2560, 1440};
     constexpr Rect LEFT_ZONE{0, 0, 1280, 1440};
-    constexpr Rect STACK_ZONE{3840, 0, 1280, 1440};
+    constexpr Rect RIGHT_ZONE{3840, 0, 1280, 1440};
 
     // A workspace with Row limit `leftRows` and windows 1..count added in
     // Fill order: 1 Master, then Left up to the limit, then the Stack.
@@ -33,7 +33,7 @@ namespace {
         return {0, y, 1280, h};
     }
 
-    Rect stackRow(double y, double h) {
+    Rect rightRow(double y, double h) {
         return {3840, y, 1280, h};
     }
 
@@ -140,8 +140,8 @@ TEST(ChainMove, DownSwapsWithTheNextRowTakingItsHeightAndKeepingFocus) {
 
     EXPECT_TRUE(result.changed);
     EXPECT_EQ(result.focus, 3u);
-    EXPECT_TRUE(near(ws.rectOf(4), stackRow(0, 792)));
-    EXPECT_TRUE(near(ws.rectOf(3), stackRow(792, 648)));
+    EXPECT_TRUE(near(ws.rectOf(4), rightRow(0, 792)));
+    EXPECT_TRUE(near(ws.rectOf(3), rightRow(792, 648)));
 }
 
 TEST(ChainMove, UpAndDownStopAtTheZoneEdgesAndDoNothingOnMaster) {
@@ -175,8 +175,8 @@ TEST(ChainMove, RightFromMasterJoinsTheTopOfTheStackAndLeavesAHole) {
     Workspace ws = filled(1, 3); // 1 Master, 2 Left, 3 Stack
 
     EXPECT_TRUE(ws.layoutMessage("move r", 1));
-    EXPECT_TRUE(near(ws.rectOf(1), stackRow(0, 720)));
-    EXPECT_TRUE(near(ws.rectOf(3), stackRow(720, 720)));
+    EXPECT_TRUE(near(ws.rectOf(1), rightRow(0, 720)));
+    EXPECT_TRUE(near(ws.rectOf(3), rightRow(720, 720)));
     EXPECT_TRUE(near(ws.rectOf(2), LEFT_ZONE));
     // Nothing slid into the Hole: the next window fills it.
     EXPECT_TRUE(near(ws.nextWindowRect(), MASTER_ZONE));
@@ -188,7 +188,7 @@ TEST(ChainMove, LeftFromAStackTopIntoAMasterHoleBringsItBack) {
 
     EXPECT_TRUE(ws.layoutMessage("move l", 1));
     EXPECT_TRUE(near(ws.rectOf(1), MASTER_ZONE));
-    EXPECT_TRUE(near(ws.rectOf(3), STACK_ZONE));
+    EXPECT_TRUE(near(ws.rectOf(3), RIGHT_ZONE));
 }
 
 TEST(ChainMove, LeftFromTheStackTopSwapsWithAnOccupiedMaster) {
@@ -196,14 +196,14 @@ TEST(ChainMove, LeftFromTheStackTopSwapsWithAnOccupiedMaster) {
 
     EXPECT_TRUE(ws.layoutMessage("move l", 3));
     EXPECT_TRUE(near(ws.rectOf(3), MASTER_ZONE));
-    EXPECT_TRUE(near(ws.rectOf(1), stackRow(0, 720)));
+    EXPECT_TRUE(near(ws.rectOf(1), rightRow(0, 720)));
 }
 
 TEST(ChainMove, RightFromMasterIntoAnEmptyStackMovesThere) {
     Workspace ws = filled(1, 2); // 1 Master, 2 Left
 
     EXPECT_TRUE(ws.layoutMessage("move r", 1));
-    EXPECT_TRUE(near(ws.rectOf(1), STACK_ZONE));
+    EXPECT_TRUE(near(ws.rectOf(1), RIGHT_ZONE));
     EXPECT_TRUE(near(ws.nextWindowRect(), MASTER_ZONE));
 }
 
@@ -213,7 +213,7 @@ TEST(ChainMove, RightFromLeftIntoAMasterHoleMovesThereLeavingALeftHole) {
 
     EXPECT_TRUE(ws.layoutMessage("move r", 2));
     EXPECT_TRUE(near(ws.rectOf(2), MASTER_ZONE));
-    EXPECT_TRUE(near(ws.rectOf(3), STACK_ZONE));
+    EXPECT_TRUE(near(ws.rectOf(3), RIGHT_ZONE));
     EXPECT_TRUE(near(ws.nextWindowRect(), LEFT_ZONE));
 }
 
@@ -262,8 +262,8 @@ TEST(ChainMove, RightAndLeftSwapNeighbouringRowsInsideAZone) {
     EXPECT_TRUE(near(ws.rectOf(3), leftRow(0, 720)));
 
     EXPECT_TRUE(ws.layoutMessage("move l", 5));
-    EXPECT_TRUE(near(ws.rectOf(5), stackRow(0, 720)));
-    EXPECT_TRUE(near(ws.rectOf(4), stackRow(720, 720)));
+    EXPECT_TRUE(near(ws.rectOf(5), rightRow(0, 720)));
+    EXPECT_TRUE(near(ws.rectOf(4), rightRow(720, 720)));
 }
 
 TEST(ChainMove, StopsAtTheChainEnds) {
@@ -272,7 +272,7 @@ TEST(ChainMove, StopsAtTheChainEnds) {
     EXPECT_FALSE(ws.layoutMessage("move l", 2));
     EXPECT_FALSE(ws.layoutMessage("move r", 3));
     EXPECT_TRUE(near(ws.rectOf(2), LEFT_ZONE));
-    EXPECT_TRUE(near(ws.rectOf(3), STACK_ZONE));
+    EXPECT_TRUE(near(ws.rectOf(3), RIGHT_ZONE));
 }
 
 TEST(ChainMove, AWindowJoiningTheStackTopGetsANewRow) {
@@ -280,16 +280,16 @@ TEST(ChainMove, AWindowJoiningTheStackTopGetsANewRow) {
 
     ws.layoutMessage("move r", 1);
 
-    EXPECT_TRUE(near(ws.rectOf(1), stackRow(0, 480)));
-    EXPECT_TRUE(near(ws.rectOf(3), stackRow(480, 480)));
-    EXPECT_TRUE(near(ws.rectOf(4), stackRow(960, 480)));
+    EXPECT_TRUE(near(ws.rectOf(1), rightRow(0, 480)));
+    EXPECT_TRUE(near(ws.rectOf(3), rightRow(480, 480)));
+    EXPECT_TRUE(near(ws.rectOf(4), rightRow(960, 480)));
 }
 
 TEST(ChainMove, MoveCallsRunTheSameRulesAsTheMessage) {
     Workspace ws = filled(1, 3);
 
     EXPECT_TRUE(ws.move(1, threecol::Direction::Right));
-    EXPECT_TRUE(near(ws.rectOf(1), stackRow(0, 720)));
+    EXPECT_TRUE(near(ws.rectOf(1), rightRow(0, 720)));
     EXPECT_FALSE(ws.move(3, threecol::Direction::Right));
 }
 
@@ -321,7 +321,7 @@ TEST(SwapWithMaster, OldMasterTakesTheMovedWindowsRowAndFocusStays) {
     EXPECT_TRUE(result.changed);
     EXPECT_EQ(result.focus, 4u);
     EXPECT_TRUE(near(ws.rectOf(4), MASTER_ZONE));
-    EXPECT_TRUE(near(ws.rectOf(1), stackRow(648, 792)));
+    EXPECT_TRUE(near(ws.rectOf(1), rightRow(648, 792)));
 }
 
 TEST(SwapWithMaster, OnAHoleTheWindowMovesIn) {
@@ -330,7 +330,7 @@ TEST(SwapWithMaster, OnAHoleTheWindowMovesIn) {
 
     EXPECT_TRUE(ws.layoutMessage("swapwithmaster", 3));
     EXPECT_TRUE(near(ws.rectOf(3), MASTER_ZONE));
-    EXPECT_TRUE(near(ws.rectOf(4), STACK_ZONE));
+    EXPECT_TRUE(near(ws.rectOf(4), RIGHT_ZONE));
 }
 
 TEST(SwapWithMaster, DoesNothingOnMasterOrWithNoFocus) {
@@ -349,7 +349,7 @@ TEST(SwapWindows, TwoWindowsTradePlacesEachTakingTheOthersRow) {
 
     EXPECT_TRUE(ws.swapWindows(2, 4));
     EXPECT_TRUE(near(ws.rectOf(4), LEFT_ZONE));
-    EXPECT_TRUE(near(ws.rectOf(2), stackRow(648, 792)));
+    EXPECT_TRUE(near(ws.rectOf(2), rightRow(648, 792)));
 }
 
 TEST(SwapWindows, DoesNothingUnlessBothAreHereAndDifferent) {

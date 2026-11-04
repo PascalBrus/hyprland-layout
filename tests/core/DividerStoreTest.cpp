@@ -264,3 +264,22 @@ TEST(DividerStore, EveryWriteBacksUpTheOldFileUntilTheBackupIsMade) {
     ASSERT_TRUE(after);
     EXPECT_FALSE(after->backUpOldFile);
 }
+
+TEST(DividerStore, AnOldFileReadsItsSecondNumberAsTheRightWidth) {
+    // Written before stack_width was renamed right_width.
+    const DividerStore store = persisting("threecol dividers 1\n"
+                                          "# left_width stack_width workspace\n"
+                                          "0.3 0.2 1\n");
+
+    ASSERT_TRUE(store.find("1"));
+    EXPECT_DOUBLE_EQ(store.find("1")->rightWidth, 0.2);
+}
+
+TEST(DividerStore, TheFileNamesTheRightWidth) {
+    DividerStore store = persisting();
+
+    const auto   file  = store.set("1", Dividers{0.3, 0.2});
+
+    ASSERT_TRUE(file);
+    EXPECT_NE(file->text.find("\n# left_width right_width workspace\n"), std::string::npos) << file->text;
+}

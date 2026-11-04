@@ -156,7 +156,7 @@ TEST(KeyboardResize, ResizedDividersWinOverChangedWidthSettings) {
     Workspace ws = filled(3);
     ws.layoutMessage("resize wider", 2);
 
-    ws.setSettings({.leftWidth = 0.3, .stackWidth = 0.3});
+    ws.setSettings({.leftWidth = 0.3, .rightWidth = 0.3});
 
     EXPECT_TRUE(near(ws.rectOf(2), {0, 0, 1536, 1440}));
     EXPECT_TRUE(near(ws.rectOf(3), {3840, 0, 1280, 1440}));
@@ -284,7 +284,7 @@ TEST(KeyboardResize, UnknownOrInapplicableMessagesDoNothing) {
 
 TEST(KeyboardResize, AResizeStoppedAtMastersMinimumStaysPut) {
     Workspace ws = filled(3);
-    ws.setSettings({.stackWidth = 0.3, .minMasterWidth = 0.3, .step = 0.3});
+    ws.setSettings({.rightWidth = 0.3, .minMasterWidth = 0.3, .step = 0.3});
     ws.layoutMessage("resize wider", 2); // stops where Master is 0.3
 
     for (int press = 0; press < 5; ++press)

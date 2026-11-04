@@ -82,7 +82,7 @@ namespace threecol {
 
         // Hands the model the current area, settings and the Dividers kept
         // for this workspace. Returns whether that moved any tile, e.g. a
-        // lower Row limit moving Left windows to the Stack.
+        // lower Row limit pushing windows out of a side zone.
         bool                                               refreshModel();
 
         // Every tile's rectangle in the model, in m_targets order.

@@ -13,7 +13,7 @@ namespace {
 
     constexpr Rect LEFT_ZONE{0, 0, 1280, 1440};
     constexpr Rect MASTER_ZONE{1280, 0, 2560, 1440};
-    constexpr Rect STACK_ZONE{3840, 0, 1280, 1440};
+    constexpr Rect RIGHT_ZONE{3840, 0, 1280, 1440};
 
     // A workspace with windows 1..count added in Fill order.
     Workspace filled(WindowId count) {
@@ -41,7 +41,7 @@ TEST(CloseRules, ClosingTheLastLeftWindowLeavesALeftHole) {
     ws.removeWindow(2);
 
     EXPECT_EQ(ws.rectOf(1), MASTER_ZONE);
-    EXPECT_EQ(ws.rectOf(3), STACK_ZONE);
+    EXPECT_EQ(ws.rectOf(3), RIGHT_ZONE);
 }
 
 TEST(CloseRules, NextWindowFillsAMasterHole) {
@@ -85,7 +85,7 @@ TEST(CloseRules, HolesKeepTheirWidthSoTheOtherZonesDontMove) {
     ws.removeWindow(1);
     ws.removeWindow(2);
 
-    EXPECT_EQ(ws.rectOf(3), STACK_ZONE);
+    EXPECT_EQ(ws.rectOf(3), RIGHT_ZONE);
 }
 
 TEST(CloseRules, ClosingAStackWindowClosesTheGapAndRowsShareTheHeight) {
@@ -106,7 +106,7 @@ TEST(CloseRules, ClosingTheLastStackWindowLeavesTheOtherZonesInPlace) {
 
     EXPECT_EQ(ws.rectOf(1), MASTER_ZONE);
     EXPECT_EQ(ws.rectOf(2), LEFT_ZONE);
-    EXPECT_EQ(ws.nextWindowRect(), STACK_ZONE);
+    EXPECT_EQ(ws.nextWindowRect(), RIGHT_ZONE);
 }
 
 // Focus after a close goes to the next window along the Chain (Left top to
@@ -189,7 +189,7 @@ TEST(MovedIn, AWindowThatLeavesAndComesBackFollowsFillOrderNotItsOldPlace) {
     ws.addWindow(4);
 
     EXPECT_EQ(ws.rectOf(4), MASTER_ZONE);
-    EXPECT_EQ(ws.rectOf(3), STACK_ZONE);
+    EXPECT_EQ(ws.rectOf(3), RIGHT_ZONE);
 }
 
 // hyprctl reload keeps the same layout instance and only re-places windows,

@@ -21,7 +21,7 @@ namespace {
 
     constexpr Rect MASTER_ZONE{1280, 0, 2560, 1440};
     constexpr Rect LEFT_ZONE{0, 0, 1280, 1440};
-    constexpr Rect STACK_ZONE{3840, 0, 1280, 1440};
+    constexpr Rect RIGHT_ZONE{3840, 0, 1280, 1440};
 
     // A workspace with Row limit `leftRows` and windows 1..count added in
     // Fill order.
@@ -37,7 +37,7 @@ namespace {
         return {0, y, 1280, h};
     }
 
-    Rect stackRow(double y, double h) {
+    Rect rightRow(double y, double h) {
         return {3840, y, 1280, h};
     }
 
@@ -61,7 +61,7 @@ TEST(LeftRows, FillOrderFillsTheBottomOfLeftUpToTheRowLimitThenTheStack) {
     EXPECT_TRUE(near(ws.rectOf(1), MASTER_ZONE));
     EXPECT_TRUE(near(ws.rectOf(2), leftRow(0, 720)));
     EXPECT_TRUE(near(ws.rectOf(3), leftRow(720, 720)));
-    EXPECT_TRUE(near(ws.rectOf(4), STACK_ZONE));
+    EXPECT_TRUE(near(ws.rectOf(4), RIGHT_ZONE));
 }
 
 TEST(LeftRows, LayoutOptsSetTheRowLimitForOneWorkspace) {
@@ -73,7 +73,7 @@ TEST(LeftRows, LayoutOptsSetTheRowLimitForOneWorkspace) {
     EXPECT_TRUE(near(ws.rectOf(2), leftRow(0, 480)));
     EXPECT_TRUE(near(ws.rectOf(3), leftRow(480, 480)));
     EXPECT_TRUE(near(ws.rectOf(4), leftRow(960, 480)));
-    EXPECT_TRUE(near(ws.rectOf(5), STACK_ZONE));
+    EXPECT_TRUE(near(ws.rectOf(5), RIGHT_ZONE));
 }
 
 TEST(LeftRows, ClosingMasterLeavesAHoleAndTheLeftRowsStay) {
@@ -93,7 +93,7 @@ TEST(LeftRows, ClosingALeftRowClosesTheGapAndTheOthersShareTheHeight) {
 
     EXPECT_TRUE(near(ws.rectOf(2), leftRow(0, 720)));
     EXPECT_TRUE(near(ws.rectOf(4), leftRow(720, 720)));
-    EXPECT_TRUE(near(ws.rectOf(5), STACK_ZONE));
+    EXPECT_TRUE(near(ws.rectOf(5), RIGHT_ZONE));
 }
 
 TEST(LeftRows, ClosingTheLastLeftWindowLeavesALeftHole) {
@@ -103,7 +103,7 @@ TEST(LeftRows, ClosingTheLastLeftWindowLeavesALeftHole) {
     ws.removeWindow(3);
 
     EXPECT_TRUE(near(ws.rectOf(1), MASTER_ZONE));
-    EXPECT_TRUE(near(ws.rectOf(4), STACK_ZONE));
+    EXPECT_TRUE(near(ws.rectOf(4), RIGHT_ZONE));
     EXPECT_TRUE(near(ws.nextWindowRect(), LEFT_ZONE));
 }
 
@@ -115,7 +115,7 @@ TEST(LeftRows, AClosedLeftRowIsRefilledBeforeTheStack) {
 
     EXPECT_TRUE(near(ws.rectOf(3), leftRow(0, 720)));
     EXPECT_TRUE(near(ws.rectOf(5), leftRow(720, 720)));
-    EXPECT_TRUE(near(ws.rectOf(4), STACK_ZONE));
+    EXPECT_TRUE(near(ws.rectOf(4), RIGHT_ZONE));
 }
 
 TEST(LeftRows, FocusAfterCloseWalksTheChainThroughLeftRows) {
@@ -142,8 +142,8 @@ TEST(LeftRows, ALeftRowsHeightLeavesTheStackAlone) {
 
     ws.layoutMessage("resize taller", 2);
 
-    EXPECT_TRUE(near(ws.rectOf(4), stackRow(0, 720)));
-    EXPECT_TRUE(near(ws.rectOf(5), stackRow(720, 720)));
+    EXPECT_TRUE(near(ws.rectOf(4), rightRow(0, 720)));
+    EXPECT_TRUE(near(ws.rectOf(5), rightRow(720, 720)));
 }
 
 TEST(LeftRows, HeightKeysDoNothingOnALoneLeftRow) {
@@ -236,7 +236,7 @@ TEST(LeftRows, ALimitTooHighForTheMinimumRowHeightIsMadeToFit) {
     for (WindowId id = 1; id <= 5; ++id)
         ws.addWindow(id);
     EXPECT_TRUE(near(ws.rectOf(4), leftRow(960, 480)));
-    EXPECT_TRUE(near(ws.rectOf(5), STACK_ZONE));
+    EXPECT_TRUE(near(ws.rectOf(5), RIGHT_ZONE));
 }
 
 TEST(LeftRows, ALayoutOptsLimitTooHighNamesTheWorkspace) {
@@ -266,9 +266,9 @@ TEST(LeftRows, LoweringTheLimitMovesTheExtraBottomLeftWindowsToTheTopOfTheStack)
 
     EXPECT_TRUE(near(ws.rectOf(2), leftRow(0, 720)));
     EXPECT_TRUE(near(ws.rectOf(3), leftRow(720, 720)));
-    EXPECT_TRUE(near(ws.rectOf(4), stackRow(0, 480)));
-    EXPECT_TRUE(near(ws.rectOf(5), stackRow(480, 480)));
-    EXPECT_TRUE(near(ws.rectOf(6), stackRow(960, 480)));
+    EXPECT_TRUE(near(ws.rectOf(4), rightRow(0, 480)));
+    EXPECT_TRUE(near(ws.rectOf(5), rightRow(480, 480)));
+    EXPECT_TRUE(near(ws.rectOf(6), rightRow(960, 480)));
     EXPECT_TRUE(near(ws.rectOf(1), MASTER_ZONE));
 }
 
@@ -291,8 +291,8 @@ TEST(LeftRows, LoweringTheLimitThroughLayoutOptsMovesWindowsToo) {
     ws.setSettings(Settings{}, LayoutOpts{}, "3");
 
     EXPECT_TRUE(near(ws.rectOf(2), LEFT_ZONE));
-    EXPECT_TRUE(near(ws.rectOf(3), stackRow(0, 720)));
-    EXPECT_TRUE(near(ws.rectOf(4), stackRow(720, 720)));
+    EXPECT_TRUE(near(ws.rectOf(3), rightRow(0, 720)));
+    EXPECT_TRUE(near(ws.rectOf(4), rightRow(720, 720)));
 }
 
 TEST(LeftRows, RaisingTheMinimumRowHeightLowersTheLimitAndMovesWindows) {
@@ -302,8 +302,8 @@ TEST(LeftRows, RaisingTheMinimumRowHeightLowersTheLimitAndMovesWindows) {
 
     EXPECT_TRUE(near(ws.rectOf(2), leftRow(0, 720)));
     EXPECT_TRUE(near(ws.rectOf(3), leftRow(720, 720)));
-    EXPECT_TRUE(near(ws.rectOf(4), stackRow(0, 720)));
-    EXPECT_TRUE(near(ws.rectOf(5), stackRow(720, 720)));
+    EXPECT_TRUE(near(ws.rectOf(4), rightRow(0, 720)));
+    EXPECT_TRUE(near(ws.rectOf(5), rightRow(720, 720)));
 }
 
 TEST(LeftRows, LoweringTheLimitEndsARowEdgeDrag) {
@@ -317,7 +317,7 @@ TEST(LeftRows, LoweringTheLimitEndsARowEdgeDrag) {
 
 TEST(LeftRows, LoweringTheLimitKeepsADividerOnlyDrag) {
     Workspace ws = filled(2, 4);
-    ws.dragResize(1, 100, 0, Corner::BottomRight); // Master|Stack
+    ws.dragResize(1, 100, 0, Corner::BottomRight); // Master|Right
 
     ws.setSettings(Settings{.leftRows = 1});
 
@@ -341,8 +341,8 @@ TEST(LeftRows, RaisingTheLimitMovesNothing) {
     ws.setSettings(Settings{.leftRows = 3});
 
     EXPECT_TRUE(near(ws.rectOf(2), LEFT_ZONE));
-    EXPECT_TRUE(near(ws.rectOf(3), stackRow(0, 720)));
-    EXPECT_TRUE(near(ws.rectOf(4), stackRow(720, 720)));
+    EXPECT_TRUE(near(ws.rectOf(3), rightRow(0, 720)));
+    EXPECT_TRUE(near(ws.rectOf(4), rightRow(720, 720)));
 }
 
 TEST(LeftRows, RaisingTheLimitLetsTheNextWindowJoinLeft) {
@@ -353,5 +353,5 @@ TEST(LeftRows, RaisingTheLimitLetsTheNextWindowJoinLeft) {
 
     EXPECT_TRUE(near(ws.rectOf(2), leftRow(0, 720)));
     EXPECT_TRUE(near(ws.rectOf(4), leftRow(720, 720)));
-    EXPECT_TRUE(near(ws.rectOf(3), STACK_ZONE));
+    EXPECT_TRUE(near(ws.rectOf(3), RIGHT_ZONE));
 }

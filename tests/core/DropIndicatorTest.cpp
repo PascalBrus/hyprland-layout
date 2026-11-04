@@ -27,7 +27,7 @@ namespace {
         return ws;
     }
 
-    Rect stackRow(double y, double h) {
+    Rect rightRow(double y, double h) {
         return {3840, y, 1280, h};
     }
 
@@ -55,7 +55,7 @@ TEST(DropIndicator, OnTheAddAreaShowsTheNewBottomRow) {
     const Workspace ws = filled(1, 4); // 1 Master, 2 Left, 3 and 4 Stack
 
     // Master onto the bottom quarter of 4: the Stack gets a third Row.
-    EXPECT_TRUE(near(ws.dropIndicator(1, 4000, 1400), stackRow(960, 480)));
+    EXPECT_TRUE(near(ws.dropIndicator(1, 4000, 1400), rightRow(960, 480)));
 }
 
 TEST(DropIndicator, IntoAMasterHoleShowsTheMasterZone) {
@@ -69,7 +69,7 @@ TEST(DropIndicator, InAGapShowsTheNearestRow) {
     const Workspace ws = filled(1, 4); // 1 Master, 2 Left, 3 and 4 Stack
 
     // Just below the Stack's top Row: still the top Row, 3.
-    EXPECT_TRUE(near(ws.dropIndicator(1, 4000, 719), stackRow(0, 720)));
+    EXPECT_TRUE(near(ws.dropIndicator(1, 4000, 719), rightRow(0, 720)));
 }
 
 TEST(DropIndicator, IsNothingWhenTheDropChangesNothing) {

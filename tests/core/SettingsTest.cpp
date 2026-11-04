@@ -8,6 +8,8 @@
 
 using threecol::LayoutOpts;
 using threecol::Rect;
+using threecol::Role;
+using threecol::RowLimit;
 using threecol::Settings;
 using threecol::SettingsReport;
 using threecol::WindowId;
@@ -31,7 +33,7 @@ namespace {
 TEST(Settings, GlobalWidthsSetTheZonesAndMasterGetsTheRest) {
     Workspace ws = filled();
 
-    const auto warnings = ws.setSettings(Settings{.leftWidth = 0.2, .stackWidth = 0.3});
+    const auto warnings = ws.setSettings(Settings{.leftWidth = 0.2, .rightWidth = 0.3});
 
     EXPECT_TRUE(warnings.empty());
     EXPECT_EQ(ws.rectOf(2), (Rect{0, 0, 1024, 1440}));
@@ -42,7 +44,7 @@ TEST(Settings, GlobalWidthsSetTheZonesAndMasterGetsTheRest) {
 TEST(Settings, LayoutOptsWidthsWinOverTheGlobalWidths) {
     Workspace ws = filled();
 
-    const auto warnings = ws.setSettings(Settings{}, LayoutOpts{{"left_width", "0.2"}, {"stack_width", "0.300000"}}, "3");
+    const auto warnings = ws.setSettings(Settings{}, LayoutOpts{{"left_width", "0.2"}, {"right_width", "0.300000"}}, "3");
 
     EXPECT_TRUE(warnings.empty());
     EXPECT_EQ(ws.rectOf(2), (Rect{0, 0, 1024, 1440}));
@@ -60,7 +62,7 @@ TEST(Settings, LayoutOptsLeftRowsWinsOverTheGlobalRowLimit) {
 
 TEST(Settings, AWorkspaceWithoutLayoutOptsUsesTheGlobalValues) {
     Workspace ws{AREA};
-    const Settings global{.leftWidth = 0.3, .stackWidth = 0.2, .leftRows = 2};
+    const Settings global{.leftWidth = 0.3, .rightWidth = 0.2, .leftRows = 2};
 
     ws.setSettings(global);
 
@@ -94,9 +96,9 @@ TEST(Settings, AnOutOfRangeLayoutOptsWidthIsIgnoredAndTheGlobalValueUsed) {
     for (const char* bad : {"-0.1", "1.5"}) {
         Workspace ws{AREA};
 
-        const auto warnings = ws.setSettings(Settings{.stackWidth = 0.3}, LayoutOpts{{"stack_width", bad}}, "3");
+        const auto warnings = ws.setSettings(Settings{.rightWidth = 0.3}, LayoutOpts{{"right_width", bad}}, "3");
 
-        EXPECT_DOUBLE_EQ(ws.settings().stackWidth, 0.3) << "value: " << bad;
+        EXPECT_DOUBLE_EQ(ws.settings().rightWidth, 0.3) << "value: " << bad;
         EXPECT_EQ(warnings.size(), 1u) << "value: " << bad;
     }
 }
@@ -125,17 +127,17 @@ TEST(Settings, AWholeNumberLeftRowsWrittenAsAFloatIsAccepted) {
 TEST(Settings, ABadLayoutOptsKeyLeavesTheGoodOnesInPlace) {
     Workspace ws{AREA};
 
-    const auto warnings = ws.setSettings(Settings{}, LayoutOpts{{"left_width", "oops"}, {"stack_width", "0.3"}}, "3");
+    const auto warnings = ws.setSettings(Settings{}, LayoutOpts{{"left_width", "oops"}, {"right_width", "0.3"}}, "3");
 
     EXPECT_DOUBLE_EQ(ws.settings().leftWidth, 0.25);
-    EXPECT_DOUBLE_EQ(ws.settings().stackWidth, 0.3);
+    EXPECT_DOUBLE_EQ(ws.settings().rightWidth, 0.3);
     EXPECT_EQ(warnings.size(), 1u);
 }
 
 TEST(Settings, WidthsThatSqueezeMasterBelowItsMinimumShrinkLeftAndStackInProportion) {
     Workspace ws = filled();
 
-    const auto warnings = ws.setSettings(Settings{.leftWidth = 0.6, .stackWidth = 0.3, .minMasterWidth = 0.2});
+    const auto warnings = ws.setSettings(Settings{.leftWidth = 0.6, .rightWidth = 0.3, .minMasterWidth = 0.2});
 
     // Master keeps 0.2; Left and Stack share 0.8 at their 2:1 ratio.
     EXPECT_NEAR(ws.rectOf(1)->w, 1024, 1e-6);
@@ -169,7 +171,7 @@ TEST(Settings, ImpossibleLimitsStillLeaveMasterItsMinimum) {
 TEST(Settings, LayoutOptsWidthsAreMadeToFitTooAndTheWarningNamesTheWorkspace) {
     Workspace ws = filled();
 
-    const auto warnings = ws.setSettings(Settings{}, LayoutOpts{{"left_width", "0.5"}, {"stack_width", "0.5"}}, "web");
+    const auto warnings = ws.setSettings(Settings{}, LayoutOpts{{"left_width", "0.5"}, {"right_width", "0.5"}}, "web");
 
     EXPECT_EQ(ws.rectOf(2), (Rect{0, 0, 2048, 1440}));
     EXPECT_EQ(ws.rectOf(1), (Rect{2048, 0, 1024, 1440}));
@@ -179,7 +181,7 @@ TEST(Settings, LayoutOptsWidthsAreMadeToFitTooAndTheWarningNamesTheWorkspace) {
 }
 
 TEST(Settings, AGlobalWidthMadeToFitGivesTheSameWarningOnEveryWorkspace) {
-    const Settings global{.leftWidth = 0.5, .stackWidth = 0.5};
+    const Settings global{.leftWidth = 0.5, .rightWidth = 0.5};
     Workspace      a{AREA};
     Workspace      b{AREA};
 
@@ -191,7 +193,7 @@ TEST(Settings, AGlobalWidthMadeToFitGivesTheSameWarningOnEveryWorkspace) {
 }
 
 TEST(SettingsReport, OneConfigLoadGivesOneNoticeListingEachProblemOnce) {
-    const Settings global{.leftWidth = 0.5, .stackWidth = 0.5};
+    const Settings global{.leftWidth = 0.5, .rightWidth = 0.5};
     Workspace      a{AREA};
     Workspace      b{AREA};
     SettingsReport report;
@@ -259,13 +261,43 @@ TEST(SettingsReport, EveryConfigLoadShowsItsProblemsAgain) {
 }
 
 TEST(Settings, AGlobalProblemIsNotPinnedOnAWorkspaceThatOverridesAnotherWidth) {
-    const Settings global{.stackWidth = 0.05, .minWidth = 0.1};
+    const Settings global{.rightWidth = 0.05, .minWidth = 0.1};
     Workspace      plain{AREA};
     Workspace      overriding{AREA};
 
     const auto     warningsPlain      = plain.setSettings(global, {}, "1");
     const auto     warningsOverriding = overriding.setSettings(global, LayoutOpts{{"left_width", "0.3"}}, "web");
 
-    // Only the global stack_width is too small; both workspaces report it alike.
+    // Only the global right_width is too small; both workspaces report it alike.
     EXPECT_EQ(warningsPlain, warningsOverriding);
+}
+
+TEST(Settings, StackWidthIsNowAnUnknownLayoutOptsKey) {
+    Workspace ws{AREA};
+
+    const auto warnings = ws.setSettings(Settings{}, LayoutOpts{{"stack_width", "0.3"}}, "3");
+
+    EXPECT_EQ(ws.settings(), Settings{});
+    ASSERT_EQ(warnings.size(), 1u);
+    EXPECT_NE(warnings[0].find("unknown layout_opts key \"stack_width\""), std::string::npos) << warnings[0];
+}
+
+TEST(Settings, ByDefaultLeftIsBoundedToOneRowAndRightIsAStack) {
+    const Settings defaults;
+
+    EXPECT_EQ(defaults.leftRows, RowLimit{1});
+    EXPECT_EQ(defaults.leftRows.role(), Role::Bounded);
+    EXPECT_EQ(defaults.rightRows, RowLimit::unlimited());
+    EXPECT_EQ(defaults.rightRows.role(), Role::Stack);
+}
+
+TEST(Settings, AnUnlimitedRowLimitIsNoCount) {
+    const auto unlimited = RowLimit::unlimited();
+
+    EXPECT_EQ(unlimited.rows(), std::nullopt);
+    EXPECT_NE(unlimited, RowLimit{0});
+    EXPECT_NE(unlimited, RowLimit{-1});
+    EXPECT_EQ(RowLimit{0}.role(), Role::Missing);
+    EXPECT_EQ(RowLimit{3}.rows(), 3);
+    EXPECT_EQ(RowLimit{3}.role(), Role::Bounded);
 }

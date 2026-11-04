@@ -25,11 +25,11 @@ namespace threecol {
     };
 
     // Where a workspace's two Dividers sit, kept as the widths of the zones
-    // outside them: Left|Master after leftWidth, Master|Stack before the last
-    // stackWidth. Fractions of the workspace width; Master gets the rest.
+    // outside them: Left|Master after leftWidth, Master|Right before the last
+    // rightWidth. Fractions of the workspace width; Master gets the rest.
     struct Dividers {
         double leftWidth  = 0;
-        double stackWidth = 0;
+        double rightWidth = 0;
 
         friend bool operator==(const Dividers&, const Dividers&) = default;
     };
@@ -71,8 +71,8 @@ namespace threecol {
         // A window joins the workspace and takes its place in Fill order.
         void                addWindow(WindowId id);
 
-        // A window leaves the workspace. Closing Master or the last Left window
-        // leaves a Hole; closing any other Left or Stack Row closes the gap. Returns the window
+        // A window leaves the workspace. Closing Master or the last window of
+        // a Bounded zone leaves a Hole; closing any other Row closes the gap. Returns the window
         // to focus next: the one after it along the Chain, or the one before if
         // it was last. Nothing if no window is left or it wasn't here.
         std::optional<WindowId> removeWindow(WindowId id);
@@ -80,7 +80,8 @@ namespace threecol {
         // The window's rectangle, or nothing if it isn't on this workspace.
         std::optional<Rect> rectOf(WindowId id) const;
 
-        // The rectangle the next added window would get.
+        // The rectangle the next added window would get; an empty one if it
+        // would find no room.
         Rect                nextWindowRect() const;
 
         // A layout message from the user; `focused` is the focused window.
@@ -88,13 +89,13 @@ namespace threecol {
         // whether the layout changed and where focus goes.
         //
         // `resize wider` / `resize narrower` move the focused zone's Dividers;
-        // `resize taller` / `resize shorter` change the focused Left or Stack
+        // `resize taller` / `resize shorter` change the focused side zone
         // Row's height, the other Rows giving way in proportion; `reset` puts the
         // Dividers back to the settings and makes the Rows equal.
         //
         // `focus l` / `focus r` walk the Chain, stopping at its ends and
-        // skipping empty zones; `focus u` / `focus d` move inside Left or the
-        // Stack, never leaving the zone. `focusmaster` focuses Master, with or
+        // skipping empty zones; `focus u` / `focus d` move inside a side
+        // zone, never leaving it. `focusmaster` focuses Master, with or
         // without a focused window. `move l|r|u|d` moves the focused window as
         // `move` does, focus staying on it. `swapwithmaster` swaps the focused
         // window with Master, the old Master taking its Row, or moves it into
@@ -103,11 +104,13 @@ namespace threecol {
 
         // Moves `id` one step along the Chain (`Left`, `Right`) or inside its
         // zone (`Up`, `Down`), stopping at the Chain's ends and the zone's
-        // edges. It swaps only when there is no room: with an occupied
-        // Master, the bottom Row of a full Left, or a neighbouring Row in the
-        // same zone. Otherwise it moves: into a Hole or empty Stack, to the
-        // bottom of a Left below its Row limit, or from Master to the top of
-        // the Stack, leaving a Hole. A moved window takes its new Row's
+        // edges. Between Master and a side zone it steps at the side's end
+        // nearest Master: the bottom of Left, the top of Right. It swaps only
+        // when there is no room: with an occupied Master, the Row nearest
+        // Master of a full Bounded zone, or a neighbouring Row in the same
+        // zone. Otherwise it moves: into a Hole, or from Master into a Stack
+        // or a Bounded zone below its Row limit as a new Row at its end
+        // nearest Master, leaving a Hole. A moved window takes its new Row's
         // height. Returns whether the layout changed.
         bool                move(WindowId id, Direction direction);
 
@@ -119,10 +122,10 @@ namespace threecol {
         // the drag its place stayed open, so nothing else moved.
         //
         // Dropped on another window, the two swap Rows. Dropped on the "add"
-        // area, the bottom quarter of a Left or Stack zone's bottom Row, it
-        // joins as a new bottom Row: the Stack always takes it, a full Left
-        // swaps with its bottom Row instead, and in its own zone it moves to
-        // the bottom. Dropped into an empty zone (a Hole or empty Stack) it
+        // area, the bottom quarter of a side zone's bottom Row, it joins as a
+        // new bottom Row: a Stack always takes it, a full Bounded zone swaps
+        // with its bottom Row instead, and in its own zone it moves to the
+        // bottom. Dropped into an empty zone (a Hole or empty Stack) it
         // moves there. Wherever it moves from follows the close rules.
         //
         // A point in a gap counts as the zone it's in and the nearest Row. A
@@ -136,11 +139,11 @@ namespace threecol {
 
         // A resize of `id`'s tile by `dx`, `dy` pixels.
         //
-        // Sideways, a Left window moves Left|Master and a Stack window
-        // Master|Stack. Master moves the Divider on the grabbed half, or
-        // Master|Stack with no corner.
+        // Sideways, a Left window moves Left|Master and a Right window
+        // Master|Right. Master moves the Divider on the grabbed half, or
+        // Master|Right with no corner.
         //
-        // Up and down, a Left or Stack Row moves the edge on the grabbed half, or its
+        // Up and down, a side zone Row moves the edge on the grabbed half, or its
         // bottom edge with no corner, changing only the two Rows either side.
         // The top Row has only a bottom edge, the bottom Row only a top edge,
         // and a lone Row has none.
@@ -171,7 +174,12 @@ namespace threecol {
         void                setDividers(std::optional<Dividers> dividers);
 
       private:
-        enum class Zone { Left, Master, Stack };
+        // The zones by position. A side zone's role (Bounded, Stack or
+        // Missing) comes from its Row limit, never from which side it is.
+        enum class Zone { Left, Master, Right };
+
+        // An end of a side zone's Rows.
+        enum class End { Top, Bottom };
 
         Rect                    m_area;
         Settings                m_settings;
@@ -179,11 +187,32 @@ namespace threecol {
         struct Rows {
             std::vector<WindowId> windows;
             RowHeights            heights;
+
+            // `id` joins as a new Row at `row`, the Rows from there moving down.
+            void                  insert(std::size_t row, WindowId id);
         };
 
         std::optional<WindowId> m_master;
         Rows                    m_left;
-        Rows                    m_stack;
+        Rows                    m_right;
+
+        // The end of side zone `side` nearest Master: the bottom of Left, the
+        // top of Right. The Chain steps between Master and `side` there.
+        static End              endNearestMaster(Zone side);
+
+        // Which way along the Chain Master lies from side zone `side`:
+        // forward (right) from Left, back from Right.
+        static bool             masterIsForwardOf(Zone side);
+
+        // The other side zone.
+        static Zone             otherSide(Zone side);
+
+        // The Row limit of side zone `side`, as resolved.
+        RowLimit                rowLimit(Zone side) const;
+
+        // Whether side zone `side` can take another Row: a Stack, or a
+        // Bounded zone below its Row limit.
+        bool                    hasRoom(Zone side) const;
 
         // Set by resizing; until then the Dividers follow the settings.
         std::optional<Dividers> m_dividers;
@@ -219,12 +248,16 @@ namespace threecol {
         // `rows` as a new Row.
         void                    joinBottom(Rows& rows, WindowId id);
 
+        // `id` leaves its place under the close rules and joins side zone
+        // `side` as a new Row at its end nearest Master.
+        void                    joinNearMaster(Zone side, WindowId id);
+
         // `id` swaps with Master, or moves into a Master Hole.
         void                    toMaster(WindowId id);
         bool                    resize(Zone zone, double by);
         bool                    resizeRow(WindowId id, double by);
 
-        enum class Divider { LeftMaster, MasterStack };
+        enum class Divider { LeftMaster, MasterRight };
 
         // A Row edge being moved: the one above `row` of `zone`, and the
         // zone's Row heights at press.
@@ -262,12 +295,10 @@ namespace threecol {
         // Keeps `heights` for `zone`'s Rows if they differ from the ones in use.
         bool                    setHeights(Zone zone, std::vector<double> heights);
 
-        // The Row limit in use: at least one Row.
-        std::size_t             leftRowLimit() const;
-
-        // Moves the bottom Left windows past the Row limit to the top of the
-        // Stack, keeping their Chain order. Returns whether any moved.
-        bool                    fitLeftToRowLimit();
+        // Pushes the bottom windows of each side zone past its Row limit out
+        // to the other side, where they join at its end nearest Master,
+        // keeping their Chain order. Returns whether any moved.
+        bool                    fitToRowLimits();
 
         // Keeps `dividers` if they differ from the ones in use.
         bool                    setResized(const Dividers& dividers);
@@ -282,16 +313,18 @@ namespace threecol {
         // Row above the zone, the bottom one below it. `zone` has Rows.
         std::size_t             rowAt(Zone zone, double y) const;
 
-        // The Zone the next added window takes under Fill order.
-        Zone                    nextZone() const;
+        // The Zone the next added window takes under Fill order: Master, then
+        // Left up to its Row limit, then Right up to its own. Nothing if
+        // there's no room anywhere.
+        std::optional<Zone>     nextZone() const;
 
-        // The windows in Chain order: Left, Master, then Stack top to bottom.
-        // Unlike the Chain itself, Holes are skipped.
+        // The windows in Chain order: Left, Master, then Right, each side top
+        // to bottom. Unlike the Chain itself, Holes are skipped.
         std::vector<WindowId>   windowsInChainOrder() const;
 
         Rect                    leftZone() const;
         Rect                    masterZone() const;
-        Rect                    stackZone() const;
+        Rect                    rightZone() const;
         Rect                    zoneRect(Zone zone) const;
         Rect                    rowRect(Zone zone, std::size_t row) const;
     };

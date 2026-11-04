@@ -6,6 +6,7 @@
 #include <format>
 #include <limits>
 #include <optional>
+#include <ostream>
 #include <tuple>
 
 namespace threecol {
@@ -40,22 +41,24 @@ namespace threecol {
             return name.empty() ? std::string{"a workspace"} : std::format("workspace {}", name);
         }
 
-        // Which widths came from the workspace's layout_opts.
+        // Which settings came from the workspace's layout_opts.
         struct SOverridden {
-            bool left  = false;
-            bool stack = false;
+            bool left      = false;
+            bool right     = false;
+            bool leftRows  = false;
+            bool rightRows = false;
         };
 
-        // Makes the widths fit the limits: Left and Stack at least min_width,
+        // Makes the widths fit the limits: Left and Right at least min_width,
         // and Master at least min_master_width. When both can't hold, Master
-        // keeps its minimum and Left and Stack shrink in proportion.
+        // keeps its minimum and Left and Right shrink in proportion.
         // A warning names the workspace only when its own layout_opts caused
         // it, so a global problem reads the same on every workspace.
         void makeWidthsFit(Settings& settings, SOverridden overridden, std::string_view workspaceName, std::vector<std::string>& warnings) {
             const auto prefix = [&](bool fromLayoutOpts) { return fromLayoutOpts ? workspaceLabel(workspaceName) + ": " : std::string{}; };
 
             for (auto [key, width, fromLayoutOpts] :
-                 {std::tuple{"left_width", &settings.leftWidth, overridden.left}, std::tuple{"stack_width", &settings.stackWidth, overridden.stack}}) {
+                 {std::tuple{"left_width", &settings.leftWidth, overridden.left}, std::tuple{"right_width", &settings.rightWidth, overridden.right}}) {
                 if (*width >= settings.minWidth)
                     continue;
                 warnings.push_back(std::format("{}{} {} is below min_width {}; using {}", prefix(fromLayoutOpts), key, *width, settings.minWidth, settings.minWidth));
@@ -63,40 +66,51 @@ namespace threecol {
             }
 
             const double left  = settings.leftWidth;
-            const double stack = settings.stackWidth;
-            if (!leaveMasterItsMinimum(settings.leftWidth, settings.stackWidth, settings.minMasterWidth))
+            const double right = settings.rightWidth;
+            if (!leaveMasterItsMinimum(settings.leftWidth, settings.rightWidth, settings.minMasterWidth))
                 return;
-            warnings.push_back(std::format("{}left_width {} and stack_width {} leave Master less than min_master_width {}; using {:.3g} and {:.3g}",
-                                           prefix(overridden.left || overridden.stack), left, stack, settings.minMasterWidth, settings.leftWidth, settings.stackWidth));
+            warnings.push_back(std::format("{}left_width {} and right_width {} leave Master less than min_master_width {}; using {:.3g} and {:.3g}",
+                                           prefix(overridden.left || overridden.right), left, right, settings.minMasterWidth, settings.leftWidth, settings.rightWidth));
         }
 
-
-        // Makes the Row limit fit: Left uses only as many Rows as can each be
-        // at least min_row_height tall, and always at least one.
-        void makeRowLimitFit(Settings& settings, bool fromLayoutOpts, std::string_view workspaceName, std::vector<std::string>& warnings) {
+        // Makes the Row limits fit: a Bounded zone uses only as many Rows as
+        // can each be at least min_row_height tall, and always at least one.
+        void makeRowLimitsFit(Settings& settings, SOverridden overridden, std::string_view workspaceName, std::vector<std::string>& warnings) {
             if (settings.minRowHeight <= 0)
                 return;
             // The most Rows n with n * min_row_height <= 1, allowing the
             // rounding error RowHeights allows, so 1 / 0.1 isn't 9.
             const int fits = std::max(1, static_cast<int>(std::min<double>(std::floor((1 + 1e-9) / settings.minRowHeight), std::numeric_limits<int>::max())));
-            if (settings.leftRows <= fits)
-                return;
-            warnings.push_back(std::format("{}left_rows {} doesn't fit min_row_height {}; using {}", fromLayoutOpts ? workspaceLabel(workspaceName) + ": " : std::string{},
-                                           settings.leftRows, settings.minRowHeight, fits));
-            settings.leftRows = fits;
+
+            for (auto [key, limit, fromLayoutOpts] :
+                 {std::tuple{"left_rows", &settings.leftRows, overridden.leftRows}, std::tuple{"right_rows", &settings.rightRows, overridden.rightRows}}) {
+                if (limit->role() != Role::Bounded || *limit->rows() <= fits)
+                    continue;
+                warnings.push_back(std::format("{}{} {} doesn't fit min_row_height {}; using {}", fromLayoutOpts ? workspaceLabel(workspaceName) + ": " : std::string{}, key,
+                                               limit->text(), settings.minRowHeight, fits));
+                *limit = fits;
+            }
         }
 
     }
 
-    bool leaveMasterItsMinimum(double& leftWidth, double& stackWidth, double minMasterWidth) {
+    std::string RowLimit::text() const {
+        return m_rows ? std::to_string(*m_rows) : std::string{"unlimited"};
+    }
+
+    std::ostream& operator<<(std::ostream& out, const RowLimit& limit) {
+        return out << limit.text();
+    }
+
+    bool leaveMasterItsMinimum(double& leftWidth, double& rightWidth, double minMasterWidth) {
         // Allows for rounding, so widths that just fit aren't shrunk.
         constexpr double EPSILON = 1e-9;
         const double     room    = 1 - minMasterWidth;
-        const double     sum     = leftWidth + stackWidth;
+        const double     sum     = leftWidth + rightWidth;
         if (sum <= room + EPSILON)
             return false;
         leftWidth  = leftWidth * room / sum;
-        stackWidth = stackWidth * room / sum;
+        rightWidth = rightWidth * room / sum;
         return true;
     }
 
@@ -109,27 +123,26 @@ namespace threecol {
         };
 
         SOverridden overridden;
-        bool        rowsOverridden = false;
         for (const auto& [key, text] : opts) {
-            if (key == "left_width" || key == "stack_width") {
-                double& width = key == "left_width" ? settings.leftWidth : settings.stackWidth;
+            if (key == "left_width" || key == "right_width") {
+                double& width = key == "left_width" ? settings.leftWidth : settings.rightWidth;
                 if (const auto value = parseWidth(text)) {
                     width = *value;
-                    (key == "left_width" ? overridden.left : overridden.stack) = true;
+                    (key == "left_width" ? overridden.left : overridden.right) = true;
                 } else
                     warnIgnored(key, text, "a number from 0 to 1", std::format("{}", width));
             } else if (key == "left_rows") {
                 if (const auto value = parseRowLimit(text)) {
-                    settings.leftRows = *value;
-                    rowsOverridden    = true;
+                    settings.leftRows   = *value;
+                    overridden.leftRows = true;
                 } else
-                    warnIgnored(key, text, "a whole number of at least 1", std::format("{}", settings.leftRows));
+                    warnIgnored(key, text, "a whole number of at least 1", settings.leftRows.text());
             } else
                 resolved.warnings.push_back(std::format("{}: unknown layout_opts key \"{}\", ignored", workspaceLabel(workspaceName), key));
         }
 
         makeWidthsFit(settings, overridden, workspaceName, resolved.warnings);
-        makeRowLimitFit(settings, rowsOverridden, workspaceName, resolved.warnings);
+        makeRowLimitsFit(settings, overridden, workspaceName, resolved.warnings);
 
         return resolved;
     }

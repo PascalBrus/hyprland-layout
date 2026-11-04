@@ -11,13 +11,15 @@ namespace threecol {
     // The state file is plain text, one workspace per line after a header:
     //
     //   threecol dividers 1
-    //   # left_width stack_width workspace
+    //   # left_width right_width workspace
     //   0.3 0.2 1
     //   0.15 0.35 web
     //
     // Widths are fractions written in their shortest exact form. The name is
     // the rest of the line, with "\" written "\\", a newline "\n" and a
-    // carriage return "\r".
+    // carriage return "\r". Lines are read by position, so a file from before
+    // stack_width was renamed right_width (its header comment says
+    // stack_width) reads the same.
     namespace {
 
         constexpr std::string_view HEADER = "threecol dividers 1";
@@ -73,9 +75,9 @@ namespace threecol {
         }
 
         std::string serialise(const std::map<std::string, Dividers, std::less<>>& all) {
-            std::string out = std::format("{}\n# left_width stack_width workspace\n", HEADER);
+            std::string out = std::format("{}\n# left_width right_width workspace\n", HEADER);
             for (const auto& [name, dividers] : all)
-                out += std::format("{} {} {}\n", dividers.leftWidth, dividers.stackWidth, escape(name));
+                out += std::format("{} {} {}\n", dividers.leftWidth, dividers.rightWidth, escape(name));
             return out;
         }
 
@@ -108,10 +110,10 @@ namespace threecol {
                 if (line.empty() || line.starts_with('#'))
                     continue;
                 const auto left  = takeWidth(line);
-                const auto stack = left ? takeWidth(line) : std::nullopt;
-                const auto name  = stack ? unescape(line) : std::nullopt;
+                const auto right = left ? takeWidth(line) : std::nullopt;
+                const auto name  = right ? unescape(line) : std::nullopt;
                 if (name)
-                    parsed.dividers.insert_or_assign(*name, Dividers{*left, *stack});
+                    parsed.dividers.insert_or_assign(*name, Dividers{*left, *right});
                 else
                     parsed.complete = false;
             }

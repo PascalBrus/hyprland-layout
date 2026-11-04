@@ -12,7 +12,7 @@ namespace {
 
     constexpr Rect LEFT_ZONE{0, 0, 1280, 1440};
     constexpr Rect MASTER_ZONE{1280, 0, 2560, 1440};
-    constexpr Rect STACK_ZONE{3840, 0, 1280, 1440};
+    constexpr Rect RIGHT_ZONE{3840, 0, 1280, 1440};
 
 }
 
@@ -53,7 +53,7 @@ TEST(FillOrder, ThirdWindowTakesTheWholeStackZone) {
 
     EXPECT_EQ(ws.rectOf(1), MASTER_ZONE);
     EXPECT_EQ(ws.rectOf(2), LEFT_ZONE);
-    EXPECT_EQ(ws.rectOf(3), STACK_ZONE);
+    EXPECT_EQ(ws.rectOf(3), RIGHT_ZONE);
 }
 
 TEST(FillOrder, FurtherWindowsJoinTheBottomOfTheStackSharingHeightEqually) {
@@ -78,7 +78,7 @@ TEST(FillOrder, NextWindowRectFollowsFillOrder) {
     EXPECT_EQ(ws.nextWindowRect(), LEFT_ZONE);
 
     ws.addWindow(2);
-    EXPECT_EQ(ws.nextWindowRect(), STACK_ZONE);
+    EXPECT_EQ(ws.nextWindowRect(), RIGHT_ZONE);
 
     // With one Stack Row, the next window would be the bottom of two.
     ws.addWindow(3);

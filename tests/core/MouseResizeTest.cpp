@@ -52,7 +52,7 @@ TEST(MouseResize, DraggingALeftWindowMovesLeftMasterUnderTheCursor) {
     EXPECT_TRUE(near(ws.rectOf(3), {3840, 0, 1280, 1440}));
 }
 
-TEST(MouseResize, DraggingAStackWindowMovesMasterStackUnderTheCursor) {
+TEST(MouseResize, DraggingAStackWindowMovesMasterRightUnderTheCursor) {
     Workspace ws = filled(4); // 3 and 4 share the Stack
 
     ws.dragResize(4, -256, 0, Corner::TopLeft);
@@ -73,7 +73,7 @@ TEST(MouseResize, DraggingMastersLeftHalfMovesLeftMaster) {
     EXPECT_TRUE(near(ws.rectOf(3), {3840, 0, 1280, 1440}));
 }
 
-TEST(MouseResize, DraggingMastersRightHalfMovesMasterStack) {
+TEST(MouseResize, DraggingMastersRightHalfMovesMasterRight) {
     Workspace ws = filled(3);
 
     ws.dragResize(1, 256, 0, Corner::BottomRight);
