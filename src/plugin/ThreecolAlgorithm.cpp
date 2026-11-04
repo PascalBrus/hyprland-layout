@@ -424,14 +424,20 @@ namespace threecol {
         // Messages that don't apply do nothing and report no error. Mid-drag
         // none do: the dragged window's place stays where it was.
         const auto workspace = this->workspace();
-        if (!workspace || m_dragged || Fullscreen::controller()->hasFullscreen(workspace, std::nullopt))
+        if (!workspace || m_dragged)
             return {};
 
-        // A focused window must be one of this workspace's tiles: nothing
-        // applies to a floating one. With nothing focused, only reset and
-        // focusmaster do.
+        // reset doesn't depend on the focused window, so it runs from a
+        // floating window and under a fullscreen or maximised one too.
+        const bool reset = sv == "reset";
+        if (!reset && Fullscreen::controller()->hasFullscreen(workspace, std::nullopt))
+            return {};
+
+        // For the other messages, a focused window must be one of this
+        // workspace's tiles: nothing applies to a floating one. With nothing
+        // focused, only focusmaster does.
         std::optional<WindowId> focused;
-        if (const auto window = Desktop::focusState()->window(); window && window->m_workspace == workspace) {
+        if (const auto window = Desktop::focusState()->window(); !reset && window && window->m_workspace == workspace) {
             if (Fullscreen::controller()->isFullscreen(window))
                 return {};
             focused = idOf(window->layoutTarget());

@@ -158,10 +158,7 @@ namespace threecol {
         // Limits may have changed since the resize: clamp the way settings
         // are made to fit, keeping m_dividers so a looser limit brings them back.
         Dividers fitted{std::max(m_dividers->leftWidth, m_settings.minWidth), std::max(m_dividers->stackWidth, m_settings.minWidth)};
-        const double room = 1 - m_settings.minMasterWidth;
-        const double sum  = fitted.leftWidth + fitted.stackWidth;
-        if (sum > room + EPSILON)
-            fitted = {fitted.leftWidth * room / sum, fitted.stackWidth * room / sum};
+        leaveMasterItsMinimum(fitted.leftWidth, fitted.stackWidth, m_settings.minMasterWidth);
         return fitted;
     }
 

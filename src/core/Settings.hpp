@@ -32,6 +32,11 @@ namespace threecol {
         std::vector<std::string> warnings; // what was ignored or adjusted
     };
 
+    // Shrinks Left and Stack in proportion, if needed, so Master keeps
+    // min_master_width. Returns whether they shrank. Both settings and resized
+    // Dividers are made to fit this way.
+    bool leaveMasterItsMinimum(double& leftWidth, double& stackWidth, double minMasterWidth);
+
     // The settings one workspace uses: its layout_opts win over the global
     // values. `workspaceName` names the workspace in warnings.
     ResolvedSettings resolveSettings(const Settings& global, const LayoutOpts& opts, std::string_view workspaceName);

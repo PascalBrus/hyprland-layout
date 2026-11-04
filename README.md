@@ -112,7 +112,7 @@ threecol binds no keys. Copy [`examples/binds.lua`](examples/binds.lua) into you
 | SUPER+right-drag | Resize: move the nearest Divider or Row edge | – |
 | SUPER+ALT+L / H | Make the focused zone wider / narrower by one `step` | yes |
 | SUPER+ALT+K / J | Make the focused Row taller / shorter by one `step` | yes |
-| SUPER+R | Reset the workspace's Dividers and Row heights to the settings | no |
+| SUPER+R | Reset the workspace's Dividers and Row heights to the settings, even with a floating, fullscreen or maximised window | no |
 
 **The snippet replaces your binds on these keys.** Hyprland runs every bind on a key, not just the last one, so the snippet clears each key with `hl.unbind` before binding it. In Hyprland's stock config that removes SUPER+M (exit), SUPER+R (launcher), SUPER+J (dwindle `togglesplit`) and the SUPER+drag binds (re-added unchanged). SUPER+ALT+L is a common lock-screen bind. Move anything you want to keep to other keys, or change the keys in the snippet.
 

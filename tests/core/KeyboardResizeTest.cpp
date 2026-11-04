@@ -173,6 +173,38 @@ TEST(KeyboardResize, ARaisedLimitClampsResizedDividers) {
     EXPECT_TRUE(near(ws.rectOf(3), {4352, 0, 768, 1440}));
 }
 
+TEST(KeyboardResize, ARaisedMasterMinimumShrinksResizedDividersInProportionUntilItIsLoosened) {
+    Workspace ws = filled(3);
+    ws.layoutMessage("resize wider", 2); // Left 0.25 -> 0.30
+
+    ws.setSettings({.minMasterWidth = 0.6}); // Left and Stack share 0.4, as 0.30 : 0.25
+
+    const double left  = 5120 * 0.4 * 0.30 / 0.55;
+    const double stack = 5120 * 0.4 * 0.25 / 0.55;
+    EXPECT_TRUE(near(ws.rectOf(2), {0, 0, left, 1440}));
+    EXPECT_TRUE(near(ws.rectOf(1), {left, 0, 3072, 1440}));
+    EXPECT_TRUE(near(ws.rectOf(3), {5120 - stack, 0, stack, 1440}));
+
+    ws.setSettings({});
+
+    EXPECT_TRUE(near(ws.rectOf(2), {0, 0, 1536, 1440}));
+    EXPECT_TRUE(near(ws.rectOf(3), {3840, 0, 1280, 1440}));
+}
+
+TEST(KeyboardResize, AResizeUnderARaisedLimitKeepsTheWidthsAsShown) {
+    Workspace ws = filled(3);
+    ws.setSettings({.step = 0.15});
+    ws.layoutMessage("resize narrower", 3); // Stack 0.25 -> 0.10
+    ws.setSettings({.minWidth = 0.15, .step = 0.05}); // Stack shown at 0.15
+
+    ws.layoutMessage("resize wider", 2); // Left 0.25 -> 0.30, from what is shown
+    ws.setSettings({});
+
+    // The resize saved the Stack at 0.15: loosening the limit no longer brings 0.10 back.
+    EXPECT_TRUE(near(ws.rectOf(2), {0, 0, 1536, 1440}));
+    EXPECT_TRUE(near(ws.rectOf(3), {4352, 0, 768, 1440}));
+}
+
 TEST(KeyboardResize, ResetPutsTheDividersBackToTheLayoutOpts) {
     Workspace ws = filled(3);
     ws.setSettings({}, {{"left_width", "0.3"}});

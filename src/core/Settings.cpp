@@ -62,17 +62,12 @@ namespace threecol {
                 *width = settings.minWidth;
             }
 
-            const double room = 1 - settings.minMasterWidth;
-            const double sum  = settings.leftWidth + settings.stackWidth;
-            if (sum <= room)
+            const double left  = settings.leftWidth;
+            const double stack = settings.stackWidth;
+            if (!leaveMasterItsMinimum(settings.leftWidth, settings.stackWidth, settings.minMasterWidth))
                 return;
-
-            const double left  = settings.leftWidth * room / sum;
-            const double stack = settings.stackWidth * room / sum;
             warnings.push_back(std::format("{}left_width {} and stack_width {} leave Master less than min_master_width {}; using {:.3g} and {:.3g}",
-                                           prefix(overridden.left || overridden.stack), settings.leftWidth, settings.stackWidth, settings.minMasterWidth, left, stack));
-            settings.leftWidth  = left;
-            settings.stackWidth = stack;
+                                           prefix(overridden.left || overridden.stack), left, stack, settings.minMasterWidth, settings.leftWidth, settings.stackWidth));
         }
 
 
@@ -91,6 +86,18 @@ namespace threecol {
             settings.leftRows = fits;
         }
 
+    }
+
+    bool leaveMasterItsMinimum(double& leftWidth, double& stackWidth, double minMasterWidth) {
+        // Allows for rounding, so widths that just fit aren't shrunk.
+        constexpr double EPSILON = 1e-9;
+        const double     room    = 1 - minMasterWidth;
+        const double     sum     = leftWidth + stackWidth;
+        if (sum <= room + EPSILON)
+            return false;
+        leftWidth  = leftWidth * room / sum;
+        stackWidth = stackWidth * room / sum;
+        return true;
     }
 
     ResolvedSettings resolveSettings(const Settings& global, const LayoutOpts& opts, std::string_view workspaceName) {
