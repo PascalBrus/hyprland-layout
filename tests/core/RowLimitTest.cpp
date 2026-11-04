@@ -361,6 +361,37 @@ TEST(RowLimit, APushedOutWindowWithNoRoomEndsItsOwnDividerOnlyDrag) {
     EXPECT_FALSE(ws.resizing());
 }
 
+TEST(RowLimit, AWindowPushedToTheOtherSideEndsItsDividerOnlyDrag) {
+    Workspace ws = filled(1, 2); // 1 Master, 2 Left
+    ws.dragResize(2, 100, 0, Corner::BottomRight); // a lone Row: Left|Master only
+    ASSERT_TRUE(ws.resizing());
+
+    ws.setSettings(Settings{.leftRows = 0}); // 2 goes to the Right Stack
+
+    EXPECT_FALSE(ws.resizing());
+    EXPECT_FALSE(ws.dragResize(2, 100, 0, Corner::BottomRight));
+}
+
+TEST(RowLimit, AMissingZoneEndsADragOfItsDivider) {
+    Workspace ws = filled(1, 1); // Master only
+    ws.dragResize(1, 100, 0, Corner::TopLeft); // Left|Master
+    ASSERT_TRUE(ws.resizing());
+
+    ws.setSettings(Settings{.leftRows = 0});
+
+    EXPECT_FALSE(ws.resizing());
+}
+
+TEST(RowLimit, AMissingZoneKeepsADragOfTheOtherDivider) {
+    Workspace ws = filled(1, 1); // Master only
+    ws.dragResize(1, 100, 0, Corner::TopRight); // Master|Right
+    ASSERT_TRUE(ws.resizing());
+
+    ws.setSettings(Settings{.leftRows = 0});
+
+    EXPECT_TRUE(ws.resizing());
+}
+
 TEST(RowLimit, SettingALimitToZeroPushesTheSidesWindowsToTheTopOfTheOtherSidesStack) {
     Workspace ws = filled(2, 4); // 1 Master, Left 2 3, Right 4
 

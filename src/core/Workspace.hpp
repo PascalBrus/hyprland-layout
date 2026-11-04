@@ -178,7 +178,8 @@ namespace threecol {
 
         // Whether a mouse drag is in progress. A drag ends early, keeping its
         // sizes, if the grabbed window leaves, a window joins or leaves its
-        // zone, or a layout message changes the layout.
+        // zone, a layout message changes the layout, or a settings change
+        // moves the grabbed window or makes its Divider's zone missing.
         bool                resizing() const;
 
         // The Dividers set by resizing, to keep for this workspace; nothing if

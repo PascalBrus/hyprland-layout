@@ -32,13 +32,23 @@ namespace threecol {
         auto resolved = resolveSettings(global, opts, workspaceName);
         m_settings    = resolved.settings;
         SettingsChange change{.warnings = std::move(resolved.warnings), .noRoom = {}};
-        // Moved windows change the Rows under a Row edge drag.
-        const bool rowDrag = m_gesture && m_gesture->edge;
-        if (fitToRowLimits(change.noRoom) && rowDrag)
-            m_gesture->over = true;
+        const auto grabbedZone = m_gesture ? zoneOf(m_gesture->id) : std::nullopt;
+        const bool moved       = fitToRowLimits(change.noRoom);
+        if (!m_gesture)
+            return change;
         // No more ticks come for a window that left.
-        if (m_gesture && std::ranges::contains(change.noRoom, m_gesture->id))
+        if (std::ranges::contains(change.noRoom, m_gesture->id)) {
             m_gesture.reset();
+            return change;
+        }
+        // Moved windows change the Rows under a Row edge drag; a window
+        // pushed to the other side, or a Divider whose zone went missing,
+        // no longer matches what was grabbed.
+        const bool rowsMoved      = moved && m_gesture->edge;
+        const bool sideChanged    = zoneOf(m_gesture->id) != grabbedZone;
+        const bool dividerMissing = m_gesture->divider && !exists(*m_gesture->divider == Divider::LeftMaster ? Zone::Left : Zone::Right);
+        if (rowsMoved || sideChanged || dividerMissing)
+            m_gesture->over = true;
         return change;
     }
 
