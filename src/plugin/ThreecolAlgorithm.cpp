@@ -30,6 +30,12 @@ namespace threecol {
 
     namespace {
 
+        // The entry of `targets` (an instance's m_targets) for model id `id`,
+        // or its end.
+        auto entryOf(auto& targets, WindowId id) {
+            return std::ranges::find_if(targets, [id](const auto& entry) { return entry.first == id; });
+        }
+
         Rect toRect(const CBox& box) {
             return {box.x, box.y, box.width, box.height};
         }
@@ -148,7 +154,7 @@ namespace threecol {
         // Pushed out with no room: already out of the model, so the
         // removeTarget that floating them brings finds nothing to do.
         for (const WindowId id : change.noRoom) {
-            const auto it = std::ranges::find_if(m_targets, [id](const auto& entry) { return entry.first == id; });
+            const auto it = entryOf(m_targets, id);
             if (it == m_targets.end())
                 continue;
             const auto target = it->second;
@@ -438,7 +444,7 @@ namespace threecol {
     }
 
     SP<Layout::ITarget> CThreecolAlgorithm::targetOf(WindowId id) const {
-        const auto it = std::ranges::find_if(m_targets, [&](const auto& entry) { return entry.first == id; });
+        const auto it = entryOf(m_targets, id);
         return it == m_targets.end() ? nullptr : it->second.lock();
     }
 
