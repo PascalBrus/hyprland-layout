@@ -15,7 +15,7 @@ The saved Dividers live in `$XDG_STATE_HOME/threecol/dividers`, or `~/.local/sta
 ## Install and load (#29)
 
 - [ ] `hyprpm add <repo>` then `hyprpm enable threecol` builds without GoogleTest and loads the plugin — *agent: `hyprpm` isn't installed on this machine: author*
-- [ ] `hyprpm.toml` has a `commit_pins` entry for the running Hyprland (`hyprctl version`), and `hyprpm update` builds the pinned threecol commit — *agent: pin for `0aa6745…` (0.57.0) is present; `hyprpm update`: author. The installed Hyprland is now 0.57.1 (`acc1aa0…`), which has no pin yet*
+- [ ] `hyprpm.toml` has a `commit_pins` entry for the running Hyprland (`hyprctl version`), and `hyprpm update` builds the pinned threecol commit — *agent: pin for the running 0.57.1 (`acc1aa0…` → `9fd58e0`) is present, as is 0.57.0 (`0aa6745…`); `hyprpm update`: author*
 - [x] Manual install: clone, `cmake -B build -DCMAKE_BUILD_TYPE=Release -DTHREECOL_TESTS=OFF && cmake --build build -j`, then `hl.plugin.load("/abs/path/threecol.so")` loads it — *nested: fresh clone built against the 0.57.1 headers, no GoogleTest in the build log; loaded by `hl.plugin.load` at start-up, no config errors*
 - [x] Loading the repo's own `build/threecol.so` with `hl.plugin.load` works on the live session
 - [x] `cmake -B build && cmake --build build -j && ctest --test-dir build` passes — *215/215*
