@@ -43,6 +43,13 @@ namespace threecol {
             return name.empty() ? std::string{"a workspace"} : std::format("workspace {}", name);
         }
 
+        // What starts a warning about a setting: the workspace's name only
+        // when its own layout_opts set it, so a global problem reads the same
+        // on every workspace.
+        std::string warningPrefix(bool fromLayoutOpts, std::string_view workspaceName) {
+            return fromLayoutOpts ? workspaceLabel(workspaceName) + ": " : std::string{};
+        }
+
         // Which settings came from the workspace's layout_opts.
         struct SOverridden {
             bool left      = false;
@@ -59,7 +66,7 @@ namespace threecol {
         // A warning names the workspace only when its own layout_opts caused
         // it, so a global problem reads the same on every workspace.
         void makeWidthsFit(Settings& settings, SOverridden overridden, std::string_view workspaceName, std::vector<std::string>& warnings) {
-            const auto prefix   = [&](bool fromLayoutOpts) { return fromLayoutOpts ? workspaceLabel(workspaceName) + ": " : std::string{}; };
+            const auto prefix   = [&](bool fromLayoutOpts) { return warningPrefix(fromLayoutOpts, workspaceName); };
             const bool hasLeft  = settings.leftRows.role() != Role::Missing;
             const bool hasRight = settings.rightRows.role() != Role::Missing;
 
@@ -103,7 +110,7 @@ namespace threecol {
                  {std::tuple{"left_rows", &settings.leftRows, overridden.leftRows}, std::tuple{"right_rows", &settings.rightRows, overridden.rightRows}}) {
                 if (limit->role() != Role::Bounded || *limit->rows() <= fits)
                     continue;
-                warnings.push_back(std::format("{}{} {} doesn't fit min_row_height {}; using {}", fromLayoutOpts ? workspaceLabel(workspaceName) + ": " : std::string{}, key,
+                warnings.push_back(std::format("{}{} {} doesn't fit min_row_height {}; using {}", warningPrefix(fromLayoutOpts, workspaceName), key,
                                                limit->text(), settings.minRowHeight, fits));
                 *limit = fits;
             }
