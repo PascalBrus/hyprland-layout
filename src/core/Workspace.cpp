@@ -1,6 +1,7 @@
 #include "core/Workspace.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <utility>
 
@@ -109,7 +110,9 @@ namespace threecol {
     std::optional<Workspace::Zone> Workspace::nextZone() const {
         if (!m_master)
             return Zone::Master;
-        for (const Zone side : {Zone::Left, Zone::Right}) {
+        // Then the fill_first side up to its Row limit, then the other.
+        const auto order = m_settings.fillFirst == Side::Left ? std::array{Zone::Left, Zone::Right} : std::array{Zone::Right, Zone::Left};
+        for (const Zone side : order) {
             if (hasRoom(side))
                 return side;
         }

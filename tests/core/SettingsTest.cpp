@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <iterator>
+#include <tuple>
 
 using threecol::LayoutOpts;
 using threecol::Rect;
@@ -12,6 +13,7 @@ using threecol::Role;
 using threecol::RowLimit;
 using threecol::Settings;
 using threecol::SettingsReport;
+using threecol::Side;
 using threecol::WindowId;
 using threecol::Workspace;
 
@@ -134,6 +136,35 @@ TEST(Settings, ARightRowsThatIsNotAWholeNumberOrUnlimitedIsIgnored) {
         ASSERT_EQ(warnings.size(), 1u) << "value: " << bad;
         EXPECT_NE(warnings[0].find("right_rows"), std::string::npos) << warnings[0];
     }
+}
+
+TEST(Settings, LayoutOptsFillFirstWinsOverTheGlobalFillFirst) {
+    for (const auto [text, side, global] : {std::tuple{"right", Side::Right, Side::Left}, std::tuple{"left", Side::Left, Side::Right}}) {
+        Workspace ws{AREA};
+
+        const auto warnings = ws.setSettings(Settings{.fillFirst = global}, LayoutOpts{{"fill_first", text}}, "3");
+
+        EXPECT_TRUE(warnings.empty()) << "value: " << text;
+        EXPECT_EQ(ws.settings().fillFirst, side) << "value: " << text;
+    }
+}
+
+TEST(Settings, AFillFirstThatIsNotLeftOrRightIsIgnored) {
+    for (const char* bad : {"", "Right", "master", "0", "1"}) {
+        Workspace ws{AREA};
+
+        const auto warnings = ws.setSettings(Settings{.fillFirst = Side::Right}, LayoutOpts{{"fill_first", bad}}, "3");
+
+        EXPECT_EQ(ws.settings().fillFirst, Side::Right) << "value: " << bad;
+        ASSERT_EQ(warnings.size(), 1u) << "value: " << bad;
+        EXPECT_NE(warnings[0].find("fill_first"), std::string::npos) << warnings[0];
+        EXPECT_NE(warnings[0].find("workspace 3"), std::string::npos) << warnings[0];
+        EXPECT_NE(warnings[0].find("using right"), std::string::npos) << warnings[0];
+    }
+}
+
+TEST(Settings, FillFirstDefaultsToLeft) {
+    EXPECT_EQ(Settings{}.fillFirst, Side::Left);
 }
 
 // Until overflow windows can float (#49), every window must find room, so
