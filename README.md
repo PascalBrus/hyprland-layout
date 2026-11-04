@@ -6,25 +6,27 @@ A three-zone tiling layout for Hyprland, built for ultrawide monitors.
 
 ## What it is
 
-threecol splits each workspace into three **Zones**, side by side:
+threecol splits each workspace into three **Zones**, side by side. By default Left holds one window and Right is the **Stack**:
 
 ```
 ┌──────────┬────────────────────┬──────────┐
-│          │                    │ Stack 1  │
+│          │                    │ Right 1  │
 │   Left   │       Master       ├──────────┤
-│          │                    │ Stack 2  │
+│          │                    │ Right 2  │
 │          │                    ├──────────┤
-│          │                    │ Stack 3  │
+│          │                    │ Right 3  │
 └──────────┴────────────────────┴──────────┘
    ¼ wide          ½ wide          ¼ wide
 ```
 
-- **Fill order.** The first window goes to Master, the second to Left, and the rest to the bottom of the Stack. A lone window sits in the middle, not stretched across the whole screen.
+Either side can be the Stack, or both: `left_rows = "unlimited"` with `right_rows = 1` mirrors the layout (see [Settings](#settings)).
+
+- **Fill order.** The first window goes to Master, then Left up to its **Row limit**, then Right up to its own. New windows join a side at its bottom. By default that is Master, one window in Left, and the rest at the bottom of the Stack on the right. A lone window sits in the middle, not stretched across the whole screen.
 - **Holes.** Close the Master window and its place stays empty; nothing slides in. The next new window fills it.
-- **Rows.** The Stack holds any number of windows, one per **Row**. Left holds one by default, more with `left_rows`.
+- **Rows.** Each side holds one window per **Row**. A Stack holds any number; a side with a Row limit (`left_rows`, `right_rows`) holds up to that many. By default Left holds one and Right is the Stack; mirrored, it's the other way round.
 - **Resizing.** SUPER+right-drag moves the **Dividers** between zones and the edges between Rows. SUPER+ALT+HJKL does the same in steps, and SUPER+R resets. Each workspace keeps its own Dividers, saved across reboots.
 - **Drag-and-drop.** SUPER+left-drag a window onto another to swap them, onto the bottom quarter of a zone to add it there, or into an empty zone to move it. A highlight shows where it will land.
-- **Chain focus.** SUPER+H/L walk Left → Master → Stack top → … → Stack bottom. SUPER+J/K move up and down inside Left or the Stack.
+- **Chain focus.** SUPER+H/L walk the windows left to right on screen: Left top → bottom, Master, Right top → bottom, whichever side is the Stack. SUPER+J/K move up and down inside Left or Right.
 
 The words in **bold** are defined in [`GLOSSARY.md`](GLOSSARY.md).
 
@@ -101,8 +103,8 @@ threecol binds no keys. Copy [`examples/binds.lua`](examples/binds.lua) into you
 
 | Keys | Action | Repeats |
 |---|---|---|
-| SUPER+H / L | Focus along the **Chain** (Left → Master → Stack) | no |
-| SUPER+J / K | Focus down / up inside Left or the Stack | no |
+| SUPER+H / L | Focus along the **Chain** (Left → Master → Right) | no |
+| SUPER+J / K | Focus down / up inside Left or Right | no |
 | SUPER+SHIFT+H / L / J / K | Move the window the same way; it moves into free room and swaps only when there is none | no |
 | SUPER+M | Focus the Master window | no |
 | SUPER+SHIFT+M | Swap the focused window with Master (or move it into a Master Hole) | no |
@@ -181,14 +183,15 @@ Sizes are fractions of the workspace area (0 to 1). Master gets whatever Left an
 |---|---|---|---|---|
 | `left_width` | float | 0.25 | yes | Left zone width |
 | `right_width` | float | 0.25 | yes | Right zone width (was `stack_width`) |
-| `left_rows` | int | 1 | yes | **Row limit**: most windows the Left zone holds (≥ 1) |
+| `left_rows` | int or `"unlimited"` | 1 | yes | **Row limit**: most windows the Left zone holds (≥ 1), or `"unlimited"` for a Stack |
+| `right_rows` | int or `"unlimited"` | `"unlimited"` | yes | **Row limit** of the Right zone, the same way |
 | `min_width` | float | 0.10 | no | Smallest Left / Right width |
 | `min_master_width` | float | 0.20 | no | Smallest Master width |
-| `min_row_height` | float | 0.10 | no | Smallest Row height (Left and Right) |
+| `min_row_height` | float | 0.10 | no | Smallest Row height (Left and Right); also caps both Row limits |
 | `step` | float | 0.05 | no | Keyboard resize step |
 | `persist` | bool | true | no | Save Divider positions across reloads and reboots |
 
-**Per workspace.** `left_width`, `right_width` and `left_rows` can be overridden with a workspace rule's `layout_opts`, using the same names:
+**Per workspace.** `left_width`, `right_width`, `left_rows` and `right_rows` can be overridden with a workspace rule's `layout_opts`, using the same names:
 
 ```lua
 hl.workspace_rule({
@@ -198,17 +201,34 @@ hl.workspace_rule({
 })
 ```
 
+**Mirrored.** Make Left the Stack and give Right a Row limit:
+
+```lua
+hl.config({
+    plugin = {
+        threecol = {
+            left_rows  = "unlimited",
+            right_rows = 1,
+        },
+    },
+})
+```
+
+Fill order still goes Master, then Left, so in a mirrored layout every new window after Master joins the Left Stack; Right fills when you move (`move r` from Master) or drag a window there. Moves, drops, close rules and the Chain are the mirror image of the default. Both sides may be `"unlimited"` (two Stacks).
+
+For now one side must be a Stack: if neither is, `right_rows` is set to `"unlimited"` with a warning.
+
 **Which value wins.** A Divider you moved by hand wins until you reset (SUPER+R). Then the `layout_opts` value, then the global setting.
 
 **Mistakes are forgiven.**
 
 - An unknown or bad `layout_opts` key or value is ignored; that workspace uses the global value.
-- Settings that can't all fit are made to fit: Master keeps its minimum, and Left and Stack shrink in proportion. Left uses only as many Rows as fit `min_row_height`.
+- Settings that can't all fit are made to fit: Master keeps its minimum, and Left and Right shrink in proportion. A side with a Row limit uses only as many Rows as fit `min_row_height`.
 - Each config load shows one notification listing what was ignored or adjusted.
 
 **Changing settings.** Changes to `plugin:threecol:*` apply as soon as the config reloads.
 
-- Lowering `left_rows` moves the extra Left windows to the top of the Stack. Raising it moves nothing.
+- Lowering a Row limit, or switching a side from `"unlimited"` to a number, moves that side's extra bottom windows into the Stack on the other side, at its end nearest Master (the top of Right, the bottom of Left), keeping their order. Raising it moves nothing.
 - Tighter limits clamp the saved Dividers in use but don't rewrite the saved file, so loosening them again brings the old sizes back.
 
 **Saved Dividers.** With `persist = true`, each workspace's Dividers are saved after every finished resize to `$XDG_STATE_HOME/threecol/dividers` (or `~/.local/state/threecol/dividers`), keyed by workspace name. Row heights are not saved; they go back to equal after a reboot. With `persist = false` the file is neither read nor written (but kept), and every reload resets all workspaces to the settings.
