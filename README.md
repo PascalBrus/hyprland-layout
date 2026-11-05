@@ -203,6 +203,24 @@ Sizes are fractions of the workspace area (0 to 1). Master gets whatever Left an
 | `step` | float | 0.05 | no | Keyboard resize step |
 | `persist` | bool | true | no | Save Divider positions across reloads and reboots |
 
+### Centred Master
+
+`centre_master` (bool, default `true`, per workspace) keeps Master in the middle of the screen, with Left and Right equally wide: every sideways resize moves both Dividers by the same amount in opposite directions. Turned off, a resize moves one Divider. How each setting behaves in each mode:
+
+| Setting | Centred Master on | Centred Master off |
+|---|---|---|
+| Drag and One-off resizes | The grabbed Divider follows the cursor and the other mirrors it, whichever window or half of Master is grabbed | The grabbed Divider moves (on Master, the one nearer the grabbed half) |
+| `left_width`, `right_width` | Must be equal. If not, the settings notice warns, Master keeps its width (1 − `left_width` − `right_width`), and each side gets half of the rest: `0.20` / `0.30` gives 0.25 \| 0.50 \| 0.25 | Used as set |
+| `left_rows`, `right_rows` | A Row limit of `0` (missing side) is a conflict: the settings notice warns and that workspace uses `centre_master = false`. Otherwise unaffected | Unaffected |
+| `fill_first` | Unaffected | Unaffected |
+| `min_width`, `min_master_width` | Both Dividers stop together when either side reaches `min_width` or Master reaches `min_master_width`. Settings that can't all fit still shrink both sides in proportion, so they stay equal | Each Divider stops on its own. Widening Master with one side at `min_width` still moves the other side |
+| `min_row_height` | Unaffected | Unaffected |
+| `step` | The focused window's width changes by `step`. On Left or Right, both sides change by `step`, so Master changes by twice that. On Master, each Divider moves half a step | The focused window's width changes by `step`. On Left or Right, only that side's Divider moves. On Master, each Divider moves half a step, as Master has no side to grow towards |
+| `persist` | Saves both Dividers as usual; they are always equal | Saves both Dividers as usual |
+| Reset (SUPER+R) | Back to the settings widths, centred by the `left_width` / `right_width` rule above (no new warning) | Back to the settings widths |
+
+**Turning Centred Master on** centres what you had: unequal widths kept from resizing, or saved by `persist`, become equal, with Master keeping its width. The centred widths replace the kept and saved ones straight away, so turning it off again doesn't bring the old ones back. This happens on a config reload and at runtime with `hl.config`. A workspace that isn't open is centred, and its saved entry rewritten, the first time threecol lays it out.
+
 ### Settings at a glance
 
 Every setting the GIF at the top doesn't show, one at a time:

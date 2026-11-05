@@ -36,6 +36,10 @@ _Avoid_: disabled zone, hidden zone, empty zone
 An empty Master zone, or a Bounded zone whose last window closed. Other windows never slide into a hole; the next new window fills it.
 _Avoid_: gap, empty slot
 
+**Centred Master**:
+A workspace whose Master zone stays in the middle of the screen, with Left and Right equally wide. Resizing sideways moves both Dividers by the same amount in opposite directions, whichever window or half of Master is grabbed, and both stop together at a limit. It needs both side zones; with one missing it is a settings conflict, not a fallback. On by default. Turned off, a resize moves one Divider, except a Step resize on Master, which shares the step between both.
+_Avoid_: forced centre, mirrored resize, symmetric resize, center mode
+
 **Fill order**:
 The order in which new windows take zones: Master, then the first side zone up to its Row limit, then the other side zone up to its own. Which side comes first is a setting. A missing zone is skipped. A window that finds no room floats.
 _Avoid_: opening order, spawn order
