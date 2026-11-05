@@ -24,6 +24,7 @@ namespace threecol {
         DividerStore                       g_store;
         CHyprSignalListener                g_onConfigReloaded;
         CHyprSignalListener                g_onWorkspaceRenamed;
+        CHyprSignalListener                g_onPropsRefreshed;
 
         // Each threecol workspace's name as last seen, so a rename knows
         // which name its Dividers were kept under.
@@ -52,10 +53,43 @@ namespace threecol {
             return dir / "threecol" / "dividers";
         }
 
+        // Where the state file is kept while persist is off.
+        std::filesystem::path hiddenStateFile(std::filesystem::path path) {
+            path += ".off";
+            return path;
+        }
+
+        // Persist is off: moves the state file aside, replacing an older
+        // hidden one, so a reboot doesn't load it.
+        void hideStateFile() {
+            const auto path = stateFile();
+            if (!path)
+                return;
+            const auto     hidden = hiddenStateFile(*path);
+            std::error_code error;
+            std::filesystem::rename(*path, hidden, error);
+            if (!error)
+                LOG(Log::INFO, "[threecol] persist is off; moved {} aside to {}", path->string(), hidden.string());
+            else if (error != std::errc::no_such_file_or_directory)
+                LOG(Log::ERR, "[threecol] could not move {} aside to {}: {}; a reboot will load it", path->string(), hidden.string(), error.message());
+        }
+
+        // Persist is on: brings back the file hidden while it was off, unless
+        // there is a state file already, then reads it.
         std::optional<std::string> readStateFile() {
             const auto path = stateFile();
             if (!path)
                 return std::nullopt;
+
+            std::error_code error;
+            const auto      hidden = hiddenStateFile(*path);
+            if (!std::filesystem::exists(*path, error) && !error && std::filesystem::exists(hidden, error)) {
+                std::filesystem::rename(hidden, *path, error);
+                if (!error)
+                    LOG(Log::INFO, "[threecol] persist is on; moved {} back to {}", hidden.string(), path->string());
+                else
+                    LOG(Log::WARN, "[threecol] could not move {} back to {}: {}; it is left as it is", hidden.string(), path->string(), error.message());
+            }
 
             std::ifstream file{*path, std::ios::binary};
             if (!file)
@@ -112,16 +146,29 @@ namespace threecol {
                 LOG(Log::ERR, "[threecol] could not save Dividers to {}: {}", path->string(), error.message());
         }
 
+        const DividerStore::StateFile g_stateFile{.read = readStateFile, .hide = hideStateFile};
+
         void write(const std::optional<StateFileWrite>& write) {
             if (write)
                 writeStateFile(*write);
         }
 
         void configLoaded() {
-            g_store.configLoaded(globalSettings().persist, readStateFile);
+            g_store.configLoaded(globalSettings().persist, g_stateFile);
             // Hyprland may lay out workspaces before this listener runs; do it
             // again so a reset from persist = false shows right away.
             recalculateAllWorkspaces();
+        }
+
+        // Settings were applied. After a config load, configLoaded has run
+        // already (reloaded comes first), so a change to persist seen here
+        // was made at runtime with hl.config.
+        void propsRefreshed() {
+            std::erase_if(g_names, [](const auto& known) { return known.workspace.expired(); });
+            std::vector<std::string> shown;
+            for (const auto& known : g_names)
+                shown.push_back(known.name);
+            write(g_store.persistChanged(globalSettings().persist, g_stateFile, shown));
         }
 
         // The name the workspace's Dividers are kept under. A workspace seen
@@ -141,8 +188,9 @@ namespace threecol {
     }
 
     void startSavingDividers() {
-        g_store.configLoaded(globalSettings().persist, readStateFile);
+        g_store.configLoaded(globalSettings().persist, g_stateFile);
         g_onConfigReloaded   = Event::bus()->m_events.config.reloaded.listen([] { configLoaded(); });
+        g_onPropsRefreshed   = Event::bus()->m_events.config.props_refreshed.listen([](bool) { propsRefreshed(); });
         g_onWorkspaceRenamed = Event::bus()->m_events.workspace.renamed.listen([](PHLWORKSPACEREF ref) {
             // Only a threecol workspace has Dividers kept under its old name.
             if (const auto workspace = ref.lock(); workspace && knownName(workspace))
@@ -153,6 +201,7 @@ namespace threecol {
     void stopSavingDividers() {
         g_onConfigReloaded.reset();
         g_onWorkspaceRenamed.reset();
+        g_onPropsRefreshed.reset();
     }
 
     std::optional<Dividers> savedDividers(const PHLWORKSPACE& workspace) {

@@ -7,6 +7,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace threecol {
 
@@ -26,14 +27,28 @@ namespace threecol {
     // it is up to the caller.
     class DividerStore {
       public:
-        // The state file's text, or nothing if there is none.
-        using ReadFile = std::function<std::optional<std::string>()>;
+        // The state file, handled by the caller. While persist is off it is
+        // hidden (as dividers.off), so a reboot doesn't load it, but kept.
+        struct StateFile {
+            // Persist turned on: bring the hidden file back unless there is a
+            // state file already, then return its text (nothing: no file).
+            std::function<std::optional<std::string>()> read;
+            // Persist turned off: hide the file.
+            std::function<void()>                        hide;
+        };
 
         // The config was loaded. With `persist`, the saved Dividers are read
-        // with `readFile` the first time (missing or corrupt content counts as
-        // nothing saved), then kept. Without it, every workspace goes back to
-        // its settings and the file is neither read nor written.
-        void                       configLoaded(bool persist, const ReadFile& readFile);
+        // the first time (missing or corrupt content counts as nothing saved),
+        // then kept. Without it, every workspace goes back to its settings and
+        // the file is neither read nor written.
+        void                       configLoaded(bool persist, const StateFile& file);
+
+        // `persist` was set at runtime, without a config load; nothing on
+        // screen moves. Turned off, the file is no longer written. Turned on,
+        // the file is read and its entries kept for workspaces not in `shown`
+        // (the ones on screen keep what they show), and the new state file is
+        // returned so what's on screen is saved. No change does nothing.
+        std::optional<StateFileWrite> persistChanged(bool persist, const StateFile& file, const std::vector<std::string>& shown);
 
         // The workspace's Dividers, or nothing if it follows its settings.
         std::optional<Dividers>    find(std::string_view workspace) const;
@@ -52,7 +67,7 @@ namespace threecol {
 
       private:
         std::map<std::string, Dividers, std::less<>> m_dividers;
-        bool                                         m_persist = false;
+        std::optional<bool>                          m_persist; // nothing until a config is loaded
         bool                                         m_read    = false; // the file, since persist turned on
         bool                                         m_unparsed = false; // the file read didn't fully parse and isn't backed up yet
 
