@@ -32,6 +32,7 @@ namespace threecol {
             SP<CIntValue>    rightRows;
             SP<CStringValue> fillFirst;
             SP<CBoolValue>   persist;
+            SP<CBoolValue>   centreMaster;
         } g_values;
 
         // False until every value is registered. An unregistered value never
@@ -90,10 +91,13 @@ namespace threecol {
             .fillFirst      = side("plugin:threecol:fill_first", "side new windows go to after Master: \"left\" or \"right\"", DEFAULTS.fillFirst),
             .persist        = makeShared<CBoolValue>("plugin:threecol:persist", "save Divider positions across reloads and reboots", DEFAULTS.persist,
                                                      Config::Values::SBoolValueOptions{.refresh = REFRESH_LAYOUTS}),
+            .centreMaster   = makeShared<CBoolValue>("plugin:threecol:centre_master", "keep Master in the middle: sideways resizes move both Dividers", DEFAULTS.centreMaster,
+                                                     Config::Values::SBoolValueOptions{.refresh = REFRESH_LAYOUTS}),
         };
 
         const std::initializer_list<SP<Config::Values::IValue>> all{
             g_values.leftWidth, g_values.rightWidth, g_values.minWidth, g_values.minMasterWidth, g_values.minRowHeight, g_values.step, g_values.leftRows, g_values.rightRows, g_values.fillFirst, g_values.persist,
+            g_values.centreMaster,
         };
 
         bool ok = true;
@@ -118,6 +122,7 @@ namespace threecol {
             .rightRows      = rowLimitOf(g_values.rightRows),
             .fillFirst      = parseSide(g_values.fillFirst->value()).value_or(DEFAULTS.fillFirst),
             .persist        = g_values.persist->value(),
+            .centreMaster   = g_values.centreMaster->value(),
         };
     }
 
