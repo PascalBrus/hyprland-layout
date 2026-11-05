@@ -24,6 +24,7 @@
 #include <hyprland/src/config/shared/complex/ComplexDataTypes.hpp>
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <iterator>
 
@@ -35,6 +36,12 @@ namespace threecol {
         // or its end.
         auto entryOf(auto& targets, WindowId id) {
             return std::ranges::find_if(targets, [id](const auto& entry) { return entry.first == id; });
+        }
+
+        // The entry of `targets` (pairs of model id and tile) for `target`, or
+        // its end.
+        auto entryOf(auto& targets, const SP<Layout::ITarget>& target) {
+            return std::ranges::find_if(targets, [&](const auto& entry) { return entry.second.lock() == target; });
         }
 
         Rect toRect(const CBox& box) {
@@ -122,6 +129,25 @@ namespace threecol {
         // Every live instance, so a config reload can reach them all.
         std::vector<CThreecolAlgorithm*> g_instances;
 
+        // Layouts carried over from a replaced instance, by workspace, until
+        // the workspace's next threecol instance takes its own. A reload
+        // switches back within moments; after longer, e.g. a workspace set
+        // to another layout on purpose, threecol starts afresh.
+        struct SCarriedFor {
+            PHLWORKSPACEREF                       workspace;
+            SCarriedLayout                        layout;
+            std::chrono::steady_clock::time_point at = std::chrono::steady_clock::now();
+        };
+        std::vector<SCarriedFor> g_carried;
+        constexpr auto           CARRY_FOR = std::chrono::seconds{5};
+
+        // Forgets the carried layouts of workspaces that are gone or that
+        // waited too long.
+        void forgetStaleCarries() {
+            const auto now = std::chrono::steady_clock::now();
+            std::erase_if(g_carried, [&](const auto& entry) { return entry.workspace.expired() || now - entry.at > CARRY_FOR; });
+        }
+
     }
 
     CThreecolAlgorithm::CThreecolAlgorithm() : m_model(Rect{}) {
@@ -138,6 +164,14 @@ namespace threecol {
         // Gone mid-drag, e.g. the layout changed: save the sizes so far.
         if (const auto workspace = m_dragWorkspace.lock(); workspace && m_model.resizing())
             saveDividers(workspace, m_model.dividers());
+
+        // Gone right after a run of removals: Hyprland handed the tiles to
+        // another instance. The next threecol one takes this layout.
+        const auto workspace = this->workspace();
+        forgetStaleCarries();
+        std::erase_if(g_carried, [&](const auto& entry) { return entry.workspace.lock() == workspace; });
+        if (workspace && m_beforeRemovals)
+            g_carried.emplace_back(workspace, std::move(*m_beforeRemovals));
     }
 
     PHLWORKSPACE CThreecolAlgorithm::workspace() const {
@@ -266,7 +300,57 @@ namespace threecol {
         return rects;
     }
 
+    bool CThreecolAlgorithm::handingOver() const {
+        const auto parent = m_parent.lock();
+        return parent && parent->tiledAlgo().get() != this;
+    }
+
+    std::optional<WindowId> CThreecolAlgorithm::cameBack(const SP<Layout::ITarget>& target) {
+        if (const auto workspace = this->workspace(); workspace && !std::exchange(m_carryChecked, true)) {
+            forgetStaleCarries();
+            const auto it = std::ranges::find_if(g_carried, [&](const auto& entry) { return entry.workspace.lock() == workspace; });
+            // Only an instance with no tiles yet starts from a carried layout.
+            if (it != g_carried.end() && m_targets.empty()) {
+                m_model   = std::move(it->layout.model);
+                m_awaited = std::move(it->layout.targets);
+                m_nextId  = it->layout.nextId;
+                m_model.endResize();
+                // Ends the carry once Hyprland is done handing tiles over,
+                // even if it doesn't lay the workspace out then.
+                if (g_pEventLoopManager)
+                    m_pendingCarry = g_pEventLoopManager->doLaterLock([this] {
+                        m_pendingCarry.reset();
+                        recalculate();
+                    });
+            }
+            if (it != g_carried.end())
+                g_carried.erase(it);
+        }
+
+        const auto it = entryOf(m_awaited, target);
+        if (it == m_awaited.end())
+            return std::nullopt;
+        const WindowId id = it->first;
+        m_awaited.erase(it);
+        return id;
+    }
+
+    void CThreecolAlgorithm::finishCarry() {
+        // More carried windows may follow in the same hand-over.
+        if (handingOver())
+            return;
+        m_carryChecked = true;
+        if (std::exchange(m_awaited, {}).empty())
+            return;
+        std::vector<WindowId> back;
+        for (const auto& [id, target] : m_targets)
+            back.push_back(id);
+        m_model.keepOnly(back);
+    }
+
     bool CThreecolAlgorithm::refreshModel() {
+        // Anything but a carried window coming back ends the carry.
+        finishCarry();
         const auto before = tileRects();
         syncArea();
         applySettings();
@@ -329,6 +413,13 @@ namespace threecol {
         if (idOf(target))
             return;
 
+        // Back in its carried place.
+        if (const auto id = cameBack(target)) {
+            m_targets.emplace_back(*id, target);
+            recalculate();
+            return;
+        }
+
         // The settings in use decide whether it finds room. Decided before
         // tracking it, so floating it is a plain hand-over to the floating
         // algorithm, as dwindle does.
@@ -364,7 +455,7 @@ namespace threecol {
     }
 
     void CThreecolAlgorithm::removeTarget(SP<Layout::ITarget> target) {
-        const auto it = std::ranges::find_if(m_targets, [&](const auto& entry) { return entry.second.lock() == target; });
+        const auto it = entryOf(m_targets, target);
         if (it == m_targets.end())
             return;
 
@@ -375,6 +466,15 @@ namespace threecol {
             return;
         }
 
+        // The layout from before the first of a run of removals, in case
+        // this instance is being replaced. A run can span closes nothing laid
+        // out between, e.g. on a hidden workspace; the close rules don't
+        // depend on the order, so the carried windows that don't come back
+        // still leave it as it was.
+        auto before = std::exchange(m_beforeRemovals, std::nullopt);
+        if (!before)
+            before = SCarriedLayout{m_model, m_targets, m_nextId};
+
         m_focusAfterClose.reset();
         const bool wasResizing = m_model.resizing();
         if (const auto next = m_model.removeWindow(it->first))
@@ -382,6 +482,7 @@ namespace threecol {
         keepDividersIfDragEnded(wasResizing);
         m_targets.erase(it);
         recalculate();
+        m_beforeRemovals = std::move(before);
     }
 
     void CThreecolAlgorithm::resizeTarget(const Vector2D& Δ, SP<Layout::ITarget> target, Layout::eRectCorner corner) {
@@ -411,6 +512,8 @@ namespace threecol {
     }
 
     void CThreecolAlgorithm::recalculate(Layout::eRecalculateReason) {
+        // Every change is laid out, so this ends a run of removals.
+        m_beforeRemovals.reset();
         if (!m_parent || !m_parent->space())
             return;
 
@@ -445,7 +548,7 @@ namespace threecol {
     std::optional<WindowId> CThreecolAlgorithm::idOf(const SP<Layout::ITarget>& target) const {
         if (m_dragged && m_dragged->target.lock() == target)
             return std::nullopt;
-        const auto it = std::ranges::find_if(m_targets, [&](const auto& entry) { return entry.second.lock() == target; });
+        const auto it = entryOf(m_targets, target);
         return it == m_targets.end() ? std::nullopt : std::optional{it->first};
     }
 

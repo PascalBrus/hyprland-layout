@@ -6,11 +6,20 @@
 #include <hyprland/src/layout/algorithm/TiledAlgorithm.hpp>
 #include <hyprland/src/managers/eventLoop/EventLoopManager.hpp>
 
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
 
 namespace threecol {
+
+    // A workspace's layout as an instance had it: the model, which tile each
+    // window id is, and the next id to give.
+    struct SCarriedLayout {
+        Workspace                                             model;
+        std::vector<std::pair<WindowId, WP<Layout::ITarget>>> targets;
+        WindowId                                              nextId;
+    };
 
     // One instance per workspace. Translates Hyprland's layout callbacks into
     // calls on the core Workspace model and places targets where it says.
@@ -68,6 +77,33 @@ namespace threecol {
         // A drag ended without the tile coming back, e.g. it went to another
         // workspace or closed: its place follows the close rules.
         void                                               dragLeft();
+
+        // Hyprland replaces a workspace's instance by removing every tile
+        // here and handing it to the new one, e.g. when a config reload
+        // briefly switches the workspace to another layout. Nothing tells
+        // that from closes, so the layout from before a run of removals is
+        // kept, and if this instance goes right after them it is carried over
+        // to the next threecol instance of the workspace.
+        std::optional<SCarriedLayout>                      m_beforeRemovals;
+
+        // Takes the layout carried over for this workspace, if any, on the
+        // first tile handed to this instance. Its windows that come back keep
+        // their places.
+        bool                                               m_carryChecked = false;
+        std::vector<std::pair<WindowId, WP<Layout::ITarget>>> m_awaited; // carried, not back yet
+
+        // The model's id for `target` if it comes back from a carried layout.
+        std::optional<WindowId>                            cameBack(const SP<Layout::ITarget>& target);
+
+        // Ends the carry: the carried windows that didn't come back leave
+        // under the close rules. Not while Hyprland is still handing tiles
+        // over to this instance.
+        void                                               finishCarry();
+        UP<SEventLoopDoLaterLock>                          m_pendingCarry; // set while the carry waits to end
+
+        // Whether Hyprland is handing tiles over to this instance, which
+        // replaces the workspace's current one when it's done.
+        bool                                               handingOver() const;
 
         // Whether this workspace has asked for its settings to be checked.
         // After that, config reloads check them.

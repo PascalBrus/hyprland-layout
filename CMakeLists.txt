@@ -56,7 +56,8 @@ if(THREECOL_TESTS)
         tests/core/RowLimitTest.cpp
         tests/core/ChainTest.cpp
         tests/core/DragDropTest.cpp
-        tests/core/DropIndicatorTest.cpp)
+        tests/core/DropIndicatorTest.cpp
+        tests/core/CarryAcrossRebuildTest.cpp)
     target_link_libraries(threecol_tests PRIVATE threecol_core GTest::gtest_main)
     gtest_discover_tests(threecol_tests)
 

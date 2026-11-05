@@ -187,6 +187,14 @@ namespace threecol {
         return neighbour(windows, id, false);
     }
 
+    void Workspace::keepOnly(const std::vector<WindowId>& ids) {
+        m_gesture.reset();
+        for (const WindowId id : windowsInChainOrder()) {
+            if (!std::ranges::contains(ids, id))
+                takeOut(id);
+        }
+    }
+
     std::optional<Rect> Workspace::rectOf(WindowId id) const {
         const auto zone = zoneOf(id);
         if (!zone)
