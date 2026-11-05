@@ -2,8 +2,10 @@
 
 #include <hyprland/src/config/values/ConfigValues.hpp>
 
+#include <algorithm>
 #include <expected>
 #include <initializer_list>
+#include <limits>
 #include <string>
 
 namespace threecol {
@@ -36,24 +38,29 @@ namespace threecol {
         // reads the config, so until then the defaults are used.
         bool g_registered = false;
 
+        // A fraction from 0 to 1. Not bounded here: Hyprland would drop a value
+        // out of range without a word, so resolveSettings checks it and warns.
         SP<CFloatValue> fraction(const char* name, const char* description, double def) {
-            return makeShared<CFloatValue>(name, description, def, Config::Values::SFloatValueOptions{.min = 0, .max = 1, .refresh = REFRESH_LAYOUTS});
+            return makeShared<CFloatValue>(name, description, def, Config::Values::SFloatValueOptions{.refresh = REFRESH_LAYOUTS});
         }
 
-        // How a Row limit of "unlimited" reads back. Hyprland skips the
-        // minimum for a map entry, so a negative sentinel works while a typed
-        // negative number is still rejected.
-        constexpr Config::INTEGER UNLIMITED = -1;
+        // How a Row limit of "unlimited" reads back: a number nobody types,
+        // so a typed negative one reaches resolveSettings to be warned about.
+        constexpr Config::INTEGER UNLIMITED = std::numeric_limits<Config::INTEGER>::min();
 
         // A whole number, 0 for a missing zone, or "unlimited" for a Stack.
+        // Not bounded here, like the fractions, so a negative one is warned
+        // about rather than dropped.
         SP<CIntValue> rowLimit(const char* name, const char* description, RowLimit def) {
             return makeShared<CIntValue>(name, description, def.rows().value_or(UNLIMITED),
-                                         Config::Values::SIntValueOptions{.min = 0, .map = Config::Values::OptionMap{{"unlimited", UNLIMITED}}, .refresh = REFRESH_LAYOUTS});
+                                         Config::Values::SIntValueOptions{.map = Config::Values::OptionMap{{"unlimited", UNLIMITED}}, .refresh = REFRESH_LAYOUTS});
         }
 
         RowLimit rowLimitOf(const SP<CIntValue>& value) {
             const auto rows = value->value();
-            return rows == UNLIMITED ? RowLimit::unlimited() : RowLimit{static_cast<int>(rows)};
+            if (rows == UNLIMITED)
+                return RowLimit::unlimited();
+            return RowLimit{static_cast<int>(std::clamp<Config::INTEGER>(rows, std::numeric_limits<int>::min(), std::numeric_limits<int>::max()))};
         }
 
         // "left" or "right" only. A string value, not an int map, so 0 and 1
