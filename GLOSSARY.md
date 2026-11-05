@@ -55,3 +55,19 @@ _Avoid_: stack position, slot, cell
 **Row limit**:
 The most Rows a side zone may hold: a whole number, zero for a missing zone, or none for the Stack. Lowering it pushes the zone's bottom windows out: into a Stack on the other side, else into the other side's free Rows, else they float. They join that side at its end nearest Master.
 _Avoid_: cap, max rows, left count
+
+**Kept sizes**:
+The Divider positions and Row heights set by resizing. They win over the workspace's settings until reset, and a setting change that squeezes them makes the squeezed sizes the new kept sizes. With persist on, they also survive a reboot.
+_Avoid_: saved sizes, state sizes, overrides
+
+**Drag resize**:
+A resize with the mouse. The Divider or Row edge nearest the grabbed point follows the cursor, and the new sizes are kept when the button is released.
+_Avoid_: mouse resize
+
+**One-off resize**:
+A resize by a given amount in pixels, from a bind or command that names the amount, or from a trackpad gesture. A positive amount makes the window bigger, a negative one smaller. The new sizes are kept straight away.
+_Avoid_: resizeactive, gesture resize
+
+**Step resize**:
+A resize by one step, a fixed share of the screen set in the settings, from the resize keys or the resize layout message. It makes the focused zone wider or narrower, or the focused Row taller or shorter. The new sizes are kept straight away.
+_Avoid_: keyboard resize, resize wider
