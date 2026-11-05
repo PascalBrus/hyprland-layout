@@ -95,6 +95,11 @@ namespace threecol {
         // it was last. Nothing if no window is left or it wasn't here.
         std::optional<WindowId> removeWindow(WindowId id);
 
+        // Only `ids` stay: every other window leaves as removeWindow says, in
+        // Chain order. For a layout carried over to a new instance, once the
+        // windows that come back are known; it also ends a mouse drag.
+        void                keepOnly(const std::vector<WindowId>& ids);
+
         // The window's rectangle, or nothing if it isn't on this workspace.
         std::optional<Rect> rectOf(WindowId id) const;
 
