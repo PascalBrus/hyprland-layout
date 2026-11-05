@@ -95,7 +95,8 @@ namespace threecol {
     bool leaveMasterItsMinimum(double& leftWidth, double& rightWidth, double minMasterWidth);
 
     // The settings one workspace uses: its layout_opts win over the global
-    // values. `workspaceName` names the workspace in warnings.
+    // values. A global value out of range is replaced by its default, with a
+    // warning. `workspaceName` names the workspace in warnings.
     ResolvedSettings resolveSettings(const Settings& global, const LayoutOpts& opts, std::string_view workspaceName);
 
     // Decides when settings problems reach the user: one notification per

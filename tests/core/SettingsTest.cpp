@@ -4,7 +4,9 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <format>
 #include <iterator>
+#include <limits>
 #include <tuple>
 
 using threecol::LayoutOpts;
@@ -479,4 +481,73 @@ TEST(Settings, AnIgnoredLayoutOptsWidthPrintsTheFloatStoredGlobalWidthWithoutNoi
 
     ASSERT_EQ(warnings.size(), 1u);
     EXPECT_EQ(warnings[0], "workspace 3: layout_opts left_width = \"oops\" is not a number from 0 to 1; using 0.3");
+}
+
+TEST(Settings, AnOutOfRangeGlobalWidthIsIgnoredWithAWarningAndTheDefaultUsed) {
+    Workspace ws{AREA};
+
+    const auto warnings = ws.setSettings(Settings{.leftWidth = 2.0}, {}, "3").warnings;
+
+    EXPECT_DOUBLE_EQ(ws.settings().leftWidth, 0.25);
+    ASSERT_EQ(warnings.size(), 1u);
+    EXPECT_EQ(warnings[0], "left_width 2 is not a number from 0 to 1; using 0.25");
+}
+
+TEST(Settings, EveryOutOfRangeGlobalFractionIsIgnoredWithAWarningAndTheDefaultUsed) {
+    const auto nan = std::numeric_limits<double>::quiet_NaN();
+    const std::tuple<const char*, double Settings::*, const char*> fractions[] = {
+        {"left_width", &Settings::leftWidth, "0.25"},   {"right_width", &Settings::rightWidth, "0.25"},
+        {"min_width", &Settings::minWidth, "0.1"},      {"min_master_width", &Settings::minMasterWidth, "0.2"},
+        {"min_row_height", &Settings::minRowHeight, "0.1"}, {"step", &Settings::step, "0.05"},
+    };
+    for (const auto& [key, member, def] : fractions) {
+        for (const double bad : {-1.0, 1.5, nan}) {
+            Settings global;
+            global.*member = bad;
+            Workspace ws{AREA};
+
+            const auto warnings = ws.setSettings(global, {}, "3").warnings;
+
+            EXPECT_EQ(ws.settings(), Settings{}) << key << " = " << bad;
+            ASSERT_EQ(warnings.size(), 1u) << key << " = " << bad;
+            EXPECT_EQ(warnings[0], std::format("{} {} is not a number from 0 to 1; using {}", key, static_cast<float>(bad), def));
+        }
+    }
+}
+
+TEST(Settings, GlobalFractionsOfZeroAndOneAreInRange) {
+    Workspace ws{AREA};
+
+    const auto warnings = ws.setSettings(Settings{.leftWidth = 1, .rightWidth = 0, .minWidth = 0, .minMasterWidth = 0, .minRowHeight = 0, .step = 1}, {}, "3").warnings;
+
+    EXPECT_TRUE(std::ranges::none_of(warnings, [](const std::string& w) { return w.find("is not a number") != std::string::npos; }));
+}
+
+TEST(Settings, ANegativeGlobalRowLimitIsIgnoredWithAWarningAndTheDefaultUsed) {
+    Workspace ws{AREA};
+
+    const auto warnings = ws.setSettings(Settings{.leftRows = -3, .rightRows = -1}, {}, "3").warnings;
+
+    EXPECT_EQ(ws.settings().leftRows, 1);
+    EXPECT_EQ(ws.settings().rightRows, RowLimit::unlimited());
+    EXPECT_EQ(warnings, (std::vector<std::string>{"left_rows -3 is not a whole number of at least 0 or \"unlimited\"; using 1",
+                                                  "right_rows -1 is not a whole number of at least 0 or \"unlimited\"; using unlimited"}));
+}
+
+TEST(Settings, ABadLayoutOptsWidthFallsBackToTheDefaultWhenTheGlobalIsOutOfRangeToo) {
+    Workspace ws{AREA};
+
+    const auto warnings = ws.setSettings(Settings{.leftWidth = 2.0}, LayoutOpts{{"left_width", "oops"}}, "3").warnings;
+
+    EXPECT_DOUBLE_EQ(ws.settings().leftWidth, 0.25);
+    EXPECT_EQ(warnings, (std::vector<std::string>{"left_width 2 is not a number from 0 to 1; using 0.25",
+                                                  "workspace 3: layout_opts left_width = \"oops\" is not a number from 0 to 1; using 0.25"}));
+}
+
+TEST(Settings, AGoodLayoutOptsWidthWinsOverAnOutOfRangeGlobal) {
+    Workspace ws{AREA};
+
+    ws.setSettings(Settings{.leftWidth = 2.0}, LayoutOpts{{"left_width", "0.3"}}, "3");
+
+    EXPECT_DOUBLE_EQ(ws.settings().leftWidth, 0.3);
 }

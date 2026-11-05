@@ -23,9 +23,18 @@ namespace threecol {
             return value;
         }
 
+        // What a fraction setting must be, and a Row limit; warnings quote these.
+        constexpr std::string_view FRACTION  = "a number from 0 to 1";
+        constexpr std::string_view ROW_LIMIT = "a whole number of at least 0 or \"unlimited\"";
+
+        // False for NaN too.
+        bool isFraction(double value) {
+            return value >= 0 && value <= 1;
+        }
+
         std::optional<double> parseWidth(const std::string& text) {
             const auto value = parseNumber(text);
-            if (!value || *value < 0 || *value > 1)
+            if (!value || !isFraction(*value))
                 return std::nullopt;
             return value;
         }
@@ -55,6 +64,27 @@ namespace threecol {
         // on every workspace.
         std::string warningPrefix(bool fromLayoutOpts, std::string_view workspaceName) {
             return fromLayoutOpts ? workspaceLabel(workspaceName) + ": " : std::string{};
+        }
+
+        // Hyprland hands over global values unchecked, so one out of range is
+        // replaced by its default here, where it can be warned about.
+        void ignoreBadGlobals(Settings& settings, std::vector<std::string>& warnings) {
+            const Settings defaults{};
+            for (auto [key, value, def] : {std::tuple{"left_width", &settings.leftWidth, defaults.leftWidth}, std::tuple{"right_width", &settings.rightWidth, defaults.rightWidth},
+                                           std::tuple{"min_width", &settings.minWidth, defaults.minWidth},
+                                           std::tuple{"min_master_width", &settings.minMasterWidth, defaults.minMasterWidth},
+                                           std::tuple{"min_row_height", &settings.minRowHeight, defaults.minRowHeight}, std::tuple{"step", &settings.step, defaults.step}}) {
+                if (isFraction(*value))
+                    continue;
+                warnings.push_back(std::format("{} {} is not {}; using {}", key, settingText(*value), FRACTION, settingText(def)));
+                *value = def;
+            }
+            for (auto [key, limit, def] : {std::tuple{"left_rows", &settings.leftRows, defaults.leftRows}, std::tuple{"right_rows", &settings.rightRows, defaults.rightRows}}) {
+                if (limit->rows().value_or(0) >= 0)
+                    continue;
+                warnings.push_back(std::format("{} {} is not {}; using {}", key, limit->text(), ROW_LIMIT, def.text()));
+                *limit = def;
+            }
         }
 
         // Which settings came from the workspace's layout_opts.
@@ -167,6 +197,7 @@ namespace threecol {
     ResolvedSettings resolveSettings(const Settings& global, const LayoutOpts& opts, std::string_view workspaceName) {
         ResolvedSettings resolved{.settings = global, .warnings = {}};
         auto&            settings = resolved.settings;
+        ignoreBadGlobals(settings, resolved.warnings);
 
         const auto       warnIgnored = [&](const std::string& key, const std::string& text, std::string_view expected, std::string globalValue) {
             resolved.warnings.push_back(std::format("{}: layout_opts {} = \"{}\" is not {}; using {}", workspaceLabel(workspaceName), key, text, expected, globalValue));
@@ -180,14 +211,14 @@ namespace threecol {
                     width = *value;
                     (key == "left_width" ? overridden.left : overridden.right) = true;
                 } else
-                    warnIgnored(key, text, "a number from 0 to 1", settingText(width));
+                    warnIgnored(key, text, FRACTION, settingText(width));
             } else if (key == "left_rows" || key == "right_rows") {
                 RowLimit& limit = key == "left_rows" ? settings.leftRows : settings.rightRows;
                 if (const auto value = parseRowLimit(text)) {
                     limit                                                           = *value;
                     (key == "left_rows" ? overridden.leftRows : overridden.rightRows) = true;
                 } else
-                    warnIgnored(key, text, "a whole number of at least 0 or \"unlimited\"", limit.text());
+                    warnIgnored(key, text, ROW_LIMIT, limit.text());
             } else if (key == "fill_first") {
                 if (const auto side = parseSide(text))
                     settings.fillFirst = *side;

@@ -424,6 +424,8 @@ Here the fifth window floats at its own size, centred, as does any later one whi
 **Mistakes are forgiven.**
 
 - An unknown or bad `layout_opts` key or value is ignored; that workspace uses the global value.
+- A global value out of range (a size outside 0 to 1, or a negative Row limit) is ignored; the default is used.
+- A global value of the wrong type, such as text where a number belongs (`min_width = "abc"`), is dropped by Hyprland before threecol sees it. Neither Hyprland nor threecol warns about it; the default is used. `hyprctl getoption plugin:threecol:<name>` shows `set: false` for it.
 - Settings that can't all fit are made to fit: Master keeps its minimum, and Left and Right shrink in proportion. A side with a Row limit uses only as many Rows as fit `min_row_height`.
 - Each config load shows one notification listing what was ignored or adjusted.
 
