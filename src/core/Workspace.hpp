@@ -52,6 +52,10 @@ namespace threecol {
         }
     };
 
+    // Whether a layout message needs a focused tile to apply. `focusmaster`
+    // and `reset` don't, so they work with a floating window focused too.
+    bool needsFocusedTile(std::string_view message);
+
     // What a settings change did.
     struct SettingsChange {
         std::vector<std::string> warnings; // what was ignored or adjusted

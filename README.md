@@ -132,7 +132,7 @@ hyprctl dispatch "hl.dsp.layout('resize wider')"   # wider|narrower|taller|short
 hyprctl dispatch "hl.dsp.layout('reset')"
 ```
 
-A message that doesn't apply (e.g. `resize taller` on Master, or anything on a floating window) does nothing and reports no error.
+A message that doesn't apply (e.g. `resize taller` on Master, or anything but `focusmaster` and `reset` on a floating window) does nothing and reports no error. `focusmaster` from a floating window jumps to Master.
 
 ## Will my existing binds still work?
 

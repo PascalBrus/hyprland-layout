@@ -259,6 +259,10 @@ namespace threecol {
 
     }
 
+    bool needsFocusedTile(std::string_view message) {
+        return message != "focusmaster" && message != "reset";
+    }
+
     MessageResult Workspace::layoutMessage(std::string_view message, std::optional<WindowId> focused) {
         const auto result = applyLayoutMessage(message, focused);
         // A drag's later ticks would undo the change.

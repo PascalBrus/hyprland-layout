@@ -56,7 +56,7 @@ Expected: T4's place follows the close rules and no other window moves. Where to
 
 ## README/code mismatches and notes
 
-- **`focusmaster` from a floating window** focuses Master (`ThreecolAlgorithm.cpp:438`). The README says a message on a floating window "does nothing and reports no error" (README line 132). Known; confirmed live.
+- **`focusmaster` from a floating window** focuses Master (`ThreecolAlgorithm.cpp:438`). The README says a message on a floating window "does nothing and reports no error" (README line 132). Known; confirmed live. Resolved in #40: kept as intended, the README now names `focusmaster` and `reset` as the exceptions.
 - **`persist` only changes on a config load.** Set at runtime with `hl.config`, the other seven settings apply straight away, but `persist` is only read in `SavedDividers.cpp` `configLoaded()`. A runtime `persist = false` still writes the file. Matches the README ("apply as soon as the config reloads"), but it's the one setting that behaves differently at runtime.
 - **The author's `keybinds.lua`** `threecol_active()` doesn't check `has_fullscreen`, unlike `examples/binds.lua`. On a fullscreen workspace SUPER+HJKL send the layout message, which threecol ignores, so the keys do nothing instead of falling back.
 - **Resize keys on dwindle** do nothing, but dwindle returns its own error (`Unknown dwindle layoutmsg: resize wider`). The README says "the resize and reset keys do nothing on other layouts", which is true for the layout.
