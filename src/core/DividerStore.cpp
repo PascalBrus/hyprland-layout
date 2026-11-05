@@ -1,5 +1,6 @@
 #include "core/DividerStore.hpp"
 
+#include <algorithm>
 #include <charconv>
 #include <cmath>
 #include <format>
@@ -122,20 +123,43 @@ namespace threecol {
 
     }
 
-    void DividerStore::configLoaded(bool persist, const ReadFile& readFile) {
-        m_persist = persist;
+    void DividerStore::configLoaded(bool persist, const StateFile& file) {
+        const auto was = std::exchange(m_persist, persist);
         if (!persist) {
             m_dividers.clear();
             m_read     = false;
             m_unparsed = false;
+            if (was != false)
+                file.hide();
             return;
         }
         if (std::exchange(m_read, true))
             return;
 
-        auto parsed = parse(readFile().value_or(""));
+        auto parsed = parse(file.read().value_or(""));
         m_dividers  = std::move(parsed.dividers);
         m_unparsed  = !parsed.complete;
+    }
+
+    std::optional<StateFileWrite> DividerStore::persistChanged(bool persist, const StateFile& file, const std::vector<std::string>& shown) {
+        if (persist == m_persist)
+            return std::nullopt;
+        m_persist = persist;
+        if (!persist) {
+            m_read     = false;
+            m_unparsed = false;
+            file.hide();
+            return std::nullopt;
+        }
+
+        m_read      = true;
+        auto parsed = parse(file.read().value_or(""));
+        m_unparsed  = !parsed.complete;
+        for (auto& [name, dividers] : parsed.dividers) {
+            if (!std::ranges::contains(shown, name))
+                m_dividers.try_emplace(name, dividers); // a resize this session wins
+        }
+        return changed();
     }
 
     std::optional<Dividers> DividerStore::find(std::string_view workspace) const {
@@ -174,7 +198,7 @@ namespace threecol {
     }
 
     std::optional<StateFileWrite> DividerStore::changed() const {
-        if (!m_persist)
+        if (m_persist != true)
             return std::nullopt;
         return StateFileWrite{.text = serialise(m_dividers), .backUpOldFile = m_unparsed};
     }
