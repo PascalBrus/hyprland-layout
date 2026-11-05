@@ -34,6 +34,7 @@ namespace threecol {
         SettingsChange change{.warnings = std::move(resolved.warnings), .noRoom = {}};
         const auto grabbedZone = m_gesture ? zoneOf(m_gesture->id) : std::nullopt;
         const bool moved       = fitToRowLimits(change.noRoom);
+        const bool centred     = centreKeptDividers();
         if (!m_gesture)
             return change;
         // No more ticks come for a window that left.
@@ -47,7 +48,8 @@ namespace threecol {
         const bool rowsMoved      = moved && m_gesture->edge;
         const bool sideChanged    = zoneOf(m_gesture->id) != grabbedZone;
         const bool dividerMissing = m_gesture->divider && !exists(*m_gesture->divider == Divider::LeftMaster ? Zone::Left : Zone::Right);
-        if (rowsMoved || sideChanged || dividerMissing)
+        // The drag's Dividers at press are no longer the ones in use.
+        if (rowsMoved || sideChanged || dividerMissing || centred)
             m_gesture->over = true;
         return change;
     }
@@ -221,6 +223,16 @@ namespace threecol {
 
     void Workspace::setDividers(std::optional<Dividers> dividers) {
         m_dividers = dividers;
+        centreKeptDividers();
+    }
+
+    bool Workspace::centreKeptDividers() {
+        if (!m_settings.centreMaster || !m_dividers || std::abs(m_dividers->leftWidth - m_dividers->rightWidth) < EPSILON)
+            return false;
+        // Master keeps its width; each side gets half of the rest.
+        const double side = (m_dividers->leftWidth + m_dividers->rightWidth) / 2;
+        m_dividers        = Dividers{side, side};
+        return true;
     }
 
     Dividers Workspace::savedDividers() const {
@@ -436,6 +448,13 @@ namespace threecol {
 
         Dividers     dividers  = currentDividers();
         auto& [left, right]    = dividers;
+        if (m_settings.centreMaster) {
+            // The focused window's width changes by the step: on a side both
+            // sides do, on Master each side gives or takes half of it.
+            const double side = (left + right) / 2;
+            left = right = moved(side, zone == Zone::Master ? -by / 2 : by, minWidth, (1 - minMaster) / 2);
+            return setResized(dividers);
+        }
         switch (zone) {
             case Zone::Left: left = moved(left, by, minWidth, 1 - right - minMaster); break;
             case Zone::Right: right = moved(right, by, minWidth, 1 - left - minMaster); break;
@@ -539,6 +558,12 @@ namespace threecol {
         const double by       = px / m_area.w;
         const double minWidth = m_settings.minWidth;
         const double room     = 1 - m_settings.minMasterWidth;
+        if (m_settings.centreMaster) {
+            // The grabbed Divider follows, the other mirrors it.
+            const double side = (left + right) / 2 + (*divider == Divider::LeftMaster ? by : -by);
+            left = right = within(side, minWidth, room / 2);
+            return from;
+        }
         switch (*divider) {
             case Divider::LeftMaster: left = within(left + by, minWidth, room - right); break;
             case Divider::MasterRight: right = within(right - by, minWidth, room - left); break;

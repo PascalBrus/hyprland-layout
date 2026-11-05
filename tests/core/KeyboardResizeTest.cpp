@@ -14,13 +14,14 @@ using threecol::Workspace;
 namespace {
 
     // One 5120x1440 ultrawide, no gaps, default widths 0.25 / 0.5 / 0.25 and
-    // a step of 0.05 (256 px).
+    // a step of 0.05 (256 px). Centred Master is off: one Divider moves.
     constexpr Rect AREA{0, 0, 5120, 1440};
 
     // A workspace with windows 1..count added in Fill order: 1 Master,
     // 2 Left, then the Stack.
     Workspace filled(WindowId count) {
         Workspace ws{AREA};
+        ws.setSettings(Settings{.centreMaster = false});
         for (WindowId id = 1; id <= count; ++id)
             ws.addWindow(id);
         return ws;
@@ -29,7 +30,7 @@ namespace {
     // A workspace with no Left zone: 1 Master, 2 Right.
     Workspace noLeft() {
         Workspace ws{AREA};
-        ws.setSettings(Settings{.leftRows = 0});
+        ws.setSettings(Settings{.leftRows = 0, .centreMaster = false});
         ws.addWindow(1);
         ws.addWindow(2);
         return ws;
@@ -102,7 +103,7 @@ TEST(KeyboardResize, NarrowingMasterMovesBothDividersHalfAStep) {
 
 TEST(KeyboardResize, WideningLeftStopsWhereMasterReachesItsMinimum) {
     Workspace ws = filled(3);
-    ws.setSettings({.step = 0.2});
+    ws.setSettings({.step = 0.2, .centreMaster = false});
 
     ws.layoutMessage("resize wider", 2); // Master 0.5 -> 0.3
     ws.layoutMessage("resize wider", 2); // would leave Master 0.1; stops at 0.2
@@ -114,7 +115,7 @@ TEST(KeyboardResize, WideningLeftStopsWhereMasterReachesItsMinimum) {
 
 TEST(KeyboardResize, NarrowingTheStackStopsAtTheMinimumWidth) {
     Workspace ws = filled(3);
-    ws.setSettings({.step = 0.1});
+    ws.setSettings({.step = 0.1, .centreMaster = false});
 
     ws.layoutMessage("resize narrower", 3); // 0.25 -> 0.15
     ws.layoutMessage("resize narrower", 3); // would be 0.05; stops at 0.10
@@ -125,7 +126,7 @@ TEST(KeyboardResize, NarrowingTheStackStopsAtTheMinimumWidth) {
 
 TEST(KeyboardResize, WideningMasterWithLeftAtItsLimitMovesOnlyTheStackSide) {
     Workspace ws = filled(3);
-    ws.setSettings({.leftWidth = 0.1});
+    ws.setSettings({.leftWidth = 0.1, .centreMaster = false});
 
     ws.layoutMessage("resize wider", 1);
 
@@ -136,7 +137,7 @@ TEST(KeyboardResize, WideningMasterWithLeftAtItsLimitMovesOnlyTheStackSide) {
 
 TEST(KeyboardResize, NarrowingMasterStopsAtItsMinimumAndStaysCentred) {
     Workspace ws = filled(3);
-    ws.setSettings({.step = 0.2});
+    ws.setSettings({.step = 0.2, .centreMaster = false});
 
     ws.layoutMessage("resize narrower", 1); // 0.5 -> 0.3
     ws.layoutMessage("resize narrower", 1); // would be 0.1; stops at 0.2
@@ -167,7 +168,7 @@ TEST(KeyboardResize, ResizedDividersWinOverChangedWidthSettings) {
     Workspace ws = filled(3);
     ws.layoutMessage("resize wider", 2);
 
-    ws.setSettings({.leftWidth = 0.3, .rightWidth = 0.3});
+    ws.setSettings({.leftWidth = 0.3, .rightWidth = 0.3, .centreMaster = false});
 
     EXPECT_TRUE(near(ws.rectOf(2), {0, 0, 1536, 1440}));
     EXPECT_TRUE(near(ws.rectOf(3), {3840, 0, 1280, 1440}));
@@ -175,10 +176,10 @@ TEST(KeyboardResize, ResizedDividersWinOverChangedWidthSettings) {
 
 TEST(KeyboardResize, ARaisedLimitClampsResizedDividers) {
     Workspace ws = filled(3);
-    ws.setSettings({.step = 0.15});
+    ws.setSettings({.step = 0.15, .centreMaster = false});
     ws.layoutMessage("resize narrower", 3); // Stack 0.25 -> 0.10
 
-    ws.setSettings({.minWidth = 0.15});
+    ws.setSettings({.minWidth = 0.15, .centreMaster = false});
 
     EXPECT_TRUE(near(ws.rectOf(1), {1280, 0, 3072, 1440}));
     EXPECT_TRUE(near(ws.rectOf(3), {4352, 0, 768, 1440}));
@@ -188,7 +189,7 @@ TEST(KeyboardResize, ARaisedMasterMinimumShrinksResizedDividersInProportionUntil
     Workspace ws = filled(3);
     ws.layoutMessage("resize wider", 2); // Left 0.25 -> 0.30
 
-    ws.setSettings({.minMasterWidth = 0.6}); // Left and Stack share 0.4, as 0.30 : 0.25
+    ws.setSettings({.minMasterWidth = 0.6, .centreMaster = false}); // Left and Stack share 0.4, as 0.30 : 0.25
 
     const double left  = 5120 * 0.4 * 0.30 / 0.55;
     const double stack = 5120 * 0.4 * 0.25 / 0.55;
@@ -196,7 +197,7 @@ TEST(KeyboardResize, ARaisedMasterMinimumShrinksResizedDividersInProportionUntil
     EXPECT_TRUE(near(ws.rectOf(1), {left, 0, 3072, 1440}));
     EXPECT_TRUE(near(ws.rectOf(3), {5120 - stack, 0, stack, 1440}));
 
-    ws.setSettings({});
+    ws.setSettings({.centreMaster = false});
 
     EXPECT_TRUE(near(ws.rectOf(2), {0, 0, 1536, 1440}));
     EXPECT_TRUE(near(ws.rectOf(3), {3840, 0, 1280, 1440}));
@@ -204,12 +205,12 @@ TEST(KeyboardResize, ARaisedMasterMinimumShrinksResizedDividersInProportionUntil
 
 TEST(KeyboardResize, AResizeUnderARaisedLimitKeepsTheWidthsAsShown) {
     Workspace ws = filled(3);
-    ws.setSettings({.step = 0.15});
+    ws.setSettings({.step = 0.15, .centreMaster = false});
     ws.layoutMessage("resize narrower", 3); // Stack 0.25 -> 0.10
-    ws.setSettings({.minWidth = 0.15, .step = 0.05}); // Stack shown at 0.15
+    ws.setSettings({.minWidth = 0.15, .step = 0.05, .centreMaster = false}); // Stack shown at 0.15
 
     ws.layoutMessage("resize wider", 2); // Left 0.25 -> 0.30, from what is shown
-    ws.setSettings({});
+    ws.setSettings({.centreMaster = false});
 
     // The resize saved the Stack at 0.15: loosening the limit no longer brings 0.10 back.
     EXPECT_TRUE(near(ws.rectOf(2), {0, 0, 1536, 1440}));
@@ -218,7 +219,7 @@ TEST(KeyboardResize, AResizeUnderARaisedLimitKeepsTheWidthsAsShown) {
 
 TEST(KeyboardResize, ResetPutsTheDividersBackToTheLayoutOpts) {
     Workspace ws = filled(3);
-    ws.setSettings({}, {{"left_width", "0.3"}});
+    ws.setSettings({.centreMaster = false}, {{"left_width", "0.3"}});
     ws.layoutMessage("resize wider", 1);
     ws.layoutMessage("resize wider", 3);
 
@@ -273,7 +274,7 @@ TEST(KeyboardResize, AResizeReportsThatTheDividersChanged) {
 
 TEST(KeyboardResize, AResizeAlreadyAtItsLimitChangesNothing) {
     Workspace ws = filled(3);
-    ws.setSettings({.leftWidth = 0.1});
+    ws.setSettings({.leftWidth = 0.1, .centreMaster = false});
 
     EXPECT_FALSE(ws.layoutMessage("resize narrower", 2));
     EXPECT_EQ(ws.dividers(), std::nullopt);
@@ -295,7 +296,7 @@ TEST(KeyboardResize, UnknownOrInapplicableMessagesDoNothing) {
 
 TEST(KeyboardResize, AResizeStoppedAtMastersMinimumStaysPut) {
     Workspace ws = filled(3);
-    ws.setSettings({.rightWidth = 0.3, .minMasterWidth = 0.3, .step = 0.3});
+    ws.setSettings({.rightWidth = 0.3, .minMasterWidth = 0.3, .step = 0.3, .centreMaster = false});
     ws.layoutMessage("resize wider", 2); // stops where Master is 0.3
 
     for (int press = 0; press < 5; ++press)
@@ -323,7 +324,7 @@ TEST(KeyboardResize, NarrowingMasterWithLeftMissingMovesOnlyMasterRight) {
 
 TEST(KeyboardResize, WideningMasterWithRightMissingMovesOnlyLeftMaster) {
     Workspace ws{AREA};
-    ws.setSettings(Settings{.rightRows = 0});
+    ws.setSettings(Settings{.rightRows = 0, .centreMaster = false});
     ws.addWindow(1);
     ws.addWindow(2); // Left
 
@@ -344,7 +345,7 @@ TEST(KeyboardResize, WideningRightWithLeftMissingLeavesTheLeftEdgeAlone) {
 
 TEST(KeyboardResize, WithBothSidesMissingResizingMasterDoesNothing) {
     Workspace ws{AREA};
-    ws.setSettings(Settings{.leftRows = 0, .rightRows = 0});
+    ws.setSettings(Settings{.leftRows = 0, .rightRows = 0, .centreMaster = false});
     ws.addWindow(1);
 
     EXPECT_FALSE(ws.layoutMessage("resize wider", 1));
@@ -357,9 +358,9 @@ TEST(KeyboardResize, AZoneThatGoesMissingComesBackAtItsSavedDivider) {
     Workspace ws = filled(3);
     ws.layoutMessage("resize wider", 2); // Left 0.30
 
-    ws.setSettings(Settings{.leftRows = 0});
+    ws.setSettings(Settings{.leftRows = 0, .centreMaster = false});
     EXPECT_TRUE(near(ws.rectOf(1), {0, 0, 3840, 1440}));
-    ws.setSettings(Settings{});
+    ws.setSettings(Settings{.centreMaster = false});
 
     EXPECT_TRUE(near(ws.rectOf(1), {1536, 0, 2304, 1440}));
 }
@@ -367,10 +368,10 @@ TEST(KeyboardResize, AZoneThatGoesMissingComesBackAtItsSavedDivider) {
 TEST(KeyboardResize, ResizingWhileAZoneIsMissingKeepsItsSavedDivider) {
     Workspace ws = filled(3);
     ws.layoutMessage("resize wider", 2); // Left 0.30
-    ws.setSettings(Settings{.leftRows = 0});
+    ws.setSettings(Settings{.leftRows = 0, .centreMaster = false});
 
     ws.layoutMessage("resize wider", 3); // Right 0.30
-    ws.setSettings(Settings{});
+    ws.setSettings(Settings{.centreMaster = false});
 
     EXPECT_TRUE(near(ws.rectOf(1), {1536, 0, 2048, 1440}));
     EXPECT_TRUE(near(ws.rectOf(3), {3584, 720, 1536, 720})); // below 2, pushed out of Left
@@ -378,13 +379,13 @@ TEST(KeyboardResize, ResizingWhileAZoneIsMissingKeepsItsSavedDivider) {
 
 TEST(KeyboardResize, ResetWhileAZoneIsMissingBringsItBackAtTheLayoutOptsWidth) {
     Workspace ws{AREA};
-    ws.setSettings(Settings{.leftRows = 0}, LayoutOpts{{"left_width", "0.3"}}, "3");
+    ws.setSettings(Settings{.leftRows = 0, .centreMaster = false}, LayoutOpts{{"left_width", "0.3"}}, "3");
     ws.addWindow(1);
     ws.addWindow(2); // Right
     ws.layoutMessage("resize wider", 2);
 
     ws.layoutMessage("reset", 1);
-    ws.setSettings(Settings{}, LayoutOpts{{"left_width", "0.3"}}, "3");
+    ws.setSettings(Settings{.centreMaster = false}, LayoutOpts{{"left_width", "0.3"}}, "3");
 
     EXPECT_TRUE(near(ws.rectOf(1), {1536, 0, 2304, 1440}));
     EXPECT_TRUE(near(ws.rectOf(2), {3840, 0, 1280, 1440}));
@@ -392,13 +393,13 @@ TEST(KeyboardResize, ResetWhileAZoneIsMissingBringsItBackAtTheLayoutOptsWidth) {
 
 TEST(KeyboardResize, ResetWhileAZoneIsMissingBringsItBackAtTheGlobalWidth) {
     Workspace ws{AREA};
-    ws.setSettings(Settings{.leftWidth = 0.2, .leftRows = 0});
+    ws.setSettings(Settings{.leftWidth = 0.2, .leftRows = 0, .centreMaster = false});
     ws.addWindow(1);
     ws.addWindow(2); // Right
     ws.layoutMessage("resize wider", 1);
 
     ws.layoutMessage("reset", 1);
-    ws.setSettings(Settings{.leftWidth = 0.2});
+    ws.setSettings(Settings{.leftWidth = 0.2, .centreMaster = false});
 
     EXPECT_TRUE(near(ws.rectOf(1), {1024, 0, 2816, 1440}));
     EXPECT_TRUE(near(ws.rectOf(2), {3840, 0, 1280, 1440}));

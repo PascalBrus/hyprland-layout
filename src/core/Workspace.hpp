@@ -111,7 +111,10 @@ namespace threecol {
         // Unknown messages, or ones that don't apply, do nothing. Returns
         // whether the layout changed and where focus goes.
         //
-        // `resize wider` / `resize narrower` move the focused zone's Dividers;
+        // `resize wider` / `resize narrower` change the focused window's width
+        // by `step`. On Master each Divider moves half a step, in both modes.
+        // On a side, with Centred Master on both sides change by `step`;
+        // off, only that side's Divider moves;
         // `resize taller` / `resize shorter` change the focused side zone
         // Row's height, the other Rows giving way in proportion; `reset` puts the
         // Dividers back to the settings and makes the Rows equal.
@@ -166,6 +169,8 @@ namespace threecol {
         // Master|Right. Master moves the Divider on the grabbed half, or
         // Master|Right with no corner. A missing zone has no Divider: with one
         // side missing Master moves the other Divider, with both nothing.
+        // With Centred Master on, the other Divider mirrors the moved one, so
+        // Left and Right stay equal and both stop together at a limit.
         //
         // Up and down, a side zone Row moves the edge on the grabbed half, or its
         // bottom edge with no corner, changing only the two Rows either side.
@@ -245,6 +250,10 @@ namespace threecol {
         // Set by resizing; until then the Dividers follow the settings. A
         // missing zone's width is kept here too, unused until it comes back.
         std::optional<Dividers> m_dividers;
+
+        // With Centred Master on, makes unequal kept Dividers equal, Master
+        // keeping its width. Returns whether they changed.
+        bool                    centreKeptDividers();
 
         // The Dividers set by resizing, else the settings, unclamped.
         Dividers                savedDividers() const;

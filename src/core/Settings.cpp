@@ -39,6 +39,19 @@ namespace threecol {
             return value;
         }
 
+        // A bool as Hyprland hands over a Lua one ("true", "false"), or 1 / 0.
+        std::optional<bool> parseBool(const std::string& text) {
+            if (text == "true" || text == "1")
+                return true;
+            if (text == "false" || text == "0")
+                return false;
+            return std::nullopt;
+        }
+
+        std::string boolText(bool value) {
+            return value ? "true" : "false";
+        }
+
         std::optional<RowLimit> parseRowLimit(const std::string& text) {
             if (text == "unlimited")
                 return RowLimit::unlimited();
@@ -91,9 +104,38 @@ namespace threecol {
         struct SOverridden {
             bool left      = false;
             bool right     = false;
-            bool leftRows  = false;
-            bool rightRows = false;
+            bool leftRows     = false;
+            bool rightRows    = false;
+            bool centreMaster = false;
         };
+
+        // Centred Master needs both side zones: with one missing it is a
+        // conflict, warned about, and the workspace runs with it off.
+        void resolveCentreMaster(Settings& settings, SOverridden overridden, std::string_view workspaceName, std::vector<std::string>& warnings) {
+            if (!settings.centreMaster)
+                return;
+            const bool noLeft  = settings.leftRows.role() == Role::Missing;
+            const bool noRight = settings.rightRows.role() == Role::Missing;
+            if (!noLeft && !noRight)
+                return;
+            const auto missing = noLeft && noRight ? std::string{"left_rows and right_rows are 0"} : noLeft ? std::string{"left_rows is 0"} : std::string{"right_rows is 0"};
+            const bool fromLayoutOpts = overridden.centreMaster || (noLeft && overridden.leftRows) || (noRight && overridden.rightRows);
+            warnings.push_back(std::format("{}centre_master needs both side zones, but {}; using centre_master = false", warningPrefix(fromLayoutOpts, workspaceName), missing));
+            settings.centreMaster = false;
+        }
+
+        // Centred Master needs equal side widths: unequal ones are a
+        // conflict, warned about, where Master keeps its width and each side
+        // gets half of the rest.
+        void centreWidths(Settings& settings, SOverridden overridden, std::string_view workspaceName, std::vector<std::string>& warnings) {
+            if (!settings.centreMaster || settings.leftWidth == settings.rightWidth)
+                return;
+            const double side           = (settings.leftWidth + settings.rightWidth) / 2;
+            const bool   fromLayoutOpts = overridden.centreMaster || overridden.left || overridden.right;
+            warnings.push_back(std::format("{}centre_master needs equal side widths, but left_width is {} and right_width is {}; using {} each",
+                                           warningPrefix(fromLayoutOpts, workspaceName), settingText(settings.leftWidth), settingText(settings.rightWidth), settingText(side)));
+            settings.leftWidth = settings.rightWidth = side;
+        }
 
         // Makes the widths fit the limits: Left and Right at least min_width,
         // and Master at least min_master_width. When both can't hold, Master
@@ -219,6 +261,12 @@ namespace threecol {
                     (key == "left_rows" ? overridden.leftRows : overridden.rightRows) = true;
                 } else
                     warnIgnored(key, text, ROW_LIMIT, limit.text());
+            } else if (key == "centre_master") {
+                if (const auto value = parseBool(text)) {
+                    settings.centreMaster   = *value;
+                    overridden.centreMaster = true;
+                } else
+                    warnIgnored(key, text, "true or false", boolText(settings.centreMaster));
             } else if (key == "fill_first") {
                 if (const auto side = parseSide(text))
                     settings.fillFirst = *side;
@@ -228,6 +276,8 @@ namespace threecol {
                 resolved.warnings.push_back(std::format("{}: unknown layout_opts key \"{}\", ignored", workspaceLabel(workspaceName), key));
         }
 
+        resolveCentreMaster(settings, overridden, workspaceName, resolved.warnings);
+        centreWidths(settings, overridden, workspaceName, resolved.warnings);
         makeWidthsFit(settings, overridden, workspaceName, resolved.warnings);
         makeRowLimitsFit(settings, overridden, workspaceName, resolved.warnings);
 

@@ -16,13 +16,14 @@ namespace {
 
     // One 5120x1440 ultrawide, no gaps, default widths 0.25 / 0.5 / 0.25
     // (1280 / 2560 / 1280 px), min_width 0.10 (512 px) and min_master_width
-    // 0.20 (1024 px).
+    // 0.20 (1024 px). Centred Master is off: one Divider moves.
     constexpr Rect AREA{0, 0, 5120, 1440};
 
     // A workspace with windows 1..count added in Fill order: 1 Master,
     // 2 Left, then the Stack.
     Workspace filled(WindowId count) {
         Workspace ws{AREA};
+        ws.setSettings(Settings{.centreMaster = false});
         for (WindowId id = 1; id <= count; ++id)
             ws.addWindow(id);
         return ws;
@@ -230,7 +231,7 @@ TEST(MouseResize, AKeyPressDuringADragEndsItAndIsntUndoneByLaterTicks) {
 TEST(MouseResize, WithLeftMissingDraggingEitherHalfOfMasterMovesMasterRight) {
     for (const Corner corner : {Corner::TopLeft, Corner::BottomRight}) {
         Workspace ws{AREA};
-        ws.setSettings(Settings{.leftRows = 0});
+        ws.setSettings(Settings{.leftRows = 0, .centreMaster = false});
         ws.addWindow(1);
         ws.addWindow(2); // Right
 
@@ -243,7 +244,7 @@ TEST(MouseResize, WithLeftMissingDraggingEitherHalfOfMasterMovesMasterRight) {
 
 TEST(MouseResize, WithRightMissingAOneOffResizeOnMasterMovesLeftMaster) {
     Workspace ws{AREA};
-    ws.setSettings(Settings{.rightRows = 0});
+    ws.setSettings(Settings{.rightRows = 0, .centreMaster = false});
     ws.addWindow(1);
     ws.addWindow(2); // Left
 
@@ -255,7 +256,7 @@ TEST(MouseResize, WithRightMissingAOneOffResizeOnMasterMovesLeftMaster) {
 
 TEST(MouseResize, WithBothSidesMissingResizingMasterDoesNothing) {
     Workspace ws{AREA};
-    ws.setSettings(Settings{.leftRows = 0, .rightRows = 0});
+    ws.setSettings(Settings{.leftRows = 0, .rightRows = 0, .centreMaster = false});
     ws.addWindow(1);
 
     EXPECT_FALSE(ws.dragResize(1, 256, 0, Corner::BottomRight));

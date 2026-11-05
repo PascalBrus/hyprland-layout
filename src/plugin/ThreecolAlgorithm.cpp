@@ -356,8 +356,13 @@ namespace threecol {
         applySettings();
 
         // Mid-drag, the model's Dividers are newer than the saved ones.
-        if (const auto workspace = this->workspace(); workspace && !m_model.resizing())
-            m_model.setDividers(savedDividers(workspace));
+        if (const auto workspace = this->workspace(); workspace && !m_model.resizing()) {
+            const auto saved = savedDividers(workspace);
+            m_model.setDividers(saved);
+            // Centred Master centred them: the centred ones replace them.
+            if (m_model.dividers() != saved)
+                keepDividers();
+        }
         return tileRects() != before;
     }
 

@@ -344,7 +344,8 @@ TEST(RowLimit, LoweringTheLimitKeepsADividerOnlyDrag) {
 
     EXPECT_TRUE(ws.resizing());
     EXPECT_TRUE(ws.dragResize(1, 100, 0, Corner::BottomRight));
-    EXPECT_TRUE(near(ws.rectOf(1), {1280, 0, 2760, 1440}));
+    // Centred Master: 200 px of travel widens Master by 200 px on each side.
+    EXPECT_TRUE(near(ws.rectOf(1), {1080, 0, 2960, 1440}));
 }
 
 TEST(RowLimit, APushedOutWindowWithNoRoomEndsItsOwnDividerOnlyDrag) {

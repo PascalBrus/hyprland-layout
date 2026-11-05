@@ -77,6 +77,8 @@ namespace threecol {
         RowLimit rightRows      = RowLimit::unlimited();
         Side     fillFirst      = Side::Left; // the side new windows go to after Master
         bool     persist        = true;
+        // Centred Master: sideways resizes move both Dividers, equal and opposite.
+        bool     centreMaster   = true;
 
         friend bool operator==(const Settings&, const Settings&) = default;
     };
