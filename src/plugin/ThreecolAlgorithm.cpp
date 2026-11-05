@@ -10,6 +10,7 @@
 #include <hyprland/src/desktop/state/FocusState.hpp>
 #include <hyprland/src/desktop/state/ViewState.hpp>
 #include <hyprland/src/desktop/view/window/Window.hpp>
+#include <hyprland/src/event/EventBus.hpp>
 #include <hyprland/src/layout/LayoutManager.hpp>
 #include <hyprland/src/layout/algorithm/Algorithm.hpp>
 #include <hyprland/src/layout/space/Space.hpp>
@@ -126,6 +127,10 @@ namespace threecol {
     CThreecolAlgorithm::CThreecolAlgorithm() : m_model(Rect{}) {
         g_instances.push_back(this);
         m_onDragEnded = g_layoutManager->dragController()->m_events.ended.listen([this] { dragEnded(); });
+        m_onWindowClose = Event::bus()->m_events.window.close.listen([this](PHLWINDOW window) {
+            if (const auto target = m_dragged ? m_dragged->target.lock() : nullptr; target && target->window() == window)
+                m_dragged->closing = true;
+        });
     }
 
     CThreecolAlgorithm::~CThreecolAlgorithm() {
@@ -345,11 +350,12 @@ namespace threecol {
 
     void CThreecolAlgorithm::movedTarget(SP<Layout::ITarget> target, std::optional<Vector2D>) {
         // The dragged tile is tiled again: a drop if the mouse let go of it.
-        // A float toggle mid-drag puts it back in its place.
+        // A float toggle mid-drag, or closing, puts it back in its place;
+        // a close then follows the close rules in removeTarget.
         if (m_dragged && m_dragged->target.lock() == target) {
-            const WindowId id = std::exchange(m_dragged, std::nullopt)->id;
-            if (g_layoutManager->dragController()->wasDraggingWindow())
-                dropped(id);
+            const auto dragged = *std::exchange(m_dragged, std::nullopt);
+            if (!dragged.closing && g_layoutManager->dragController()->wasDraggingWindow())
+                dropped(dragged.id);
             else
                 recalculate();
             return;

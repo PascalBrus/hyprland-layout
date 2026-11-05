@@ -55,8 +55,12 @@ namespace threecol {
         struct SDragged {
             WP<Layout::ITarget> target;
             WindowId            id;
+            // The window is closing. Hyprland ends its drag as if released
+            // before it removes the window: that is no drop.
+            bool                closing = false;
         };
         std::optional<SDragged>                            m_dragged;
+        CHyprSignalListener                                m_onWindowClose;
 
         // The dragged tile was dropped back on this workspace.
         void                                               dropped(WindowId id);
