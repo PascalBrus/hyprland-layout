@@ -39,6 +39,13 @@ namespace threecol {
             return RowLimit{static_cast<int>(*value)};
         }
 
+        // A setting's value as a warning shows it. Hyprland stores settings as
+        // floats, so this prints the shortest text that reads back as the same
+        // float: 0.1, not the 0.10000000149011612 it widens to.
+        std::string settingText(double value) {
+            return std::format("{}", static_cast<float>(value));
+        }
+
         std::string workspaceLabel(std::string_view name) {
             return name.empty() ? std::string{"a workspace"} : std::format("workspace {}", name);
         }
@@ -74,7 +81,8 @@ namespace threecol {
                                                                 std::tuple{"right_width", &settings.rightWidth, overridden.right, hasRight}}) {
                 if (!exists || *width >= settings.minWidth)
                     continue;
-                warnings.push_back(std::format("{}{} {} is below min_width {}; using {}", prefix(fromLayoutOpts), key, *width, settings.minWidth, settings.minWidth));
+                warnings.push_back(std::format("{}{} {} is below min_width {}; using {}", prefix(fromLayoutOpts), key, settingText(*width), settingText(settings.minWidth),
+                                               settingText(settings.minWidth)));
                 *width = settings.minWidth;
             }
 
@@ -85,11 +93,13 @@ namespace threecol {
             // Only the zones that exist are named, as only they were counted.
             if (hasLeft && hasRight)
                 warnings.push_back(std::format("{}left_width {} and right_width {} leave Master less than min_master_width {}; using {:.3g} and {:.3g}",
-                                               prefix(overridden.left || overridden.right), settings.leftWidth, settings.rightWidth, settings.minMasterWidth, left, right));
+                                               prefix(overridden.left || overridden.right), settingText(settings.leftWidth), settingText(settings.rightWidth),
+                                               settingText(settings.minMasterWidth), left, right));
             else {
                 const auto [key, width, fitted, fromLayoutOpts] =
                     hasLeft ? std::tuple{"left_width", settings.leftWidth, left, overridden.left} : std::tuple{"right_width", settings.rightWidth, right, overridden.right};
-                warnings.push_back(std::format("{}{} {} leaves Master less than min_master_width {}; using {:.3g}", prefix(fromLayoutOpts), key, width, settings.minMasterWidth, fitted));
+                warnings.push_back(std::format("{}{} {} leaves Master less than min_master_width {}; using {:.3g}", prefix(fromLayoutOpts), key, settingText(width),
+                                               settingText(settings.minMasterWidth), fitted));
             }
             if (hasLeft)
                 settings.leftWidth = left;
@@ -111,7 +121,7 @@ namespace threecol {
                 if (limit->role() != Role::Bounded || *limit->rows() <= fits)
                     continue;
                 warnings.push_back(std::format("{}{} {} doesn't fit min_row_height {}; using {}", warningPrefix(fromLayoutOpts, workspaceName), key,
-                                               limit->text(), settings.minRowHeight, fits));
+                                               limit->text(), settingText(settings.minRowHeight), fits));
                 *limit = fits;
             }
         }
@@ -170,7 +180,7 @@ namespace threecol {
                     width = *value;
                     (key == "left_width" ? overridden.left : overridden.right) = true;
                 } else
-                    warnIgnored(key, text, "a number from 0 to 1", std::format("{}", width));
+                    warnIgnored(key, text, "a number from 0 to 1", settingText(width));
             } else if (key == "left_rows" || key == "right_rows") {
                 RowLimit& limit = key == "left_rows" ? settings.leftRows : settings.rightRows;
                 if (const auto value = parseRowLimit(text)) {

@@ -433,3 +433,50 @@ TEST(Settings, AnUnlimitedRowLimitIsNoCount) {
     EXPECT_EQ(RowLimit{3}.rows(), 3);
     EXPECT_EQ(RowLimit{3}.role(), Role::Bounded);
 }
+
+// Hyprland stores settings as floats; widened to double, 0.1F is
+// 0.10000000149011612, and warnings must not print that noise.
+TEST(Settings, ARowLimitWarningPrintsAFloatStoredMinRowHeightWithoutNoise) {
+    Workspace ws{AREA};
+
+    const auto warnings = ws.setSettings(Settings{.minRowHeight = 0.1F, .leftRows = 99}).warnings;
+
+    ASSERT_EQ(warnings.size(), 1u);
+    EXPECT_EQ(warnings[0], "left_rows 99 doesn't fit min_row_height 0.1; using 9");
+}
+
+TEST(Settings, AMinWidthWarningPrintsFloatStoredWidthsWithoutNoise) {
+    Workspace ws = filled();
+
+    const auto warnings = ws.setSettings(Settings{.leftWidth = 0.05F, .minWidth = 0.1F}).warnings;
+
+    ASSERT_EQ(warnings.size(), 1u);
+    EXPECT_EQ(warnings[0], "left_width 0.05 is below min_width 0.1; using 0.1");
+}
+
+TEST(Settings, AMasterMinimumWarningPrintsFloatStoredWidthsWithoutNoise) {
+    Workspace ws = filled();
+
+    const auto warnings = ws.setSettings(Settings{.leftWidth = 0.6F, .rightWidth = 0.3F, .minMasterWidth = 0.2F}).warnings;
+
+    ASSERT_EQ(warnings.size(), 1u);
+    EXPECT_EQ(warnings[0], "left_width 0.6 and right_width 0.3 leave Master less than min_master_width 0.2; using 0.533 and 0.267");
+}
+
+TEST(Settings, AOneSidedMasterMinimumWarningPrintsFloatStoredWidthsWithoutNoise) {
+    Workspace ws{AREA};
+
+    const auto warnings = ws.setSettings(Settings{.leftWidth = 0.9F, .minMasterWidth = 0.2F, .rightRows = 0}).warnings;
+
+    ASSERT_EQ(warnings.size(), 1u);
+    EXPECT_EQ(warnings[0], "left_width 0.9 leaves Master less than min_master_width 0.2; using 0.8");
+}
+
+TEST(Settings, AnIgnoredLayoutOptsWidthPrintsTheFloatStoredGlobalWidthWithoutNoise) {
+    Workspace ws = filled();
+
+    const auto warnings = ws.setSettings(Settings{.leftWidth = 0.3F}, LayoutOpts{{"left_width", "oops"}}, "3").warnings;
+
+    ASSERT_EQ(warnings.size(), 1u);
+    EXPECT_EQ(warnings[0], "workspace 3: layout_opts left_width = \"oops\" is not a number from 0 to 1; using 0.3");
+}
