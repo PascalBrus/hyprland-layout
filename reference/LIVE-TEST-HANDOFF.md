@@ -64,7 +64,7 @@ Use window rectangles from `hyprctl clients -j`, never screenshots, unless the i
 
 ## Known issue to keep in mind
 
-The README says layout messages on a floating window do nothing, but `focusmaster` works from a floating window (`src/plugin/ThreecolAlgorithm.cpp:438`). If the SUPER+M item shows this, report it as a README/code mismatch; don't count it as a layout bug.
+`focusmaster` and `reset` work from a floating window on purpose; every other layout message does nothing there (README, `needsFocusedTile` in `src/core/Workspace.hpp`). If SUPER+M from a floating window focuses Master, that is intended (#40).
 
 ## What to hand back
 

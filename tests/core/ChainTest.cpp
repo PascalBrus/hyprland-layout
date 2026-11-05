@@ -143,6 +143,17 @@ TEST(FocusMaster, FocusesMasterFromAnyZoneOrWithNothingFocused) {
     EXPECT_EQ(focusAfter(ws, "focusmaster", std::nullopt), 1u);
 }
 
+// The plugin drops a message when a floating window has focus, unless it
+// needs no focused tile.
+TEST(FocusMaster, NeedsNoFocusedTileSoItWorksFromAFloatingWindow) {
+    EXPECT_FALSE(threecol::needsFocusedTile("focusmaster"));
+    EXPECT_FALSE(threecol::needsFocusedTile("reset"));
+    EXPECT_TRUE(threecol::needsFocusedTile("focus l"));
+    EXPECT_TRUE(threecol::needsFocusedTile("move r"));
+    EXPECT_TRUE(threecol::needsFocusedTile("swapwithmaster"));
+    EXPECT_TRUE(threecol::needsFocusedTile("resize wider"));
+}
+
 TEST(FocusMaster, DoesNothingOnAHole) {
     Workspace ws = filled(1, 3);
     ws.removeWindow(1);

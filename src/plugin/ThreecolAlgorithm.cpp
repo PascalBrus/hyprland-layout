@@ -516,16 +516,14 @@ namespace threecol {
         if (!reset && Fullscreen::controller()->hasFullscreen(workspace, std::nullopt))
             return {};
 
-        // For the other messages, a focused window must be one of this
-        // workspace's tiles: nothing applies to a floating one. With nothing
-        // focused, only focusmaster does.
+        // With a floating window focused, only the messages that need no
+        // focused tile apply. With nothing focused, only those do anything.
         std::optional<WindowId> focused;
         if (const auto window = Desktop::focusState()->window(); !reset && window && window->m_workspace == workspace) {
             if (Fullscreen::controller()->isFullscreen(window))
                 return {};
             focused = idOf(window->layoutTarget());
-            // focusmaster needs no focused tile, so it works from a floating window too.
-            if (!focused && sv != "focusmaster")
+            if (!focused && needsFocusedTile(sv))
                 return {};
         }
 
