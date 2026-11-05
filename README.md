@@ -33,6 +33,9 @@ The words in **bold** are defined in [`GLOSSARY.md`](GLOSSARY.md).
 
 threecol needs **Hyprland 0.57** with the Lua config.
 
+> [!IMPORTANT]
+> In your config, set `general.layout = "threecol"` **before** any file that calls `hl.layout.register`. Otherwise every `hyprctl reload` briefly switches your threecol workspaces to dwindle. See [Selecting the layout](#selecting-the-layout).
+
 ## Install with hyprpm
 
 ```sh
@@ -97,6 +100,13 @@ hl.workspace_rule({ workspace = "3", layout = "threecol" })
 ```
 
 The name is plain `threecol`, without the `lua:` prefix that Lua layouts use. threecol acts only on workspaces that use it; all others behave as before.
+
+**Set the layout before registering Lua layouts.** On `hyprctl reload`, Hyprland resets every setting, so `general.layout` is back to `dwindle` until your config sets it again. Each `hl.layout.register` call makes Hyprland re-check every workspace's layout on the spot. If one runs before `general.layout = "threecol"`, every threecol workspace switches to dwindle for a moment and then back to a new threecol. threecol carries its Zones, Rows, Holes and Row heights across that switch, but the windows may briefly jump while it happens. Put the `hl.config({ general = { layout = "threecol" } })` line (or the file that holds it) above any file that calls `hl.layout.register`:
+
+```lua
+require("core.general")   -- sets general.layout = "threecol"
+require("custom.mylayout") -- calls hl.layout.register(...)
+```
 
 ## Binds
 
