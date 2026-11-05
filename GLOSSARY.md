@@ -57,7 +57,7 @@ The most Rows a side zone may hold: a whole number, zero for a missing zone, or 
 _Avoid_: cap, max rows, left count
 
 **Kept sizes**:
-The Divider positions and Row heights set by resizing. They win over the workspace's settings until reset, and a setting change that squeezes them makes the squeezed sizes the new kept sizes. With persist on, they also survive a reboot.
+The Divider positions and Row heights set by resizing. They win over the workspace's settings until reset, and a setting change that squeezes them makes the squeezed sizes the new kept sizes. With persist on, the Divider positions also survive a reboot; Row heights don't.
 _Avoid_: saved sizes, state sizes, overrides
 
 **Drag resize**:
