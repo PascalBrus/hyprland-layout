@@ -2,10 +2,8 @@
 
 #include <hyprland/src/config/values/ConfigValues.hpp>
 
-#include <algorithm>
 #include <expected>
 #include <initializer_list>
-#include <limits>
 #include <string>
 
 namespace threecol {
@@ -45,23 +43,12 @@ namespace threecol {
             return makeShared<CFloatValue>(name, description, def, Config::Values::SFloatValueOptions{.refresh = REFRESH_LAYOUTS});
         }
 
-        // How a Row limit of "unlimited" reads back: a number nobody types,
-        // so a typed negative one reaches resolveSettings to be warned about.
-        constexpr Config::INTEGER UNLIMITED = std::numeric_limits<Config::INTEGER>::min();
-
         // A whole number, 0 for a missing zone, or "unlimited" for a Stack.
         // Not bounded here, like the fractions, so a negative one is warned
         // about rather than dropped.
         SP<CIntValue> rowLimit(const char* name, const char* description, RowLimit def) {
-            return makeShared<CIntValue>(name, description, def.rows().value_or(UNLIMITED),
-                                         Config::Values::SIntValueOptions{.map = Config::Values::OptionMap{{"unlimited", UNLIMITED}}, .refresh = REFRESH_LAYOUTS});
-        }
-
-        RowLimit rowLimitOf(const SP<CIntValue>& value) {
-            const auto rows = value->value();
-            if (rows == UNLIMITED)
-                return RowLimit::unlimited();
-            return RowLimit{static_cast<int>(std::clamp<Config::INTEGER>(rows, std::numeric_limits<int>::min(), std::numeric_limits<int>::max()))};
+            return makeShared<CIntValue>(name, description, rowLimitSetting(def),
+                                         Config::Values::SIntValueOptions{.map = Config::Values::OptionMap{{"unlimited", rowLimitSetting(RowLimit::unlimited())}}, .refresh = REFRESH_LAYOUTS});
         }
 
         // "left" or "right" only. A string value, not an int map, so 0 and 1
@@ -118,8 +105,8 @@ namespace threecol {
             .minMasterWidth = g_values.minMasterWidth->value(),
             .minRowHeight   = g_values.minRowHeight->value(),
             .step           = g_values.step->value(),
-            .leftRows       = rowLimitOf(g_values.leftRows),
-            .rightRows      = rowLimitOf(g_values.rightRows),
+            .leftRows       = rowLimitFromSetting(g_values.leftRows->value()),
+            .rightRows      = rowLimitFromSetting(g_values.rightRows->value()),
             .fillFirst      = parseSide(g_values.fillFirst->value()).value_or(DEFAULTS.fillFirst),
             .persist        = g_values.persist->value(),
             .centreMaster   = g_values.centreMaster->value(),

@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <cstdint>
 #include <format>
 #include <iterator>
 #include <limits>
@@ -550,4 +551,23 @@ TEST(Settings, AGoodLayoutOptsWidthWinsOverAnOutOfRangeGlobal) {
     ws.setSettings(Settings{.leftWidth = 2.0, .centreMaster = false}, LayoutOpts{{"left_width", "0.3"}}, "3");
 
     EXPECT_DOUBLE_EQ(ws.settings().leftWidth, 0.3);
+}
+
+// Hyprland stores a Row limit as a 64-bit integer: the count, or the lowest
+// one for "unlimited". The default must survive that, or an unset right_rows
+// reads as 0 and there is no Right zone (#70).
+TEST(Settings, TheDefaultRightRowsIsStoredAsUnlimited) {
+    const auto stored = threecol::rowLimitSetting(Settings{}.rightRows);
+
+    EXPECT_EQ(stored, std::numeric_limits<std::int64_t>::min());
+    EXPECT_EQ(threecol::rowLimitFromSetting(stored), RowLimit::unlimited());
+}
+
+TEST(Settings, ARowLimitCountIsStoredAsItself) {
+    EXPECT_EQ(threecol::rowLimitSetting(RowLimit{0}), 0);
+    EXPECT_EQ(threecol::rowLimitSetting(RowLimit{3}), 3);
+    EXPECT_EQ(threecol::rowLimitFromSetting(0), RowLimit{0});
+    EXPECT_EQ(threecol::rowLimitFromSetting(3), RowLimit{3});
+    // A typed negative isn't taken for "unlimited"; resolveSettings warns about it.
+    EXPECT_EQ(threecol::rowLimitFromSetting(-1), RowLimit{-1});
 }
