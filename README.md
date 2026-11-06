@@ -25,10 +25,10 @@ Either side can be the Stack, or both: `left_rows = "unlimited"` with `right_row
 - **No room.** With both sides limited, a window that finds no room (Master taken and both sides full) floats at its own size, centred. It stays floating when room frees up.
 - **Holes.** Close the Master window and its place stays empty; nothing slides in. The next new window fills it.
 - **Rows.** Each side holds one window per **Row**. A Stack holds any number; a side with a Row limit (`left_rows`, `right_rows`) holds up to that many. By default Left holds one and Right is the Stack; mirrored, it's the other way round.
-- **Resizing.** SUPER+right-drag moves the **Dividers** between zones and the edges between Rows. SUPER+ALT+HJKL does the same in steps, and SUPER+R resets. By default Master stays in the middle (**Centred Master**): every sideways resize moves both Dividers, equal and opposite. Each workspace keeps its own Dividers, saved across reboots.
-- **Drag-and-drop.** SUPER+left-drag a window onto another to swap them, onto the bottom quarter of a zone to add it there, or into an empty zone to move it. A highlight shows where it will land.
+- **Resizing.** Dragging with `window.resize` moves the **Dividers** between zones and the edges between Rows. The keyboard `resize` actions do the same in steps, and `reset` puts them back. By default Master stays in the middle (**Centred Master**): every sideways resize moves both Dividers, equal and opposite. Each workspace keeps its own Dividers, saved across reboots.
+- **Drag-and-drop.** Drag a window (`window.drag`) onto another to swap them, onto the bottom quarter of a zone to add it there, or into an empty zone to move it. A highlight shows where it will land.
 - **Per workspace.** Zone widths, Row limits, `fill_first` and Centred Master can each be set for one workspace with a workspace rule: three columns on the ultrawide, two on a laptop screen, one on a vertical monitor. See [Workspace overrides](#workspace-overrides).
-- **Chain focus.** SUPER+H/L walk the windows left to right on screen: Left top → bottom, Master, Right top → bottom, whichever side is the Stack. SUPER+J/K move up and down inside Left or Right.
+- **Chain focus.** `focus l` / `focus r` walk the windows left to right on screen: Left top → bottom, Master, Right top → bottom, whichever side is the Stack. `focus u` / `focus d` move up and down inside Left or Right. See [Binds](#binds).
 
 The words in **bold** are defined in [`GLOSSARY.md`](GLOSSARY.md).
 
@@ -111,67 +111,35 @@ require("custom.mylayout") -- calls hl.layout.register(...)
 
 ## Binds
 
-threecol binds no keys. Copy [`examples/binds.lua`](examples/binds.lua) into your config, after your other binds, and change what you like. It sets these defaults:
+threecol binds no keys. You bind its actions to whatever keys you like, the same way as any Hyprland action:
 
-| Keys | Action | Hyprland action | Repeats |
-|---|---|---|---|
-| SUPER+H / L | Focus along the **Chain** (Left → Master → Right) | `hl.dsp.layout("focus l")` / `("focus r")`; elsewhere `hl.dsp.focus({ direction = "left" })` / `"right"` | no |
-| SUPER+J / K | Focus down / up inside Left or Right | `hl.dsp.layout("focus d")` / `("focus u")`; elsewhere `hl.dsp.focus({ direction = "down" })` / `"up"` | no |
-| SUPER+SHIFT+H / L / J / K | Move the window the same way; it moves into free room and swaps only when there is none | `hl.dsp.layout("move l")` / `r` / `d` / `u`; elsewhere `hl.dsp.window.move({ direction = … })` | no |
-| SUPER+M | Focus the Master window | `hl.dsp.layout("focusmaster")` | no |
-| SUPER+SHIFT+M | Swap the focused window with Master (or move it into a Master Hole) | `hl.dsp.layout("swapwithmaster")` | no |
-| SUPER+left-drag | Drag-and-drop | `hl.dsp.window.drag()` (mouse bind) | – |
-| SUPER+right-drag | Resize: move the nearest Divider (with **Centred Master**, the other one mirrors it) or Row edge | `hl.dsp.window.resize()` (mouse bind) | – |
-| SUPER+ALT+L / H | Make the focused window wider / narrower by one `step` (with Centred Master on a side, both sides change) | `hl.dsp.layout("resize wider")` / `("resize narrower")` | yes |
-| SUPER+ALT+K / J | Make the focused Row taller / shorter by one `step` | `hl.dsp.layout("resize taller")` / `("resize shorter")` | yes |
-| SUPER+R | Reset the workspace's Dividers and Row heights to the settings, even with a floating, fullscreen or maximised window | `hl.dsp.layout("reset")` | no |
-
-"Elsewhere" means the focused window isn't a tiled threecol window: see [below](#binds-fallback).
-
-**The snippet replaces your binds on these keys.** Hyprland runs every bind on a key, not just the last one, so the snippet clears each key with `hl.unbind` before binding it. In Hyprland's stock config that removes SUPER+M (exit), SUPER+R (launcher), SUPER+J (dwindle `togglesplit`) and the SUPER+drag binds (re-added unchanged). SUPER+ALT+L is a common lock-screen bind. Move anything you want to keep to other keys, or change the keys in the snippet.
-
-<a id="binds-fallback"></a>**The same keys work everywhere.** The HJKL binds check whether the focused window is a tiled threecol window. On a floating window, an empty workspace, a workspace with a fullscreen window or another layout, they fall back to Hyprland's normal `focus` and `window.move`. SUPER+M and SUPER+SHIFT+M also work on the master layout, which uses the same message names; the resize and reset keys do nothing on other layouts.
-
-Drag-and-drop needs no extra bind: Hyprland's own `window.drag` is enough.
-
-Every bind sends a layout message. You can send the same ones from a script:
-
-```sh
-hyprctl dispatch "hl.dsp.layout('focus l')"   # focus l|r|u|d
-hyprctl dispatch "hl.dsp.layout('move r')"    # move l|r|u|d
-hyprctl dispatch "hl.dsp.layout('focusmaster')"
-hyprctl dispatch "hl.dsp.layout('swapwithmaster')"
-hyprctl dispatch "hl.dsp.layout('resize wider')"   # wider|narrower|taller|shorter
-hyprctl dispatch "hl.dsp.layout('reset')"
+```lua
+hl.bind("<your keys>", hl.dsp.layout("reset"))
 ```
 
-A message that doesn't apply (e.g. `resize taller` on Master, or anything but `focusmaster` and `reset` on a floating window) does nothing and reports no error. `focusmaster` from a floating window jumps to Master.
+**Binds you already have keep working.** Rows marked *Hyprland* are Hyprland's own actions, which threecol follows. Rows marked *threecol* are new: add the ones you want.
 
-## Will my existing binds still work?
+| Action | What to bind | From |
+|---|---|---|
+| Move a window | `hl.dsp.window.move({ direction = "left" })`<br>`left` / `right` / `up` / `down` | Hyprland |
+| Drag-and-drop a window | `hl.dsp.window.drag()`, as a mouse bind | Hyprland |
+| Resize with the mouse | `hl.dsp.window.resize()`, as a mouse bind | Hyprland |
+| Swap two windows | `hl.dsp.window.swap({ next = true })` | Hyprland |
+| Focus the nearest window on screen | `hl.dsp.focus({ direction = "left" })`<br>`left` / `right` / `up` / `down` | Hyprland |
+| Focus along the **Chain**<br>(Left → Master → Right) | `hl.dsp.layout("focus l")`<br>`l` / `r` / `u` / `d` | threecol |
+| Focus Master | `hl.dsp.layout("focusmaster")` | threecol |
+| Swap with Master | `hl.dsp.layout("swapwithmaster")` | threecol |
+| Make the focused window wider / narrower | `hl.dsp.layout("resize wider")`<br>`wider` / `narrower` | threecol |
+| Make the focused Row taller / shorter | `hl.dsp.layout("resize taller")`<br>`taller` / `shorter` | threecol |
+| Reset Dividers and Row heights | `hl.dsp.layout("reset")` | threecol |
 
-Mostly yes. Hyprland's own dispatchers fall into three groups on a threecol workspace.
+- **Resize keys** feel best with `{ repeating = true }`, so holding the key keeps resizing.
+- **Focus: Chain or screen position?** Hyprland's focus picks the nearest window on screen, so around Holes and between Rows it can land somewhere unexpected. Chain focus walks the windows in order. It only acts on tiled threecol windows; [`examples/binds.lua`](examples/binds.lua) shows how to fall back to Hyprland's focus everywhere else.
+- **Master actions** use the same names as Hyprland's master layout, so existing binds for them work on both.
+- **From a script:** anything in *What to bind* also works with `hyprctl dispatch`, e.g. `hyprctl dispatch "hl.dsp.layout('reset')"`.
+- **No effect:** a threecol action that doesn't apply (e.g. `resize taller` on Master) does nothing. So do actions for other layouts, such as dwindle's `togglesplit` or master's `addmaster` and `mfact`.
 
-**They follow threecol's rules**, the same as the threecol binds:
-
-| Dispatcher | What it does in threecol |
-|---|---|
-| `window.move({ direction = … })` | The same move as `move l\|r\|u\|d`: along the Chain, swapping only when there is no room |
-| `window.resize()` (mouse bind) | Moves the nearest Divider or Row edge; with Centred Master, the other Divider mirrors it |
-| `window.resize({ x, y, relative = true })` | Moves the focused window's Divider or Row edge by that amount; with Centred Master, the other Divider mirrors it |
-| `window.drag()` (mouse bind) | Native drag-and-drop |
-| `window.swap({ with = … })`, `window.swap({ next = true })` | Swaps the two windows; each takes the other's Zone and Row |
-| `layout("focusmaster")`, `layout("swapwithmaster")` | Same names as the master layout, so existing binds keep working |
-| `window.float`, `window.fullscreen`, `window.close`, moving to another workspace | Hyprland's own. A window that comes back tiled (or arrives from another workspace) is placed in Fill order, or floats again if there's no room |
-
-**They are geometric.** Hyprland picks the target by screen position, not by the Chain. They work, but can land somewhere other than the threecol bind would, e.g. around Holes or between Rows:
-
-| Dispatcher | Picks |
-|---|---|
-| `focus({ direction = … })` | The nearest window in that direction on screen |
-| `window.swap({ direction = … })` | The nearest window in that direction, then swaps with it |
-| `window.cycle_next()` | The next window in Hyprland's cycle order |
-
-**They do nothing.** Layout messages written for other layouts, such as dwindle's `togglesplit`, `swapsplit` and `preselect`, or master's `addmaster`, `removemaster`, `orientation…` and `mfact`. threecol ignores any message it doesn't know.
+**A ready-made set.** [`examples/binds.lua`](examples/binds.lua) binds every action above except the mouse ones, if you'd rather start from that. Pick your keys in its `keys` list at the top, or set one to `false` to skip it. It replaces whatever is on those keys, so read its header first.
 
 ## Settings
 
@@ -264,12 +232,12 @@ What changes when Centred Master is on. Settings not listed (`fill_first`, `min_
 
 | Setting or action | Centred Master on | Centred Master off |
 |---|---|---|
-| Mouse resize (SUPER+right-drag, `window.resize`) | The grabbed Divider follows the cursor and the other mirrors it, whichever window or half of Master is grabbed. Master's left half dragged 100 px left: 150 \| 700 \| 150. A Left window dragged 100 px right: 350 \| 300 \| 350 | Only the grabbed Divider moves (on Master, the one nearer the grabbed half). Master's left half dragged 100 px left: 150 \| 600 \| 250 |
-| Keyboard resize and `step` (SUPER+ALT+H/L) | On Left or Right, both sides change by `step`, so Master changes by twice that: `resize wider` on Left gives 300 \| 400 \| 300. On Master, each Divider moves half a step: 225 \| 550 \| 225 | On Left or Right, only that side's Divider moves: 300 \| 450 \| 250. On Master, each Divider moves half a step too, as Master has no side to grow towards |
+| Mouse resize (`window.resize`) | The grabbed Divider follows the cursor and the other mirrors it, whichever window or half of Master is grabbed. Master's left half dragged 100 px left: 150 \| 700 \| 150. A Left window dragged 100 px right: 350 \| 300 \| 350 | Only the grabbed Divider moves (on Master, the one nearer the grabbed half). Master's left half dragged 100 px left: 150 \| 600 \| 250 |
+| Keyboard resize and `step` (`resize wider` / `narrower`) | On Left or Right, both sides change by `step`, so Master changes by twice that: `resize wider` on Left gives 300 \| 400 \| 300. On Master, each Divider moves half a step: 225 \| 550 \| 225 | On Left or Right, only that side's Divider moves: 300 \| 450 \| 250. On Master, each Divider moves half a step too, as Master has no side to grow towards |
 | `left_width`, `right_width` | Must be equal. If not, the settings notice warns (`centre_master needs equal side widths, but left_width is 0.2 and right_width is 0.3; using 0.25 each`), Master keeps its width, and each side gets half of the rest: `0.20` / `0.30` gives 0.25 \| 0.50 \| 0.25 | Used as set: 0.20 \| 0.50 \| 0.30 |
 | `min_width`, `min_master_width` | Both Dividers stop together when either side reaches `min_width` or Master reaches `min_master_width`. Settings that can't all fit still shrink both sides in proportion, so they stay equal | Each Divider stops on its own. Widening Master with one side at `min_width` still moves the other side |
 | `persist` | Both Dividers are saved; they are always equal | Both Dividers are saved as they are |
-| Reset (SUPER+R) | Back to the settings widths, centred by the `left_width` / `right_width` rule above (no new warning) | Back to the settings widths |
+| Reset (`reset`) | Back to the settings widths, centred by the `left_width` / `right_width` rule above (no new warning) | Back to the settings widths |
 
 **Turning Centred Master on** centres what you had: unequal widths kept from resizing, or saved by `persist`, become equal, with Master keeping its width. The centred widths replace the kept and saved ones straight away, so turning it off again doesn't bring the old ones back. This happens on a config reload and at runtime with `hl.config`. A workspace that isn't open is centred, and its saved entry rewritten, the first time threecol lays it out.
 
@@ -310,7 +278,7 @@ hl.workspace_rule({
 ```
 
 - **Unequal widths and missing sides need `centre_master = false`.** Otherwise threecol warns and centres the widths, or turns Centred Master off for that workspace (see [Centred Master](#centred-master)).
-- **Which value wins.** A Divider you moved by hand wins until you reset (SUPER+R). Then the `layout_opts` value, then the global setting.
+- **Which value wins.** A Divider you moved by hand wins until you `reset`. Then the `layout_opts` value, then the global setting.
 - **Mistakes.** An unknown key or a bad value is ignored with a warning naming the workspace, and that workspace uses the global value.
 - **Changes apply on reload**, the same as global settings: a lower Row limit pushes extra windows to the other side (see [Changing settings](#setting-details)).
 - **Each workspace keeps its own Dividers**, and saves them under its name with `persist`.
@@ -321,7 +289,7 @@ hl.workspace_rule({
 
 Every setting the GIF at the top doesn't show, one at a time:
 
-![threecol settings: zone widths, the min_width, min_master_width and min_row_height limits, step, persist and SUPER+R, per-workspace widths, fill_first, a window floating when both sides are full, Two Stacks and no Right zone](docs/threecol-settings.gif)
+![threecol settings: zone widths, the min_width, min_master_width and min_row_height limits, step, persist and reset, per-workspace widths, fill_first, a window floating when both sides are full, Two Stacks and no Right zone](docs/threecol-settings.gif)
 
 Every setting, drawn on the screen it shapes:
 
@@ -340,8 +308,8 @@ Every setting, drawn on the screen it shapes:
    at least           min_master_width wide            at least
    min_width wide                                      min_width wide
                     ▲                                ▲
-                    └── Dividers: SUPER+right-drag ──┘
-                       or SUPER+ALT+HJKL by `step`; saved if `persist`;
+                    └── Dividers: mouse resize ──────┘
+                       or keyboard resize by `step`; saved if `persist`;
                        with `centre_master`, they move together
 ```
 
@@ -539,7 +507,7 @@ Here the fifth window floats at its own size, centred, as does any later one whi
 - Lowering a Row limit, setting it to `0`, or switching a side from `"unlimited"` to a number, pushes that side's extra bottom windows out to the other side, at its end nearest Master (the top of Right, the bottom of Left), keeping their order. A Stack takes them all; a side with a Row limit takes as many as it has free Rows, first in Chain order; the rest float. Raising a limit moves nothing.
 - Tighter limits clamp the saved Dividers in use but don't rewrite the saved file, so loosening them again brings the old sizes back.
 
-**Saved Dividers.** With `persist = true`, each workspace's Dividers are saved after every finished resize to `$XDG_STATE_HOME/threecol/dividers` (or `~/.local/state/threecol/dividers`), keyed by workspace name, and come back after a reboot. Row heights are not saved; they go back to equal after a reboot. Reset (SUPER+R) always goes back to the workspace's `layout_opts`, or the global settings, and removes its saved entry.
+**Saved Dividers.** With `persist = true`, each workspace's Dividers are saved after every finished resize to `$XDG_STATE_HOME/threecol/dividers` (or `~/.local/state/threecol/dividers`), keyed by workspace name, and come back after a reboot. Row heights are not saved; they go back to equal after a reboot. `reset` always goes back to the workspace's `layout_opts`, or the global settings, and removes its saved entry.
 
 With `persist = false` the file is hidden, renamed to `dividers.off` (replacing an older one), so nothing is lost; it is neither read nor written while off. Turning `persist` back on renames it to `dividers` again, unless a `dividers` file is already there, which then wins and `dividers.off` is left alone. To bring it back by hand, rename `dividers.off` to `dividers`. How the change shows depends on where it's made:
 
