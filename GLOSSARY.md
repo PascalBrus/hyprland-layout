@@ -37,7 +37,7 @@ An empty Master zone, or a Bounded zone whose last window closed. Other windows 
 _Avoid_: gap, empty slot
 
 **Centred Master**:
-A workspace whose Master zone stays in the middle of the screen, with Left and Right equally wide. Resizing sideways moves both Dividers by the same amount in opposite directions, whichever window or half of Master is grabbed, and both stop together at a limit. It needs both side zones; with one missing it is a settings conflict, not a fallback. On by default. Turned off, a resize moves one Divider, except a Step resize on Master, which shares the step between both.
+A workspace whose Master zone stays in the middle of the screen, with Left and Right equally wide. Resizing sideways moves both Dividers by the same amount in opposite directions, whichever window or half of Master is grabbed, and both stop together at a limit. It needs both side zones; with one missing it is a settings conflict, not a fallback. On by default; turned off, a resize moves one Divider.
 _Avoid_: forced centre, mirrored resize, symmetric resize, center mode
 
 **Fill order**:
