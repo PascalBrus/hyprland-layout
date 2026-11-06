@@ -1,28 +1,46 @@
--- threecol binds: the v1 defaults.
+-- threecol: an example set of binds. Optional: the README's Binds table lists
+-- every action, so you can bind them your own way instead.
 --
--- threecol binds no keys itself. Paste this into your Hyprland Lua config
--- (or save it next to it and `require` it), then change any key you like.
+-- Pick your keys in `keys` below. Set an entry to false to leave it unbound.
+-- Paste this after your other binds.
 --
--- Hyprland runs every bind on a key, not just the last one. So each key here
--- is cleared with hl.unbind first: this snippet REPLACES whatever was bound
--- to these keys before it (in the stock config: SUPER+M exits Hyprland,
--- SUPER+R opens the launcher, SUPER+J toggles a dwindle split). Paste it after
--- your other binds, and move anything you want to keep to other keys.
+-- Each key is cleared with hl.unbind first, because Hyprland runs every bind
+-- on a key, not just the last one. So this REPLACES what was on these keys
+-- (with the keys below and Hyprland's stock config: SUPER+M exits Hyprland,
+-- SUPER+R opens the launcher, SUPER+J toggles a dwindle split).
 --
--- Every threecol action is a layout message, sent with hl.dsp.layout(…).
+-- Not here: drag-and-drop and mouse resize. Hyprland's stock window.drag()
+-- and window.resize() mouse binds already do them.
 
-local mainMod = "SUPER"
+local keys = {
+    -- threecol actions
+    focus          = "SUPER",           -- + H/J/K/L: focus along the Chain
+    resize         = "SUPER + ALT",     -- + H/J/K/L: narrower/shorter/taller/wider
+                                        -- (SUPER+ALT+L is a common lock-screen bind)
+    reset          = "SUPER + R",
 
--- Bind `key`, replacing any bind already on it.
+    -- Hyprland actions, which threecol follows. Set to false if you already
+    -- bind them (focusmaster and swapwithmaster come from the master layout).
+    move           = "SUPER + SHIFT",   -- + H/J/K/L
+    focusmaster    = "SUPER + M",
+    swapwithmaster = "SUPER + SHIFT + M",
+}
+
+-- Bind `key`, replacing any bind already on it. Skips keys set to false.
 local function bind(key, action, opts)
+    if not key then
+        return
+    end
     hl.unbind(key)
     hl.bind(key, action, opts)
 end
 
--- True when the focused window is a tiled window on a threecol workspace
--- without a fullscreen window. Otherwise the HJKL binds below use Hyprland's
--- normal focus and move, so the same keys work on floating windows, empty
--- workspaces, fullscreen and other layouts.
+-- With a key prefix: "SUPER" + "H" → "SUPER + H".
+local function with(prefix, key)
+    return prefix and (prefix .. " + " .. key)
+end
+
+-- True when the focused window is tiled by threecol (and nothing is fullscreen).
 local function threecol_active()
     local win = hl.get_active_window()
     if not win or win.floating or not win.workspace then
@@ -31,18 +49,17 @@ local function threecol_active()
     return win.workspace.tiled_layout == "threecol" and not win.workspace.has_fullscreen
 end
 
--- Focus (SUPER+HJKL) and move (SUPER+SHIFT+HJKL) along the Chain.
--- H/L walk Left → Master → Right; J/K go down/up inside Left or Right.
--- Not repeating: one press is one step.
 local directions = {
-    H = { msg = "l", dir = "left" },
-    L = { msg = "r", dir = "right" },
-    K = { msg = "u", dir = "up" },
-    J = { msg = "d", dir = "down" },
+    H = { msg = "l", dir = "left",  resize = "narrower" },
+    L = { msg = "r", dir = "right", resize = "wider" },
+    K = { msg = "u", dir = "up",    resize = "taller" },
+    J = { msg = "d", dir = "down",  resize = "shorter" },
 }
 
 for key, d in pairs(directions) do
-    bind(mainMod .. " + " .. key, function()
+    -- Chain focus. Falls back to Hyprland's focus on floating windows,
+    -- fullscreen and other layouts, where the threecol action does nothing.
+    bind(with(keys.focus, key), function()
         if threecol_active() then
             hl.dispatch(hl.dsp.layout("focus " .. d.msg))
         else
@@ -50,33 +67,12 @@ for key, d in pairs(directions) do
         end
     end)
 
-    bind(mainMod .. " + SHIFT + " .. key, function()
-        if threecol_active() then
-            hl.dispatch(hl.dsp.layout("move " .. d.msg))
-        else
-            hl.dispatch(hl.dsp.window.move({ direction = d.dir }))
-        end
-    end)
+    -- Resize by one `step`; repeats while held.
+    bind(with(keys.resize, key), hl.dsp.layout("resize " .. d.resize), { repeating = true })
+
+    bind(with(keys.move, key), hl.dsp.window.move({ direction = d.dir }))
 end
 
--- Focus the Master window; swap the focused window with Master.
--- The master layout uses the same message names, so these work there too.
-bind(mainMod .. " + M",         hl.dsp.layout("focusmaster"))
-bind(mainMod .. " + SHIFT + M", hl.dsp.layout("swapwithmaster"))
-
--- Mouse: drag-and-drop (left button) and resize (right button).
--- Hyprland's own binds; threecol handles them natively, no extra bind needed.
-bind(mainMod .. " + mouse:272", hl.dsp.window.drag(),   { mouse = true })
-bind(mainMod .. " + mouse:273", hl.dsp.window.resize(), { mouse = true })
-
--- Keyboard resize of the focused zone (L/H) or Row (K/J), one `step` per
--- press. These repeat when held. Other layouts ignore these messages.
--- Note: SUPER+ALT+L is a common lock-screen bind; pick other keys if yours is.
-bind(mainMod .. " + ALT + L", hl.dsp.layout("resize wider"),    { repeating = true })
-bind(mainMod .. " + ALT + H", hl.dsp.layout("resize narrower"), { repeating = true })
-bind(mainMod .. " + ALT + K", hl.dsp.layout("resize taller"),   { repeating = true })
-bind(mainMod .. " + ALT + J", hl.dsp.layout("resize shorter"),  { repeating = true })
-
--- Reset the focused workspace's Dividers and Row heights to the settings.
--- Not repeating: one press is one reset.
-bind(mainMod .. " + R", hl.dsp.layout("reset"))
+bind(keys.focusmaster,    hl.dsp.layout("focusmaster"))
+bind(keys.swapwithmaster, hl.dsp.layout("swapwithmaster"))
+bind(keys.reset,          hl.dsp.layout("reset"))
