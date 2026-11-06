@@ -127,15 +127,14 @@ hl.bind("<your keys>", hl.dsp.layout("reset"))
 | Swap two windows | `hl.dsp.window.swap({ next = true })` | Hyprland |
 | Focus the nearest window on screen | `hl.dsp.focus({ direction = "left" })`<br>`left` / `right` / `up` / `down` | Hyprland |
 | Focus along the **Chain**<br>(Left → Master → Right) | `hl.dsp.layout("focus l")`<br>`l` / `r` / `u` / `d` | threecol |
-| Focus Master | `hl.dsp.layout("focusmaster")` | threecol |
-| Swap with Master | `hl.dsp.layout("swapwithmaster")` | threecol |
+| Focus Master | `hl.dsp.layout("focusmaster")` | Hyprland (master layout) |
+| Swap with Master | `hl.dsp.layout("swapwithmaster")` | Hyprland (master layout) |
 | Make the focused window wider / narrower | `hl.dsp.layout("resize wider")`<br>`wider` / `narrower` | threecol |
 | Make the focused Row taller / shorter | `hl.dsp.layout("resize taller")`<br>`taller` / `shorter` | threecol |
 | Reset Dividers and Row heights | `hl.dsp.layout("reset")` | threecol |
 
 - **Resize keys** feel best with `{ repeating = true }`, so holding the key keeps resizing.
 - **Focus: Chain or screen position?** Hyprland's focus picks the nearest window on screen, so around Holes and between Rows it can land somewhere unexpected. Chain focus walks the windows in order. It only acts on tiled threecol windows; [`examples/binds.lua`](examples/binds.lua) shows how to fall back to Hyprland's focus everywhere else.
-- **Master actions** use the same names as Hyprland's master layout, so existing binds for them work on both.
 - **From a script:** anything in *What to bind* also works with `hyprctl dispatch`, e.g. `hyprctl dispatch "hl.dsp.layout('reset')"`.
 - **No effect:** a threecol action that doesn't apply (e.g. `resize taller` on Master) does nothing. So do actions for other layouts, such as dwindle's `togglesplit` or master's `addmaster` and `mfact`.
 

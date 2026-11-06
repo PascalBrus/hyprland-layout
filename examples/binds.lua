@@ -15,14 +15,15 @@
 local keys = {
     -- threecol actions
     focus          = "SUPER",           -- + H/J/K/L: focus along the Chain
+    resize         = "SUPER + ALT",     -- + H/J/K/L: narrower/shorter/taller/wider
+                                        -- (SUPER+ALT+L is a common lock-screen bind)
+    reset          = "SUPER + R",
+
+    -- Hyprland actions, which threecol follows. Set to false if you already
+    -- bind them (focusmaster and swapwithmaster come from the master layout).
+    move           = "SUPER + SHIFT",   -- + H/J/K/L
     focusmaster    = "SUPER + M",
     swapwithmaster = "SUPER + SHIFT + M",
-    resize         = "SUPER + ALT",     -- + H/J/K/L: narrower/shorter/taller/wider
-    reset          = "SUPER + R",       -- SUPER+ALT+L is a common lock-screen bind
-
-    -- Hyprland action, which threecol follows. Set to false if you already
-    -- bind window.move.
-    move           = "SUPER + SHIFT",   -- + H/J/K/L
 }
 
 -- Bind `key`, replacing any bind already on it. Skips keys set to false.
