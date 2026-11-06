@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <iosfwd>
 #include <map>
 #include <optional>
@@ -62,6 +63,12 @@ namespace threecol {
 
         std::optional<int> m_rows;
     };
+
+    // A Row limit as Hyprland stores the setting: the count, or for "unlimited"
+    // the lowest 64-bit integer, a number nobody types. So a typed negative
+    // one reads back as itself, to be warned about.
+    std::int64_t rowLimitSetting(RowLimit limit);
+    RowLimit     rowLimitFromSetting(std::int64_t setting);
 
     // threecol's settings, as set with plugin:threecol:* (the defaults are the
     // spec's). Sizes are fractions of the workspace area; Master gets what

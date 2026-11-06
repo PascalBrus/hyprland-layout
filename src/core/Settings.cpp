@@ -216,6 +216,24 @@ namespace threecol {
         return std::nullopt;
     }
 
+    namespace {
+        constexpr std::int64_t UNLIMITED_SETTING = std::numeric_limits<std::int64_t>::min();
+    }
+
+    std::int64_t rowLimitSetting(RowLimit limit) {
+        // Not limit.rows().value_or(…): that would cut the sentinel to an int,
+        // and it would read back as 0, a missing zone (#70).
+        if (const auto rows = limit.rows())
+            return *rows;
+        return UNLIMITED_SETTING;
+    }
+
+    RowLimit rowLimitFromSetting(std::int64_t setting) {
+        if (setting == UNLIMITED_SETTING)
+            return RowLimit::unlimited();
+        return RowLimit{static_cast<int>(std::clamp<std::int64_t>(setting, std::numeric_limits<int>::min(), std::numeric_limits<int>::max()))};
+    }
+
     std::string RowLimit::text() const {
         return m_rows ? std::to_string(*m_rows) : std::string{"unlimited"};
     }
