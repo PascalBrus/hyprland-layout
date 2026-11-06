@@ -21,6 +21,11 @@ HYPRLAND = "0.57.1"
 # Empty by default: the checks run on the default settings, as #66 asks.
 BASE = os.environ.get("SINCE46_BASE", "")
 
+# True during a mouse check. Every reload sets the config's 2560x720 again, and the
+# fullscreen window may or may not size it back, so cfg() waits for the size to
+# settle: positions read before a drag must hold during it.
+SETTLE = False
+
 STEP = 0.05  # default `step`
 TOL = 0.005  # fractions: about 13 px at 2560
 PX = 3  # pixels
@@ -49,6 +54,7 @@ def check(mouse=False, nested=True):
 
 
 def run_check(name):
+    global SETTLE
     fn, needs_mouse, nested = CHECKS[name]
     FAILS.clear()
     stop = None
@@ -58,6 +64,8 @@ def run_check(name):
         if needs_mouse:
             import mouse
             mouse.fullscreen()
+            SETTLE = True
+            settle_size()
             with mouse.Mouse() as m:
                 fn(m)
         else:
@@ -69,6 +77,7 @@ def run_check(name):
         else:
             FAILS.append(f"{type(e).__name__}: {e}")
     finally:
+        SETTLE = False
         if nested:
             try:
                 reset()
@@ -90,6 +99,22 @@ def cfg(opts="", rules=""):
     body += rules
     n.extra(body)
     n.reload()
+    if SETTLE:
+        settle_size()
+
+
+def settle_size(quiet=2.0, limit=15.0):
+    """Wait until the nested output's size has held for `quiet` seconds."""
+    size, since, start = None, time.time(), time.time()
+    while time.time() - start < limit:
+        m = n.monitor()
+        now = (m["width"], m["height"])
+        if now != size:
+            size, since = now, time.time()
+        elif time.time() - since >= quiet:
+            return
+        time.sleep(0.2)
+    raise RuntimeError(f"nested output size didn't settle in {limit:.0f} s (last {size})")
 
 
 def rule(ws, opts):
@@ -591,13 +616,16 @@ def c5():
 @check(mouse=True)
 def c6(m):
     four()
-    x, y = centre(rect("T2"))
+    # Grabbed near Left's right edge: from its centre the cursor can't travel far enough.
+    r = rect("T2")
+    x, y = r[0] + r[2] - 30, r[1] + r[3] / 2
     rdrag(m, x, y, 20 - x)  # far past min_width
     expect_saved((0.10, 0.10), "Left dragged past min_width")
     ok, cx = master_centred()
     expect(ok, f"past min_width: Master's centre at {cx}")
     sr()
-    x, y = centre(rect("T2"))
+    r = rect("T2")
+    x, y = r[0] + r[2] - 30, r[1] + r[3] / 2
     rdrag(m, x, y, 0.25 * width())  # Master would be 0.10 < min_master_width
     expect_saved((0.40, 0.40), "Left dragged past min_master_width")
     ok, cx = master_centred()
