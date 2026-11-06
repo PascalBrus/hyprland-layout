@@ -27,6 +27,7 @@ Either side can be the Stack, or both: `left_rows = "unlimited"` with `right_row
 - **Rows.** Each side holds one window per **Row**. A Stack holds any number; a side with a Row limit (`left_rows`, `right_rows`) holds up to that many. By default Left holds one and Right is the Stack; mirrored, it's the other way round.
 - **Resizing.** SUPER+right-drag moves the **Dividers** between zones and the edges between Rows. SUPER+ALT+HJKL does the same in steps, and SUPER+R resets. By default Master stays in the middle (**Centred Master**): every sideways resize moves both Dividers, equal and opposite. Each workspace keeps its own Dividers, saved across reboots.
 - **Drag-and-drop.** SUPER+left-drag a window onto another to swap them, onto the bottom quarter of a zone to add it there, or into an empty zone to move it. A highlight shows where it will land.
+- **Per workspace.** Zone widths, Row limits, `fill_first` and Centred Master can each be set for one workspace with a workspace rule: three columns on the ultrawide, two on a laptop screen, one on a vertical monitor. See [Workspace overrides](#workspace-overrides).
 - **Chain focus.** SUPER+H/L walk the windows left to right on screen: Left top → bottom, Master, Right top → bottom, whichever side is the Stack. SUPER+J/K move up and down inside Left or Right.
 
 The words in **bold** are defined in [`GLOSSARY.md`](GLOSSARY.md).
@@ -112,22 +113,24 @@ require("custom.mylayout") -- calls hl.layout.register(...)
 
 threecol binds no keys. Copy [`examples/binds.lua`](examples/binds.lua) into your config, after your other binds, and change what you like. It sets these defaults:
 
-| Keys | Action | Repeats |
-|---|---|---|
-| SUPER+H / L | Focus along the **Chain** (Left → Master → Right) | no |
-| SUPER+J / K | Focus down / up inside Left or Right | no |
-| SUPER+SHIFT+H / L / J / K | Move the window the same way; it moves into free room and swaps only when there is none | no |
-| SUPER+M | Focus the Master window | no |
-| SUPER+SHIFT+M | Swap the focused window with Master (or move it into a Master Hole) | no |
-| SUPER+left-drag | Drag-and-drop | – |
-| SUPER+right-drag | Resize: move the nearest Divider (with **Centred Master**, the other one mirrors it) or Row edge | – |
-| SUPER+ALT+L / H | Make the focused window wider / narrower by one `step` (with Centred Master on a side, both sides change) | yes |
-| SUPER+ALT+K / J | Make the focused Row taller / shorter by one `step` | yes |
-| SUPER+R | Reset the workspace's Dividers and Row heights to the settings, even with a floating, fullscreen or maximised window | no |
+| Keys | Action | Hyprland action | Repeats |
+|---|---|---|---|
+| SUPER+H / L | Focus along the **Chain** (Left → Master → Right) | `hl.dsp.layout("focus l")` / `("focus r")`; elsewhere `hl.dsp.focus({ direction = "left" })` / `"right"` | no |
+| SUPER+J / K | Focus down / up inside Left or Right | `hl.dsp.layout("focus d")` / `("focus u")`; elsewhere `hl.dsp.focus({ direction = "down" })` / `"up"` | no |
+| SUPER+SHIFT+H / L / J / K | Move the window the same way; it moves into free room and swaps only when there is none | `hl.dsp.layout("move l")` / `r` / `d` / `u`; elsewhere `hl.dsp.window.move({ direction = … })` | no |
+| SUPER+M | Focus the Master window | `hl.dsp.layout("focusmaster")` | no |
+| SUPER+SHIFT+M | Swap the focused window with Master (or move it into a Master Hole) | `hl.dsp.layout("swapwithmaster")` | no |
+| SUPER+left-drag | Drag-and-drop | `hl.dsp.window.drag()` (mouse bind) | – |
+| SUPER+right-drag | Resize: move the nearest Divider (with **Centred Master**, the other one mirrors it) or Row edge | `hl.dsp.window.resize()` (mouse bind) | – |
+| SUPER+ALT+L / H | Make the focused window wider / narrower by one `step` (with Centred Master on a side, both sides change) | `hl.dsp.layout("resize wider")` / `("resize narrower")` | yes |
+| SUPER+ALT+K / J | Make the focused Row taller / shorter by one `step` | `hl.dsp.layout("resize taller")` / `("resize shorter")` | yes |
+| SUPER+R | Reset the workspace's Dividers and Row heights to the settings, even with a floating, fullscreen or maximised window | `hl.dsp.layout("reset")` | no |
+
+"Elsewhere" means the focused window isn't a tiled threecol window: see [below](#binds-fallback).
 
 **The snippet replaces your binds on these keys.** Hyprland runs every bind on a key, not just the last one, so the snippet clears each key with `hl.unbind` before binding it. In Hyprland's stock config that removes SUPER+M (exit), SUPER+R (launcher), SUPER+J (dwindle `togglesplit`) and the SUPER+drag binds (re-added unchanged). SUPER+ALT+L is a common lock-screen bind. Move anything you want to keep to other keys, or change the keys in the snippet.
 
-**The same keys work everywhere.** The HJKL binds check whether the focused window is a tiled threecol window. On a floating window, an empty workspace, a workspace with a fullscreen window or another layout, they fall back to Hyprland's normal `focus` and `window.move`. SUPER+M and SUPER+SHIFT+M also work on the master layout, which uses the same message names; the resize and reset keys do nothing on other layouts.
+<a id="binds-fallback"></a>**The same keys work everywhere.** The HJKL binds check whether the focused window is a tiled threecol window. On a floating window, an empty workspace, a workspace with a fullscreen window or another layout, they fall back to Hyprland's normal `focus` and `window.move`. SUPER+M and SUPER+SHIFT+M also work on the master layout, which uses the same message names; the resize and reset keys do nothing on other layouts.
 
 Drag-and-drop needs no extra bind: Hyprland's own `window.drag` is enough.
 
@@ -172,59 +175,147 @@ Mostly yes. Hyprland's own dispatchers fall into three groups on a threecol work
 
 ## Settings
 
-Set them like any plugin setting:
+Set them like any plugin setting. Sizes are fractions of the workspace area (0 to 1); Master gets whatever Left and Right leave.
+
+### Full example
+
+Every global setting, at its default, plus workspace rules that override the per-workspace ones (see [Workspace overrides](#workspace-overrides)). Copy it and delete what you don't change:
 
 ```lua
 hl.config({
+    general = { layout = "threecol" },
     plugin = {
         threecol = {
-            left_width  = 0.25,
-            right_width = 0.25,
-            left_rows   = 2,
+            -- Zone widths (Master gets the rest)
+            left_width       = 0.25,
+            right_width      = 0.25,
+
+            -- Row limits: a number, "unlimited" (a Stack) or 0 (no zone)
+            left_rows        = 1,
+            right_rows       = "unlimited",
+
+            -- Side new windows go to after Master
+            fill_first       = "left",
+
+            -- Keep Master in the middle; resizing moves both Dividers
+            centre_master    = true,
+
+            -- Limits (global only)
+            min_width        = 0.10,
+            min_master_width = 0.20,
+            min_row_height   = 0.10,
+
+            -- Keyboard resize step (global only)
+            step             = 0.05,
+
+            -- Save Divider positions across reloads and reboots (global only)
+            persist          = true,
         },
+    },
+})
+
+-- Workspace 2: mirrored, the Stack on the left
+hl.workspace_rule({
+    workspace   = "2",
+    layout      = "threecol",
+    layout_opts = { left_rows = "unlimited", right_rows = 1, fill_first = "right" },
+})
+
+-- Workspace 3: every per-workspace setting at once, two columns
+hl.workspace_rule({
+    workspace   = "3",
+    layout      = "threecol",
+    layout_opts = {
+        left_width    = 0.30,
+        right_width   = 0.20, -- ignored: right_rows = 0 removes the Right zone
+        left_rows     = 2,
+        right_rows    = 0,
+        fill_first    = "left",
+        centre_master = false, -- needed: Centred Master needs both sides
     },
 })
 ```
 
-Sizes are fractions of the workspace area (0 to 1). Master gets whatever Left and Right leave.
-
 > **`stack_width` is now `right_width`.** If your config or a `layout_opts` sets `stack_width`, rename it to `right_width` once. The old name is no longer read: globally Hyprland reports it as an unknown setting, and in `layout_opts` threecol warns about an unknown key. Saved Divider positions carry over unchanged.
 
-| Setting | Type | Default | Per workspace | Meaning |
-|---|---|---|---|---|
-| `left_width` | float | 0.25 | yes | Left zone width |
-| `right_width` | float | 0.25 | yes | Right zone width (was `stack_width`) |
-| `left_rows` | int or `"unlimited"` | 1 | yes | **Row limit**: most windows the Left zone holds, `0` for no Left zone, or `"unlimited"` for a Stack |
-| `right_rows` | int or `"unlimited"` | `"unlimited"` | yes | **Row limit** of the Right zone, the same way |
-| `fill_first` | `"left"` or `"right"` | `"left"` | yes | The side new windows go to after Master, before the other side |
-| `centre_master` | bool | true | yes | **Centred Master**: keep Master in the middle, resizing both sides together (see [below](#centred-master)) |
-| `min_width` | float | 0.10 | no | Smallest Left / Right width |
-| `min_master_width` | float | 0.20 | no | Smallest Master width |
-| `min_row_height` | float | 0.10 | no | Smallest Row height (Left and Right); also caps both Row limits |
-| `step` | float | 0.05 | no | Keyboard resize step |
-| `persist` | bool | true | no | Save Divider positions across reloads and reboots |
+### All settings
+
+| Setting | Type | Default | Per workspace | With Centred Master | Meaning |
+|---|---|---|---|---|---|
+| `left_width` | float | 0.25 | yes | yes, must equal `right_width` ([how](#centred-master)) | Left zone width |
+| `right_width` | float | 0.25 | yes | yes, must equal `left_width` ([how](#centred-master)) | Right zone width (was `stack_width`) |
+| `left_rows` | int or `"unlimited"` | 1 | yes | yes, but not `0` | **Row limit**: most windows the Left zone holds, `0` for no Left zone, or `"unlimited"` for a Stack |
+| `right_rows` | int or `"unlimited"` | `"unlimited"` | yes | yes, but not `0` | **Row limit** of the Right zone, the same way |
+| `fill_first` | `"left"` or `"right"` | `"left"` | yes | yes | The side new windows go to after Master, before the other side |
+| `centre_master` | bool | true | yes | – | **Centred Master**: keep Master in the middle, resizing both sides together (see [below](#centred-master)) |
+| `min_width` | float | 0.10 | no | yes, acts differently ([how](#centred-master)) | Smallest Left / Right width |
+| `min_master_width` | float | 0.20 | no | yes, acts differently ([how](#centred-master)) | Smallest Master width |
+| `min_row_height` | float | 0.10 | no | yes | Smallest Row height (Left and Right); also caps both Row limits |
+| `step` | float | 0.05 | no | yes, acts differently ([how](#centred-master)) | Keyboard resize step |
+| `persist` | bool | true | no | yes | Save Divider positions across reloads and reboots |
 
 ### Centred Master
 
-`centre_master` (bool, default `true`, per workspace) keeps Master in the middle of the screen, with Left and Right equally wide: every sideways resize moves both Dividers by the same amount in opposite directions. Turned off, a resize moves one Divider. Up and down resizes (Row edges) are the same either way. On a 1000 px screen at 250 | 500 | 250, grabbing Master's left half and dragging 100 px left gives 150 | 700 | 150; grabbing a Left window and dragging 100 px right gives 350 | 300 | 350.
+`centre_master` (bool, default `true`, per workspace) keeps Master in the middle of the screen, with Left and Right equally wide: every sideways resize moves both Dividers by the same amount in opposite directions. Turned off, a resize moves one Divider. Up and down resizes (Row edges) are the same either way.
 
-Centred Master needs both sides. With `left_rows = 0` or `right_rows = 0` and `centre_master` on (the default), the settings notice warns, for example `workspace 3: centre_master needs both side zones, but right_rows is 0; using centre_master = false`, and that workspace runs with it off. Set `centre_master = false` for two- or one-column workspaces to silence it. Unequal side widths are warned about the same way: `centre_master needs equal side widths, but left_width is 0.2 and right_width is 0.3; using 0.25 each`.
+**Not supported: a missing side.** Centred Master needs both sides. With `left_rows = 0` or `right_rows = 0` and `centre_master` on (the default), the settings notice warns, for example `workspace 3: centre_master needs both side zones, but right_rows is 0; using centre_master = false`, and that workspace runs with it off. Set `centre_master = false` for two- or one-column workspaces to silence it.
 
-How each setting behaves in each mode:
+What changes when Centred Master is on. Settings not listed (`fill_first`, `min_row_height`, Row limits other than `0`, Row edge resizes) work the same either way. The examples use a 1000 px screen at 250 | 500 | 250:
 
-| Setting | Centred Master on | Centred Master off |
+| Setting or action | Centred Master on | Centred Master off |
 |---|---|---|
-| Drag and One-off resizes | The grabbed Divider follows the cursor and the other mirrors it, whichever window or half of Master is grabbed | The grabbed Divider moves (on Master, the one nearer the grabbed half) |
-| `left_width`, `right_width` | Must be equal. If not, the settings notice warns, Master keeps its width (1 − `left_width` − `right_width`), and each side gets half of the rest: `0.20` / `0.30` gives 0.25 \| 0.50 \| 0.25 | Used as set |
-| `left_rows`, `right_rows` | A Row limit of `0` (missing side) is a conflict: the settings notice warns and that workspace uses `centre_master = false`. Otherwise unaffected | Unaffected |
-| `fill_first` | Unaffected | Unaffected |
+| Mouse resize (SUPER+right-drag, `window.resize`) | The grabbed Divider follows the cursor and the other mirrors it, whichever window or half of Master is grabbed. Master's left half dragged 100 px left: 150 \| 700 \| 150. A Left window dragged 100 px right: 350 \| 300 \| 350 | Only the grabbed Divider moves (on Master, the one nearer the grabbed half). Master's left half dragged 100 px left: 150 \| 600 \| 250 |
+| Keyboard resize and `step` (SUPER+ALT+H/L) | On Left or Right, both sides change by `step`, so Master changes by twice that: `resize wider` on Left gives 300 \| 400 \| 300. On Master, each Divider moves half a step: 225 \| 550 \| 225 | On Left or Right, only that side's Divider moves: 300 \| 450 \| 250. On Master, each Divider moves half a step too, as Master has no side to grow towards |
+| `left_width`, `right_width` | Must be equal. If not, the settings notice warns (`centre_master needs equal side widths, but left_width is 0.2 and right_width is 0.3; using 0.25 each`), Master keeps its width, and each side gets half of the rest: `0.20` / `0.30` gives 0.25 \| 0.50 \| 0.25 | Used as set: 0.20 \| 0.50 \| 0.30 |
 | `min_width`, `min_master_width` | Both Dividers stop together when either side reaches `min_width` or Master reaches `min_master_width`. Settings that can't all fit still shrink both sides in proportion, so they stay equal | Each Divider stops on its own. Widening Master with one side at `min_width` still moves the other side |
-| `min_row_height` | Unaffected | Unaffected |
-| `step` | The focused window's width changes by `step`. On Left or Right, both sides change by `step`, so Master changes by twice that. On Master, each Divider moves half a step | The focused window's width changes by `step`. On Left or Right, only that side's Divider moves. On Master, each Divider moves half a step, as Master has no side to grow towards |
-| `persist` | Saves both Dividers as usual; they are always equal | Saves both Dividers as usual |
+| `persist` | Both Dividers are saved; they are always equal | Both Dividers are saved as they are |
 | Reset (SUPER+R) | Back to the settings widths, centred by the `left_width` / `right_width` rule above (no new warning) | Back to the settings widths |
 
 **Turning Centred Master on** centres what you had: unequal widths kept from resizing, or saved by `persist`, become equal, with Master keeping its width. The centred widths replace the kept and saved ones straight away, so turning it off again doesn't bring the old ones back. This happens on a config reload and at runtime with `hl.config`. A workspace that isn't open is centred, and its saved entry rewritten, the first time threecol lays it out.
+
+## Workspace overrides
+
+Every workspace can have its own shape. The six per-workspace settings, `left_width`, `right_width`, `left_rows`, `right_rows`, `fill_first` and `centre_master`, can be overridden with a workspace rule's `layout_opts`, using the same names and values as the global settings (`centre_master` as `true` or `false`, or `1` / `0`). The rest (`min_width`, `min_master_width`, `min_row_height`, `step`, `persist`) are global only.
+
+```lua
+-- Workspace 1: the defaults, three columns on the ultrawide (no rule needed)
+
+-- Workspace 2: mirrored, the Stack on the left
+hl.workspace_rule({
+    workspace   = "2",
+    layout      = "threecol",
+    layout_opts = { left_rows = "unlimited", right_rows = 1, fill_first = "right" },
+})
+
+-- Workspace 3: wider Left with two Rows, narrower Right
+hl.workspace_rule({
+    workspace   = "3",
+    layout      = "threecol",
+    layout_opts = { left_width = 0.30, right_width = 0.20, left_rows = 2, centre_master = false },
+})
+
+-- Workspace 4: two columns, Master and a Right Stack
+hl.workspace_rule({
+    workspace   = "4",
+    layout      = "threecol",
+    layout_opts = { left_rows = 0, centre_master = false },
+})
+
+-- Workspace 5: one column, every further window floats
+hl.workspace_rule({
+    workspace   = "5",
+    layout      = "threecol",
+    layout_opts = { left_rows = 0, right_rows = 0, centre_master = false },
+})
+```
+
+- **Unequal widths and missing sides need `centre_master = false`.** Otherwise threecol warns and centres the widths, or turns Centred Master off for that workspace (see [Centred Master](#centred-master)).
+- **Which value wins.** A Divider you moved by hand wins until you reset (SUPER+R). Then the `layout_opts` value, then the global setting.
+- **Mistakes.** An unknown key or a bad value is ignored with a warning naming the workspace, and that workspace uses the global value.
+- **Changes apply on reload**, the same as global settings: a lower Row limit pushes extra windows to the other side (see [Changing settings](#setting-details)).
+- **Each workspace keeps its own Dividers**, and saves them under its name with `persist`.
+
+## Settings in pictures
 
 ### Settings at a glance
 
@@ -373,19 +464,9 @@ Four places; the fifth window and any later one float, centred, at their own siz
 └──────┴─────────────────────┴──────────────┘
 ```
 
-Each of these can be set for one workspace only with `layout_opts` (see below), so a workspace on a second monitor can have, say, no Left zone while the ultrawide keeps all three.
+Each of these can be set for one workspace only with `layout_opts` (see [Workspace overrides](#workspace-overrides)), so a workspace on a second monitor can have, say, no Left zone while the ultrawide keeps all three.
 
-### Details
-
-**Per workspace.** `left_width`, `right_width`, `left_rows`, `right_rows`, `fill_first` and `centre_master` can be overridden with a workspace rule's `layout_opts`, using the same names (`centre_master` as `true` or `false`, or `1` / `0`). Unequal widths need `centre_master = false`:
-
-```lua
-hl.workspace_rule({
-    workspace   = "3",
-    layout      = "threecol",
-    layout_opts = { left_width = 0.30, right_width = 0.20, left_rows = 2, centre_master = false },
-})
-```
+## Setting details
 
 **Mirrored.** Make Left the Stack, give Right a Row limit, and fill Right first:
 
@@ -443,8 +524,6 @@ hl.config({
 ```
 
 Here the fifth window floats at its own size, centred, as does any later one while all four places are taken. A floated window stays floating when a place frees up; toggle it back to tiled with `window.float` to place it.
-
-**Which value wins.** A Divider you moved by hand wins until you reset (SUPER+R). Then the `layout_opts` value, then the global setting.
 
 **Mistakes are forgiven.**
 
