@@ -1,0 +1,8 @@
+__pycache__/
+build/
+shots/
+out.txt
+sig.txt
+nest/state/
+nest/log.txt
+nest/extra.lua
