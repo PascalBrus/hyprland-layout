@@ -325,7 +325,9 @@ def drop_close(m, target):
     others = {t: r for t, r in n.geo(1).items() if t != "T4"}
     x, y = centre(rect("T4"))
     m.press(x, y, m.BTN_LEFT)
-    m.glide_to(*centre(rect(target)))
+    # Off the target's centre: over a target of T4's size (D3), T4 would cover the indicator.
+    r = rect(target)
+    m.glide_to(r[0] + r[2] * 0.75, r[1] + r[3] * 0.75)
     time.sleep(0.4)
     seen = n.magenta_gain(base, n.shot("mid"))
     expect(seen > 0.02, f"the detector can't see the drop indicator mid-drag ({seen:.1%} of pixels)")
