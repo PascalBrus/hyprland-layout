@@ -114,7 +114,8 @@ namespace threecol {
         // find no room.
         std::optional<Rect> nextWindowRect() const;
 
-        // A layout message from the user; `focused` is the focused window.
+        // A layout message from the user; `focused` is the focused tile, or
+        // nothing when a floating window has focus.
         // Unknown messages, or ones that don't apply, do nothing. Returns
         // whether the layout changed and where focus goes.
         //
@@ -128,8 +129,8 @@ namespace threecol {
         //
         // `focus l` / `focus r` walk the Chain, stopping at its ends and
         // skipping empty zones; `focus u` / `focus d` move inside a side
-        // zone, never leaving it. `focusmaster` focuses Master, with or
-        // without a focused window. `move l|r|u|d` moves the focused window as
+        // zone, never leaving it. `focusmaster` focuses Master, from a
+        // tile or a floating window. `move l|r|u|d` moves the focused window as
         // `move` does, focus staying on it. `swapwithmaster` swaps the focused
         // window with Master, the old Master taking its Row, or moves it into
         // a Hole; on Master it acts as its arguments below say.
@@ -314,7 +315,8 @@ namespace threecol {
         // `previous`, else the first window after Master.
         std::optional<WindowId> focusMaster(std::optional<WindowId> focused, std::string_view mode);
 
-        // The tile `focusmaster previous` last left, to go back to.
+        // The window `focusmaster previous` last left, to go back to: nothing
+        // when it left a floating window.
         std::optional<WindowId> m_beforeMaster;
 
         // The next window from `id` along the Chain, one way or the other.

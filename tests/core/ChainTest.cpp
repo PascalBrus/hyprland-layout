@@ -135,7 +135,7 @@ TEST(ChainFocus, FocusMoveDoesNotChangeTheLayout) {
     EXPECT_FALSE(ws.layoutMessage("focus r", 2));
 }
 
-TEST(FocusMaster, FocusesMasterFromAnyZoneOrWithNothingFocused) {
+TEST(FocusMaster, FocusesMasterFromAnyZoneOrAFloatingWindow) {
     Workspace ws = filled(1, 3);
 
     EXPECT_EQ(focusAfter(ws, "focusmaster", 2), 1u);

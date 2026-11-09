@@ -403,8 +403,10 @@ namespace threecol {
         if (!m_master)
             return std::nullopt;
         if (focused != m_master) {
-            // Only `previous` remembers where it came from, and only a tile.
-            if (mode == "previous" && focused && zoneOf(*focused))
+            // Only `previous` remembers where it came from. A floating
+            // window is nothing to go back to, so `previous` then falls back
+            // to auto, as in the master layout.
+            if (mode == "previous")
                 m_beforeMaster = focused;
             return m_master;
         }

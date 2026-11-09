@@ -723,10 +723,13 @@ namespace threecol {
             return {};
 
         // With a floating window focused, only the messages that need no
-        // focused tile apply. With nothing focused, only those do anything.
+        // focused tile apply. With nothing focused, only reset does, as the
+        // master layout's messages need a window (MasterAlgorithm.cpp:556,
+        // :600 at 0.57.1).
         std::optional<WindowId> focused;
-        if (const auto window = Desktop::focusState()->window(); !reset && window && window->m_workspace == workspace) {
-            if (Fullscreen::controller()->isFullscreen(window))
+        if (!reset) {
+            const auto window = Desktop::focusState()->window();
+            if (!window || window->m_workspace != workspace || Fullscreen::controller()->isFullscreen(window))
                 return {};
             focused = idOf(window->layoutTarget());
             if (!focused && needsFocusedTile(sv))
