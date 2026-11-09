@@ -1,5 +1,7 @@
 #include "plugin/ThreecolAlgorithm.hpp"
 
+#include "core/Cycle.hpp"
+
 #include "plugin/Config.hpp"
 #include "plugin/SavedDividers.hpp"
 #include "plugin/SettingsReporting.hpp"
@@ -9,6 +11,7 @@
 
 #include <hyprland/src/desktop/state/FocusState.hpp>
 #include <hyprland/src/desktop/state/ViewState.hpp>
+#include <hyprland/src/desktop/state/WindowState.hpp>
 #include <hyprland/src/desktop/view/window/Window.hpp>
 #include <hyprland/src/event/EventBus.hpp>
 #include <hyprland/src/layout/LayoutManager.hpp>
@@ -622,6 +625,44 @@ namespace threecol {
                 return instance;
         }
         return nullptr;
+    }
+
+    CThreecolAlgorithm* CThreecolAlgorithm::onWorkspace(const PHLWINDOW& window) {
+        if (!window || !window->isFloating())
+            return tiling(window);
+        if (!window->m_workspace || !window->layoutTarget())
+            return nullptr;
+        // The workspace's own tiled algorithm, as Hyprland's cycleNext checks
+        // it (ConfigActions.cpp:1771-1782).
+        const auto space = window->layoutTarget()->space();
+        auto*      algo  = space && space->algorithm() ? dynamic_cast<CThreecolAlgorithm*>(space->algorithm()->tiledAlgo().get()) : nullptr;
+        if (!algo || algo->m_dragged || algo->workspace() != window->m_workspace || Fullscreen::controller()->hasFullscreen(window->m_workspace, std::nullopt))
+            return nullptr;
+        return algo;
+    }
+
+    PHLWINDOW CThreecolAlgorithm::cycleNext(const PHLWINDOW& window, bool forward, bool wrap, bool tiledOnly) const {
+        std::vector<PHLWINDOW> chain;
+        for (const WindowId id : m_model.windowsInChainOrder()) {
+            if (const auto target = targetOf(id); target && target->window())
+                chain.push_back(target->window());
+        }
+
+        // The floating windows Hyprland's cycle_next would focus, in its
+        // order (WindowQuery.cpp:278-282, :310-314). `window` always counts,
+        // so the step starts from it.
+        std::vector<PHLWINDOW> floating;
+        if (!tiledOnly) {
+            const auto workspace = this->workspace();
+            for (const auto& other : Desktop::windowState()->windows()) {
+                // One still on the Chain, e.g. mid float toggle, stays a tile.
+                if (!other || other->m_workspace != workspace || !other->isFloating() || !other->mapped() || std::ranges::contains(chain, other))
+                    continue;
+                if (other == window || (other->acceptsInput() && !other->m_ruleApplicator->noFocus().valueOrDefault()))
+                    floating.push_back(other);
+            }
+        }
+        return cycleStep(chain, floating, window, forward, wrap).value_or(PHLWINDOW{});
     }
 
     PHLWINDOW CThreecolAlgorithm::inDirection(const PHLWINDOW& window, Direction direction) const {

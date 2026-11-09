@@ -91,14 +91,15 @@ namespace threecol {
 
         // window.swap({ next | prev }): swaps with the next or previous window
         // on the Chain, focus staying on the swapped one, as Hyprland's does
-        // with its own order (ConfigActions.cpp:742-763). At the Chain's end
-        // without wrap it stops.
+        // with its own order (ConfigActions.cpp:742-763). It loops unless
+        // wrap.swap_next is off; then at the Chain's end it does nothing, as
+        // with a lone tile: it never hands over to Hyprland.
         ActionResult hkSwapNext(bool next, std::optional<PHLWINDOW> w) {
             const auto window   = windowFor(w);
             const auto switches = bindSwitches();
             if (switches.swapNext) {
                 if (const auto* algo = CThreecolAlgorithm::tiling(window)) {
-                    if (const auto to = algo->next(window, next, switches.wrap)) {
+                    if (const auto to = algo->next(window, next, switches.wrap.swapNext)) {
                         g_layoutManager->switchTargets(window->layoutTarget(), to->layoutTarget(), false);
                         Desktop::focusState()->fullWindowFocus(window, Desktop::FOCUS_REASON_KEYBIND);
                     }
@@ -108,15 +109,21 @@ namespace threecol {
             return reinterpret_cast<FnSwapNext>(g_swapNext->m_original)(next, std::move(w));
         }
 
-        // window.cycle_next(): one step along the Chain. At its end without
-        // wrap it stops. Floating only stays Hyprland's.
+        // window.cycle_next(): one step along the Cycle, from a tile or a
+        // floating window of a threecol workspace. It loops unless
+        // wrap.cycle_next is off; then at the Cycle's end it does nothing, as
+        // with a lone window: it never hands over to Hyprland. With only
+        // `tiled`, the Chain alone, and from a floating window Hyprland's.
+        // With only `floating`, Hyprland's. Both at once count as neither, as
+        // Hyprland reads them (ConfigActions.cpp:1789-1792).
         ActionResult hkCycleNext(bool next, std::optional<bool> onlyTiled, std::optional<bool> onlyFloating, std::optional<PHLWINDOW> w) {
             const auto window       = windowFor(w);
             const auto switches     = bindSwitches();
+            const bool tiledOnly    = onlyTiled.value_or(false) && !onlyFloating.value_or(false);
             const bool floatingOnly = onlyFloating.value_or(false) && !onlyTiled.value_or(false);
-            if (switches.cycleNext && !floatingOnly) {
-                if (const auto* algo = CThreecolAlgorithm::tiling(window)) {
-                    if (const auto to = algo->next(window, next, switches.wrap))
+            if (switches.cycleNext && !floatingOnly && window && !(tiledOnly && window->isFloating())) {
+                if (const auto* algo = CThreecolAlgorithm::onWorkspace(window)) {
+                    if (const auto to = algo->cycleNext(window, next, switches.wrap.cycleNext, tiledOnly))
                         return focusWindow(to);
                     return {};
                 }

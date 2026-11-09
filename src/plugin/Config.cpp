@@ -42,7 +42,8 @@ namespace threecol {
             std::array<SP<CBoolValue>, 4> swap;
             SP<CBoolValue>                swapNext;
             SP<CBoolValue>                cycleNext;
-            SP<CBoolValue>                wrap;
+            SP<CBoolValue>                wrapSwapNext;
+            SP<CBoolValue>                wrapCycleNext;
         } g_binds;
 
         // Read when a dispatcher runs, so nothing needs laying out again.
@@ -121,12 +122,14 @@ namespace threecol {
                     bindSwitch("plugin:threecol:binds:swap:up", "swap up swaps with the window focus up goes to", BIND_DEFAULTS.swap[2]),
                     bindSwitch("plugin:threecol:binds:swap:down", "swap down swaps with the window focus down goes to", BIND_DEFAULTS.swap[3]),
                 },
-            .swapNext  = bindSwitch("plugin:threecol:binds:swap_next", "swap next / prev follows the Chain on threecol tiles", BIND_DEFAULTS.swapNext),
-            .cycleNext = bindSwitch("plugin:threecol:binds:cycle_next", "cycle_next follows the Chain on threecol tiles", BIND_DEFAULTS.cycleNext),
-            .wrap      = bindSwitch("plugin:threecol:wrap", "next / previous dispatchers wrap from the Chain's end to its start", BIND_DEFAULTS.wrap),
+            .swapNext      = bindSwitch("plugin:threecol:binds:swap_next", "swap next / prev follows the Chain on threecol tiles", BIND_DEFAULTS.swapNext),
+            .cycleNext     = bindSwitch("plugin:threecol:binds:cycle_next", "cycle_next walks the Cycle on threecol workspaces", BIND_DEFAULTS.cycleNext),
+            .wrapSwapNext  = bindSwitch("plugin:threecol:wrap:swap_next", "swap next / prev and swapnext / swapprev loop along the Chain", BIND_DEFAULTS.wrap.swapNext),
+            .wrapCycleNext = bindSwitch("plugin:threecol:wrap:cycle_next", "cycle_next loops along the Cycle, cyclenext / cycleprev along the Chain",
+                                        BIND_DEFAULTS.wrap.cycleNext),
         };
 
-        std::vector<SP<Config::Values::IValue>> binds{g_binds.swapNext, g_binds.cycleNext, g_binds.wrap};
+        std::vector<SP<Config::Values::IValue>> binds{g_binds.swapNext, g_binds.cycleNext, g_binds.wrapSwapNext, g_binds.wrapCycleNext};
         binds.insert(binds.end(), g_binds.focus.begin(), g_binds.focus.end());
         binds.insert(binds.end(), g_binds.swap.begin(), g_binds.swap.end());
 
@@ -169,7 +172,7 @@ namespace threecol {
         }
         switches.swapNext  = g_binds.swapNext->value();
         switches.cycleNext = g_binds.cycleNext->value();
-        switches.wrap      = g_binds.wrap->value();
+        switches.wrap      = {.cycleNext = g_binds.wrapCycleNext->value(), .swapNext = g_binds.wrapSwapNext->value()};
         return switches;
     }
 

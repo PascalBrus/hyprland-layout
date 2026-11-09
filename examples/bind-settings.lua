@@ -26,12 +26,16 @@ hl.config({
                     down  = true, -- hl.dsp.window.swap({ direction = "down" })
                 },
                 swap_next  = true, -- hl.dsp.window.swap({ next = true }) and { prev = true }
-                cycle_next = true, -- hl.dsp.window.cycle_next()
+                cycle_next = true, -- hl.dsp.window.cycle_next(): walks the Cycle
             },
 
-            -- Not a switch: the next / previous dispatchers wrap from the
-            -- Chain's end back to its start when true.
-            wrap = false,
+            -- Looping: the next / previous dispatchers go from one end back
+            -- to the other. false stops them at the end; only threecol's
+            -- behaviour reads these.
+            wrap = {
+                swap_next  = true, -- swap({ next | prev }), swapnext / swapprev
+                cycle_next = true, -- cycle_next(), cyclenext / cycleprev
+            },
         },
     },
 })

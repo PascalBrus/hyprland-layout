@@ -61,7 +61,8 @@ if(THREECOL_TESTS)
         tests/core/CarryAcrossRebuildTest.cpp
         tests/core/CentredMasterTest.cpp
         tests/core/MasterMessagesTest.cpp
-        tests/core/NextPrevTest.cpp)
+        tests/core/NextPrevTest.cpp
+        tests/core/CycleTest.cpp)
     target_link_libraries(threecol_tests PRIVATE threecol_core GTest::gtest_main)
     gtest_discover_tests(threecol_tests)
 

@@ -1,5 +1,7 @@
 #include "core/Workspace.hpp"
 
+#include "core/Cycle.hpp"
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -323,7 +325,7 @@ namespace threecol {
         return window;
     }
 
-    MessageResult Workspace::layoutMessage(std::string_view message, std::optional<WindowId> focused, bool wrap) {
+    MessageResult Workspace::layoutMessage(std::string_view message, std::optional<WindowId> focused, Wrap wrap) {
         const auto result = applyLayoutMessage(message, focused, wrap);
         // A drag's later ticks would undo the change.
         if (result.changed && m_gesture)
@@ -331,7 +333,7 @@ namespace threecol {
         return result;
     }
 
-    MessageResult Workspace::applyLayoutMessage(std::string_view message, std::optional<WindowId> focused, bool wrap) {
+    MessageResult Workspace::applyLayoutMessage(std::string_view message, std::optional<WindowId> focused, Wrap wrap) {
         if (message == "reset") {
             const bool left    = m_left.heights.equalise(m_settings.minRowHeight);
             const bool heights = m_right.heights.equalise(m_settings.minRowHeight) || left;
@@ -361,10 +363,11 @@ namespace threecol {
             const bool moved = applyMove(*focused, toDirection(message.back()));
             return {.changed = moved, .focus = moved ? focused : std::nullopt};
         }
+        const bool noloop = has(args, "noloop");
         if (command == "cyclenext" || command == "cycleprev")
-            return {.focus = next(*focused, command == "cyclenext", wrap && !has(args, "noloop"))};
+            return {.focus = next(*focused, command == "cyclenext", wrap.cycleNext && !noloop)};
         if (command == "swapnext" || command == "swapprev") {
-            const auto other = next(*focused, command == "swapnext", wrap && !has(args, "noloop"));
+            const auto other = next(*focused, command == "swapnext", wrap.swapNext && !noloop);
             if (!other)
                 return {};
             swapPlaces(*focused, *other);
@@ -413,12 +416,7 @@ namespace threecol {
     }
 
     std::optional<WindowId> Workspace::next(WindowId id, bool forward, bool wrap) const {
-        const auto windows = windowsInChainOrder();
-        if (const auto found = neighbour(windows, id, forward); found || !wrap)
-            return found;
-        if (windows.size() < 2 || !std::ranges::contains(windows, id))
-            return std::nullopt;
-        return forward ? windows.front() : windows.back();
+        return step(windowsInChainOrder(), id, forward, wrap);
     }
 
     std::optional<WindowId> Workspace::inDirection(WindowId id, Direction direction) const {

@@ -139,16 +139,21 @@ namespace threecol {
         // [ignoremaster]`, where on Master the other window is the first one
         // after Master in Fill order. `cyclenext` / `cycleprev` focus, and
         // `swapnext` / `swapprev` swap with, the next or previous window on
-        // the Chain, focus staying on the swapped one; they wrap only with
-        // `wrap`, and never with `noloop`. The master and dwindle messages
+        // the Chain, focus staying on the swapped one. They loop from one end
+        // of the Chain to the other unless `wrap` turns that off for them, or
+        // the message says `noloop`. The master and dwindle messages
         // threecol has no use for, e.g. `addmaster`, `mfact`, `togglesplit`,
         // do nothing like any unknown message.
-        MessageResult       layoutMessage(std::string_view message, std::optional<WindowId> focused, bool wrap = false);
+        MessageResult       layoutMessage(std::string_view message, std::optional<WindowId> focused, Wrap wrap = {});
 
         // The window after `id` on the Chain (`forward`) or before it.
         // Nothing at an end, unless `wrap`: then the far end leads back to
         // the start. Nothing if `id` is alone or isn't here.
         std::optional<WindowId> next(WindowId id, bool forward, bool wrap) const;
+
+        // The windows in Chain order: Left, Master, then Right, each side top
+        // to bottom. Unlike the Chain itself, Holes are skipped.
+        std::vector<WindowId> windowsInChainOrder() const;
 
         // The window focus in `direction` goes to from `id`: along the Chain
         // for `Left` / `Right`, the Row above or below inside its side zone
@@ -297,7 +302,7 @@ namespace threecol {
         // The Zone `id` is in, or nothing if it isn't on this workspace.
         std::optional<Zone>     zoneOf(WindowId id) const;
 
-        MessageResult           applyLayoutMessage(std::string_view message, std::optional<WindowId> focused, bool wrap);
+        MessageResult           applyLayoutMessage(std::string_view message, std::optional<WindowId> focused, Wrap wrap);
 
         // The first window after Master in Fill order: the top Row of the
         // fill_first side, else of the other. Nothing if both are empty.
@@ -407,10 +412,6 @@ namespace threecol {
         // Left up to its Row limit, then Right up to its own. Nothing if
         // there's no room anywhere.
         std::optional<Zone>     nextZone() const;
-
-        // The windows in Chain order: Left, Master, then Right, each side top
-        // to bottom. Unlike the Chain itself, Holes are skipped.
-        std::vector<WindowId>   windowsInChainOrder() const;
 
         Rect                    leftZone() const;
         Rect                    masterZone() const;

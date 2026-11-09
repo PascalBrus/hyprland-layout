@@ -10,6 +10,13 @@
 
 namespace threecol {
 
+    // Which next / previous dispatchers loop from one end of the Chain (or
+    // the Cycle) back to the other. All of them do unless turned off.
+    struct Wrap {
+        bool cycleNext = true; // cycle_next, cyclenext / cycleprev
+        bool swapNext  = true; // swap next / prev, swapnext / swapprev
+    };
+
     // What a side zone is, from its Row limit.
     enum class Role {
         Missing, // a Row limit of 0: no width, no Divider, no place in the Chain

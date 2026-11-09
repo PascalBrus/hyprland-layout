@@ -23,9 +23,9 @@ namespace threecol {
         std::array<bool, 4> swap      = {true, true, true, true};
         bool                swapNext  = true;
         bool                cycleNext = true;
-        // The next / previous dispatchers go from the Chain's far end back
-        // to the start.
-        bool                wrap      = false;
+        // Which next / previous dispatchers loop. Only threecol's
+        // behaviour reads them.
+        Wrap                wrap      = {};
     };
     SBindSwitches bindSwitches();
 

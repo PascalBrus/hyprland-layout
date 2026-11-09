@@ -125,22 +125,23 @@ Hyprland's behaviour below is cited at Hyprland 0.57.1 ([`acc1aa0b`](https://git
 | `hl.dsp.focus({ direction = "left" })`<br>`left` / `right` | Focuses the nearest window on screen in that direction ([`ConfigActions.cpp:465`][moveFocus], [`WindowQuery.cpp:23-47`][inDirection]), else the next monitor ([`:484-485`][monitorFallback]) | One step along the **Chain**. Past its ends, Hyprland's | `binds.focus.left`, `binds.focus.right` |
 | `hl.dsp.focus({ direction = "up" })`<br>`up` / `down` | The same, up or down | The Row above or below, inside the same side zone. On the top or bottom Row, and on Master, Hyprland's | `binds.focus.up`, `binds.focus.down` |
 | `hl.dsp.window.swap({ direction = "left" })`<br>`left` / `right` / `up` / `down` | Swaps with the nearest window on screen in that direction ([`ConfigActions.cpp:583`][swapInDirection]) | Swaps with the window focus in that direction goes to. Where there is none, Hyprland's | `binds.swap.left`, `.right`, `.up`, `.down` |
-| `hl.dsp.window.swap({ next = true })`<br>`next` / `prev` | Swaps with the next or previous window in Hyprland's window order ([`ConfigActions.cpp:750-753`][swapNext]) | Swaps with the next or previous window on the Chain, focus staying on the swapped one. At the Chain's end it stops, unless [`wrap`](#wrap) | `binds.swap_next` |
-| `hl.dsp.window.cycle_next()` | Focuses the next window in Hyprland's window order, floating ones too ([`ConfigActions.cpp:1794-1800`][cycleNext]) | One step along the Chain. At its end it stops, unless [`wrap`](#wrap). With only `floating = true`, Hyprland's | `binds.cycle_next` |
+| `hl.dsp.window.swap({ next = true })`<br>`next` / `prev` | Swaps with the next or previous window in Hyprland's window order ([`ConfigActions.cpp:750-753`][swapNext]) | Swaps with the next or previous window on the Chain, focus staying on the swapped one. It loops from one end of the Chain to the other; with `wrap.swap_next = false`, at an end it does nothing ([looping](#looping)) | `binds.swap_next` |
+| `hl.dsp.window.cycle_next()`<br>`next` / `prev`, optional `tiled` / `floating` | Focuses the next window in Hyprland's window order, floating ones too ([`ConfigActions.cpp:1794-1800`][cycleNext], [`WindowQuery.cpp:310-314`][cycleOrder]) | One step along the **Cycle**: the Chain, then the workspace's floating windows in Hyprland's window order, then back to the start of the Chain. From a tile or a floating window. It loops; with `wrap.cycle_next = false`, at either end of the Cycle it does nothing ([looping](#looping)). With only `tiled = true`, the Chain alone, and from a floating window Hyprland's. With only `floating = true`, Hyprland's | `binds.cycle_next` |
 | `hl.dsp.window.move({ direction = "left" })`<br>`left` / `right` / `up` / `down` | Leaves the move to the layout ([`LayoutManager.cpp:136-147`][moveInDirection]) | Moves between Zones and Rows along the Chain: swaps only where there is no room | none: Hyprland leaves it to the layout |
 | `hl.dsp.window.drag()`, as a mouse bind | Leaves the drop to the layout | Drops onto another window to swap, onto the bottom quarter of a zone to add a Row, or into an empty zone. A highlight shows where it will land | none: Hyprland leaves it to the layout |
 | `hl.dsp.window.resize()`, as a mouse bind, and `hl.dsp.window.resize({ x = …, y = … })` | Leaves the resize to the layout ([`LayoutManager.cpp:63-82`][resizeTarget]) | **Drag resize** and **One-off resize**: moves the Dividers and Row edges | none: Hyprland leaves it to the layout |
 | Focus after a window closes (not a dispatcher) | Asks the layout, with `input:focus_on_close = 0` ([`Window.cpp:1690-1697`][closeFocus]) | The window after it on the Chain, or before it if it was last | none: not a dispatcher |
 | `hl.dsp.layout("focusmaster")`<br>`auto` (default) / `master` / `previous` | Only the master layout knows it ([`MasterAlgorithm.cpp:594-640`][focusmaster]) | As in the master layout. From any other window, focuses Master. On Master, `auto` focuses the first window after Master in **Fill order**, `master` stays, and `previous` goes back to the window `focusmaster previous` came from (else as `auto`). Works from a floating window too | none |
 | `hl.dsp.layout("swapwithmaster")`<br>`auto` (default) / `master` / `child`, and `ignoremaster` | Only the master layout knows it ([`MasterAlgorithm.cpp:546-592`][swapwithmaster]) | As in the master layout. From another window, swaps it with Master (into a Hole, it moves there); focus stays on it, or with `child` goes to the old Master. On Master, swaps with the first window after Master in Fill order; focus stays on the old Master, or with `master` goes to the new one. `ignoremaster` does nothing on Master | none |
-| `hl.dsp.layout("cyclenext")`, `"cycleprev"`<br>optional `noloop` | Only the master layout knows them ([`MasterAlgorithm.cpp:641-654`][cyclenext]) | Focuses the next or previous window on the Chain. At its end it stops, unless [`wrap`](#wrap); `noloop` always stops | none |
-| `hl.dsp.layout("swapnext")`, `"swapprev"`<br>optional `noloop` | Only the master layout knows them ([`MasterAlgorithm.cpp:655-688`][swapnextMsg]) | Swaps with the next or previous window on the Chain, focus staying on the swapped one. Wraps as `cyclenext` | none |
+| `hl.dsp.layout("cyclenext")`, `"cycleprev"`<br>optional `noloop` | Only the master layout knows them ([`MasterAlgorithm.cpp:641-654`][cyclenext]) | Focuses the next or previous tile on the Chain, looping from one end to the other. With `wrap.cycle_next = false` or `noloop`, at an end it does nothing | none |
+| `hl.dsp.layout("swapnext")`, `"swapprev"`<br>optional `noloop` | Only the master layout knows them ([`MasterAlgorithm.cpp:655-688`][swapnextMsg]) | Swaps with the next or previous tile on the Chain, focus staying on the swapped one, looping from one end to the other. With `wrap.swap_next = false` or `noloop`, at an end it does nothing | none |
 
 Set a switch to `false` to get Hyprland's behaviour back for that dispatcher (see [Settings](#bind-switches)). Only dispatchers where Hyprland has a behaviour of its own have a switch: move, drop and resize are always threecol's, since Hyprland leaves them to the layout.
 
 - **Edges.** Where focus or a direction swap can't go further inside threecol, Hyprland's behaviour takes over, e.g. moving focus to the next monitor. This is untested with several monitors.
 - **Hooks.** Hyprland never asks the layout about direction focus, the swap partner or `cycle_next`, so threecol hooks four Hyprland functions to change them (see [ADR 0001](docs/adr/0001-hook-hyprland-dispatchers.md)). Hooks work on x86_64 only ([`HookSystem.cpp:147-149`][hookArch]), and only one plugin can hook a function ([`:151-155`][hookOnce]). If a hook can't be installed, threecol shows one notification at load and that dispatcher keeps Hyprland's behaviour. The threecol dispatchers below work without hooks.
-- <a id="wrap"></a>**`wrap`.** A global setting, `false` by default. When it's `true`, the next / previous dispatchers (`window.swap({ next | prev })`, `window.cycle_next()`, and the `cyclenext`, `cycleprev`, `swapnext` and `swapprev` messages) go from the Chain's far end back to its start. Direction focus and swap never wrap, and `noloop` always stops at the end.
+- <a id="looping"></a>**Looping.** The next / previous dispatchers loop by default, as Hyprland's do: from the far end of the Chain back to its start, and `cycle_next` from the last floating window back to the start of the Chain. Two global switches turn it off: `wrap.cycle_next` for `window.cycle_next()` and the `cyclenext` / `cycleprev` messages, `wrap.swap_next` for `window.swap({ next | prev })` and `swapnext` / `swapprev`. Then at an end they do nothing. `noloop` on a message stops just that bind; Hyprland's own dispatchers take no `noloop`. The `wrap` switches only change threecol's behaviour: with a `binds` switch `false`, under fullscreen or on another layout, Hyprland's runs unchanged.
+- **Floating windows.** `window.cycle_next()` is the way to reach floating windows on a threecol workspace: it walks the tiles, then the floating windows. Every other next / previous dispatcher stays on the tiles.
 
 ### Ignored dispatchers
 
@@ -173,6 +174,7 @@ Layout messages only reach the layout of the focused monitor's workspace ([`Layo
 [swapInDirection]: https://github.com/hyprwm/Hyprland/blob/acc1aa0bfd4bd575dcb0f76c35ccf12b660a1ab9/src/config/shared/actions/ConfigActions.cpp#L583
 [swapNext]: https://github.com/hyprwm/Hyprland/blob/acc1aa0bfd4bd575dcb0f76c35ccf12b660a1ab9/src/config/shared/actions/ConfigActions.cpp#L750-L753
 [cycleNext]: https://github.com/hyprwm/Hyprland/blob/acc1aa0bfd4bd575dcb0f76c35ccf12b660a1ab9/src/config/shared/actions/ConfigActions.cpp#L1794-L1800
+[cycleOrder]: https://github.com/hyprwm/Hyprland/blob/acc1aa0bfd4bd575dcb0f76c35ccf12b660a1ab9/src/desktop/state/WindowQuery.cpp#L310-L314
 [moveInDirection]: https://github.com/hyprwm/Hyprland/blob/acc1aa0bfd4bd575dcb0f76c35ccf12b660a1ab9/src/layout/LayoutManager.cpp#L136-L147
 [resizeTarget]: https://github.com/hyprwm/Hyprland/blob/acc1aa0bfd4bd575dcb0f76c35ccf12b660a1ab9/src/layout/LayoutManager.cpp#L63-L82
 [closeFocus]: https://github.com/hyprwm/Hyprland/blob/acc1aa0bfd4bd575dcb0f76c35ccf12b660a1ab9/src/desktop/view/window/Window.cpp#L1690-L1697
@@ -224,8 +226,9 @@ hl.config({
             -- Save Divider positions across reloads and reboots (global only)
             persist          = true,
 
-            -- Next / previous dispatchers wrap at the Chain's end (global only)
-            wrap             = false,
+            -- Next / previous dispatchers loop at the Chain's end; false
+            -- stops them there (global only)
+            wrap = { swap_next = true, cycle_next = true },
 
             -- Hyprland dispatchers threecol changes; false gives one back to
             -- Hyprland (global only). Every switch: examples/bind-settings.lua
@@ -275,11 +278,12 @@ hl.workspace_rule({
 | `min_row_height` | float | 0.10 | no | yes | Smallest Row height (Left and Right); also caps both Row limits |
 | `step` | float | 0.05 | no | yes, acts differently ([how](#centred-master)) | Keyboard resize step |
 | `persist` | bool | true | no | yes | Save Divider positions across reloads and reboots |
-| `wrap` | bool | false | no | yes | The next / previous dispatchers go from the Chain's end back to its start (see [`wrap`](#wrap)) |
+| `wrap.swap_next` | bool | true | no | yes | `hl.dsp.window.swap({ next \| prev })` and `swapnext` / `swapprev` loop from the Chain's end back to its start (see [looping](#looping)) |
+| `wrap.cycle_next` | bool | true | no | yes | `hl.dsp.window.cycle_next()` loops along the Cycle, and `cyclenext` / `cycleprev` along the Chain |
 | `binds.focus.left`, `.right`, `.up`, `.down` | bool | true | no | yes | `hl.dsp.focus({ direction })` behaves the threecol way in that direction ([Binds](#hyprland-dispatchers-threecol-changes)) |
 | `binds.swap.left`, `.right`, `.up`, `.down` | bool | true | no | yes | `hl.dsp.window.swap({ direction })` behaves the threecol way in that direction |
 | `binds.swap_next` | bool | true | no | yes | `hl.dsp.window.swap({ next \| prev })` follows the Chain |
-| `binds.cycle_next` | bool | true | no | yes | `hl.dsp.window.cycle_next()` follows the Chain |
+| `binds.cycle_next` | bool | true | no | yes | `hl.dsp.window.cycle_next()` walks the Cycle |
 
 ### Bind switches
 
