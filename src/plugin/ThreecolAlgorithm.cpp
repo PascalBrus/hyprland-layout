@@ -611,12 +611,69 @@ namespace threecol {
         return targetOf(hint->next);
     }
 
+    CThreecolAlgorithm* CThreecolAlgorithm::tiling(const PHLWINDOW& window) {
+        if (!window)
+            return nullptr;
+        for (auto* instance : g_instances) {
+            const auto workspace = instance->workspace();
+            if (!workspace || instance->m_dragged || Fullscreen::controller()->hasFullscreen(workspace, std::nullopt))
+                continue;
+            if (instance->idOf(window->layoutTarget()))
+                return instance;
+        }
+        return nullptr;
+    }
+
+    PHLWINDOW CThreecolAlgorithm::inDirection(const PHLWINDOW& window, Direction direction) const {
+        const auto id     = idOf(window->layoutTarget());
+        const auto to     = id ? m_model.inDirection(*id, direction) : std::nullopt;
+        const auto target = to ? targetOf(*to) : nullptr;
+        return target ? target->window() : nullptr;
+    }
+
+    PHLWINDOW CThreecolAlgorithm::next(const PHLWINDOW& window, bool forward, bool wrap) const {
+        const auto id     = idOf(window->layoutTarget());
+        const auto to     = id ? m_model.next(*id, forward, wrap) : std::nullopt;
+        const auto target = to ? targetOf(*to) : nullptr;
+        return target ? target->window() : nullptr;
+    }
+
+    namespace {
+
+        // The direction of `focus l|r|u|d`, or nothing for another message.
+        std::optional<Math::eDirection> focusDirection(std::string_view message) {
+            if (message.size() != 7 || !message.starts_with("focus ") || !std::string_view{"lrud"}.contains(message.back()))
+                return std::nullopt;
+            return Math::fromChar(message.back());
+        }
+
+    }
+
     Config::ErrorResult CThreecolAlgorithm::layoutMsg(const std::string_view& sv) {
         // Messages that don't apply do nothing and report no error. Mid-drag
         // none do: the dragged window's place stays where it was.
         const auto workspace = this->workspace();
         if (!workspace || m_dragged)
             return {};
+
+        // On a floating or fullscreen window, `focus l|r|u|d` is Hyprland's
+        // direction focus, and Step resize grows or shrinks a floating window
+        // around its centre.
+        if (const auto window = Desktop::focusState()->window(); window && window->m_workspace == workspace) {
+            const bool fullscreen = Fullscreen::controller()->isFullscreen(window);
+            if (const auto dir = focusDirection(sv); dir && (window->isFloating() || fullscreen)) {
+                // Not a tile, so the hook on it, if any, runs Hyprland's own.
+                static_cast<void>(Config::Actions::moveFocus(*dir));
+                return {};
+            }
+            if (window->isFloating() && !fullscreen) {
+                const auto target = window->layoutTarget();
+                if (const auto box = floatingStepResize(sv, toRect(target->position()), toRect(m_parent->space()->workArea()), globalSettings().step)) {
+                    g_layoutManager->setTargetGeom(toBox(*box), target);
+                    return {};
+                }
+            }
+        }
 
         // reset doesn't depend on the focused window, so it runs from a
         // floating window and under a fullscreen or maximised one too.
@@ -638,7 +695,7 @@ namespace threecol {
         const bool refreshed   = refreshModel();
         const auto before      = m_model.dividers();
         const bool wasResizing = m_model.resizing();
-        const auto result      = m_model.layoutMessage(sv, focused);
+        const auto result      = m_model.layoutMessage(sv, focused, bindSwitches().wrap);
         // A change mid-drag ends it, saving like a release.
         if (wasResizing && !m_model.resizing())
             keepDividers();

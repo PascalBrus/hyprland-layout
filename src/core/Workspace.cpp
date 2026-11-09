@@ -279,26 +279,70 @@ namespace threecol {
 
     }
 
-    bool needsFocusedTile(std::string_view message) {
-        return message != "focusmaster" && message != "reset";
+    namespace {
+
+        // A layout message split at spaces: its command and arguments.
+        std::vector<std::string_view> words(std::string_view message) {
+            std::vector<std::string_view> out;
+            while (!message.empty()) {
+                const auto space = message.find(' ');
+                if (space != 0)
+                    out.push_back(message.substr(0, space));
+                if (space == std::string_view::npos)
+                    break;
+                message.remove_prefix(space + 1);
+            }
+            return out;
+        }
+
+        bool has(const std::vector<std::string_view>& args, std::string_view word) {
+            return std::ranges::contains(args, word);
+        }
+
     }
 
-    MessageResult Workspace::layoutMessage(std::string_view message, std::optional<WindowId> focused) {
-        const auto result = applyLayoutMessage(message, focused);
+    bool needsFocusedTile(std::string_view message) {
+        const auto command = words(message);
+        return command.empty() || (command.front() != "focusmaster" && command.front() != "reset");
+    }
+
+    std::optional<Rect> floatingStepResize(std::string_view message, Rect window, Rect area, double step) {
+        const bool wide = message == "resize wider" || message == "resize narrower";
+        const bool tall = message == "resize taller" || message == "resize shorter";
+        if (!wide && !tall)
+            return std::nullopt;
+        const bool   grow     = message == "resize wider" || message == "resize taller";
+        const double by       = step * (wide ? area.w : area.h);
+        double&      size     = wide ? window.w : window.h;
+        double&      start    = wide ? window.x : window.y;
+        const double resized  = grow ? size + by : std::max(std::min(size, by), size - by);
+        if (std::abs(resized - size) < EPSILON)
+            return std::nullopt;
+        start -= (resized - size) / 2;
+        size = resized;
+        return window;
+    }
+
+    MessageResult Workspace::layoutMessage(std::string_view message, std::optional<WindowId> focused, bool wrap) {
+        const auto result = applyLayoutMessage(message, focused, wrap);
         // A drag's later ticks would undo the change.
         if (result.changed && m_gesture)
             m_gesture->over = true;
         return result;
     }
 
-    MessageResult Workspace::applyLayoutMessage(std::string_view message, std::optional<WindowId> focused) {
+    MessageResult Workspace::applyLayoutMessage(std::string_view message, std::optional<WindowId> focused, bool wrap) {
         if (message == "reset") {
             const bool left    = m_left.heights.equalise(m_settings.minRowHeight);
             const bool heights = m_right.heights.equalise(m_settings.minRowHeight) || left;
             return {.changed = std::exchange(m_dividers, std::nullopt).has_value() || heights};
         }
-        if (message == "focusmaster")
-            return {.focus = m_master};
+        const auto args    = words(message);
+        const auto command = args.empty() ? std::string_view{} : args.front();
+        // The first argument, as the master layout reads it.
+        const auto first = args.size() >= 2 ? args[1] : std::string_view{};
+        if (command == "focusmaster")
+            return {.focus = focusMaster(focused, first)};
 
         const auto zone = focused ? zoneOf(*focused) : std::nullopt;
         if (!zone)
@@ -311,25 +355,80 @@ namespace threecol {
             return {.changed = resizeRow(*focused, m_settings.step)};
         if (message == "resize shorter")
             return {.changed = resizeRow(*focused, -m_settings.step)};
-        if (message == "focus l")
-            return {.focus = chainNeighbour(*focused, false)};
-        if (message == "focus r")
-            return {.focus = chainNeighbour(*focused, true)};
-        if (message == "focus u")
-            return {.focus = rowNeighbour(*focused, false)};
-        if (message == "focus d")
-            return {.focus = rowNeighbour(*focused, true)};
+        if (message == "focus l" || message == "focus r" || message == "focus u" || message == "focus d")
+            return {.focus = inDirection(*focused, toDirection(message.back()))};
         if (message == "move l" || message == "move r" || message == "move u" || message == "move d") {
             const bool moved = applyMove(*focused, toDirection(message.back()));
             return {.changed = moved, .focus = moved ? focused : std::nullopt};
         }
-        if (message == "swapwithmaster") {
-            if (*zone == Zone::Master)
+        if (command == "cyclenext" || command == "cycleprev")
+            return {.focus = next(*focused, command == "cyclenext", wrap && !has(args, "noloop"))};
+        if (command == "swapnext" || command == "swapprev") {
+            const auto other = next(*focused, command == "swapnext", wrap && !has(args, "noloop"));
+            if (!other)
                 return {};
-            toMaster(*focused);
+            swapPlaces(*focused, *other);
             return {.changed = true, .focus = focused};
         }
+        if (command == "swapwithmaster") {
+            if (*zone != Zone::Master) {
+                // `child` keeps focus on the old Master, now in the focused
+                // window's Row; with a Hole there is none, so it stays.
+                const auto oldMaster = m_master;
+                toMaster(*focused);
+                return {.changed = true, .focus = first == "child" && oldMaster ? oldMaster : focused};
+            }
+            const auto other = firstAfterMaster();
+            if (has(args, "ignoremaster") || !other)
+                return {};
+            swapPlaces(*focused, *other);
+            return {.changed = true, .focus = first == "master" ? other : focused};
+        }
         return {};
+    }
+
+    std::optional<WindowId> Workspace::firstAfterMaster() const {
+        const auto order = m_settings.fillFirst == Side::Left ? std::array{Zone::Left, Zone::Right} : std::array{Zone::Right, Zone::Left};
+        for (const Zone side : order) {
+            if (const auto& windows = rowsOf(side)->windows; !windows.empty())
+                return windows.front();
+        }
+        return std::nullopt;
+    }
+
+    std::optional<WindowId> Workspace::focusMaster(std::optional<WindowId> focused, std::string_view mode) {
+        if (!m_master)
+            return std::nullopt;
+        if (focused != m_master) {
+            // Only `previous` remembers where it came from, and only a tile.
+            if (mode == "previous" && focused && zoneOf(*focused))
+                m_beforeMaster = focused;
+            return m_master;
+        }
+        if (mode == "master")
+            return std::nullopt;
+        if (mode == "previous" && m_beforeMaster && m_beforeMaster != m_master && zoneOf(*m_beforeMaster))
+            return m_beforeMaster;
+        return firstAfterMaster();
+    }
+
+    std::optional<WindowId> Workspace::next(WindowId id, bool forward, bool wrap) const {
+        const auto windows = windowsInChainOrder();
+        if (const auto found = neighbour(windows, id, forward); found || !wrap)
+            return found;
+        if (windows.size() < 2 || !std::ranges::contains(windows, id))
+            return std::nullopt;
+        return forward ? windows.front() : windows.back();
+    }
+
+    std::optional<WindowId> Workspace::inDirection(WindowId id, Direction direction) const {
+        switch (direction) {
+            case Direction::Left: return chainNeighbour(id, false);
+            case Direction::Right: return chainNeighbour(id, true);
+            case Direction::Up: return rowNeighbour(id, false);
+            case Direction::Down: return rowNeighbour(id, true);
+        }
+        return std::nullopt;
     }
 
     std::optional<WindowId> Workspace::chainNeighbour(WindowId id, bool right) const {

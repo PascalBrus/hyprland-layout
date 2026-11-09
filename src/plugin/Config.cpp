@@ -5,6 +5,7 @@
 #include <expected>
 #include <initializer_list>
 #include <string>
+#include <vector>
 
 namespace threecol {
 
@@ -32,6 +33,23 @@ namespace threecol {
             SP<CBoolValue>   persist;
             SP<CBoolValue>   centreMaster;
         } g_values;
+
+        const SBindSwitches BIND_DEFAULTS{};
+
+        // binds.focus.*, binds.swap.*, by Direction; then the rest.
+        struct SBindValues {
+            std::array<SP<CBoolValue>, 4> focus;
+            std::array<SP<CBoolValue>, 4> swap;
+            SP<CBoolValue>                swapNext;
+            SP<CBoolValue>                cycleNext;
+            SP<CBoolValue>                wrap;
+        } g_binds;
+
+        // Read when a dispatcher runs, so nothing needs laying out again.
+        // Hyprland keeps the name and description pointers: literals only.
+        SP<CBoolValue> bindSwitch(const char* name, const char* description, bool def) {
+            return makeShared<CBoolValue>(name, description, def);
+        }
 
         // False until every value is registered. An unregistered value never
         // reads the config, so until then the defaults are used.
@@ -87,8 +105,35 @@ namespace threecol {
             g_values.centreMaster,
         };
 
+        // By Direction: Left, Right, Up, Down.
+        g_binds = {
+            .focus =
+                {
+                    bindSwitch("plugin:threecol:binds:focus:left", "focus left walks the Chain on threecol tiles", BIND_DEFAULTS.focus[0]),
+                    bindSwitch("plugin:threecol:binds:focus:right", "focus right walks the Chain on threecol tiles", BIND_DEFAULTS.focus[1]),
+                    bindSwitch("plugin:threecol:binds:focus:up", "focus up goes to the Row above on threecol tiles", BIND_DEFAULTS.focus[2]),
+                    bindSwitch("plugin:threecol:binds:focus:down", "focus down goes to the Row below on threecol tiles", BIND_DEFAULTS.focus[3]),
+                },
+            .swap =
+                {
+                    bindSwitch("plugin:threecol:binds:swap:left", "swap left swaps with the window focus left goes to", BIND_DEFAULTS.swap[0]),
+                    bindSwitch("plugin:threecol:binds:swap:right", "swap right swaps with the window focus right goes to", BIND_DEFAULTS.swap[1]),
+                    bindSwitch("plugin:threecol:binds:swap:up", "swap up swaps with the window focus up goes to", BIND_DEFAULTS.swap[2]),
+                    bindSwitch("plugin:threecol:binds:swap:down", "swap down swaps with the window focus down goes to", BIND_DEFAULTS.swap[3]),
+                },
+            .swapNext  = bindSwitch("plugin:threecol:binds:swap_next", "swap next / prev follows the Chain on threecol tiles", BIND_DEFAULTS.swapNext),
+            .cycleNext = bindSwitch("plugin:threecol:binds:cycle_next", "cycle_next follows the Chain on threecol tiles", BIND_DEFAULTS.cycleNext),
+            .wrap      = bindSwitch("plugin:threecol:wrap", "next / previous dispatchers wrap from the Chain's end to its start", BIND_DEFAULTS.wrap),
+        };
+
+        std::vector<SP<Config::Values::IValue>> binds{g_binds.swapNext, g_binds.cycleNext, g_binds.wrap};
+        binds.insert(binds.end(), g_binds.focus.begin(), g_binds.focus.end());
+        binds.insert(binds.end(), g_binds.swap.begin(), g_binds.swap.end());
+
         bool ok = true;
         for (const auto& value : all)
+            ok = HyprlandAPI::addConfigValueV2(handle, value) && ok;
+        for (const auto& value : binds)
             ok = HyprlandAPI::addConfigValueV2(handle, value) && ok;
         g_registered = ok;
         return ok;
@@ -111,6 +156,21 @@ namespace threecol {
             .persist        = g_values.persist->value(),
             .centreMaster   = g_values.centreMaster->value(),
         };
+    }
+
+    SBindSwitches bindSwitches() {
+        if (!g_registered)
+            return BIND_DEFAULTS;
+
+        SBindSwitches switches;
+        for (std::size_t i = 0; i < switches.focus.size(); ++i) {
+            switches.focus[i] = g_binds.focus[i]->value();
+            switches.swap[i]  = g_binds.swap[i]->value();
+        }
+        switches.swapNext  = g_binds.swapNext->value();
+        switches.cycleNext = g_binds.cycleNext->value();
+        switches.wrap      = g_binds.wrap->value();
+        return switches;
     }
 
 }

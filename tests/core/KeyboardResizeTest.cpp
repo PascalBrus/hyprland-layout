@@ -404,3 +404,42 @@ TEST(KeyboardResize, ResetWhileAZoneIsMissingBringsItBackAtTheGlobalWidth) {
     EXPECT_TRUE(near(ws.rectOf(1), {1024, 0, 2816, 1440}));
     EXPECT_TRUE(near(ws.rectOf(2), {3840, 0, 1280, 1440}));
 }
+
+// Step resize on a floating window: one step share of the workspace, half
+// on each side, so its centre stays put.
+
+TEST(FloatingStepResize, WiderAndNarrowerChangeTheWidthByOneStepAroundTheCentre) {
+    constexpr threecol::Rect area{0, 0, 5120, 1440};
+    constexpr threecol::Rect window{1000, 200, 800, 600};
+
+    // A step of 0.05 is 256 px of the width: 128 px each side.
+    EXPECT_EQ(threecol::floatingStepResize("resize wider", window, area, 0.05), (threecol::Rect{872, 200, 1056, 600}));
+    EXPECT_EQ(threecol::floatingStepResize("resize narrower", window, area, 0.05), (threecol::Rect{1128, 200, 544, 600}));
+}
+
+TEST(FloatingStepResize, TallerAndShorterChangeTheHeightByOneStepAroundTheCentre) {
+    constexpr threecol::Rect area{0, 0, 5120, 1440};
+    constexpr threecol::Rect window{1000, 200, 800, 600};
+
+    // 0.05 of 1440 is 72 px: 36 px each side.
+    EXPECT_EQ(threecol::floatingStepResize("resize taller", window, area, 0.05), (threecol::Rect{1000, 164, 800, 672}));
+    EXPECT_EQ(threecol::floatingStepResize("resize shorter", window, area, 0.05), (threecol::Rect{1000, 236, 800, 528}));
+}
+
+TEST(FloatingStepResize, StopsShrinkingAtOneStep) {
+    constexpr threecol::Rect area{0, 0, 5120, 1440};
+
+    // 300 px wide, a step is 256: it stops at 256, centre kept.
+    EXPECT_EQ(threecol::floatingStepResize("resize narrower", threecol::Rect{1000, 200, 300, 600}, area, 0.05), (threecol::Rect{1022, 200, 256, 600}));
+    // Already at one step: nothing to do.
+    EXPECT_EQ(threecol::floatingStepResize("resize narrower", threecol::Rect{1000, 200, 256, 600}, area, 0.05), std::nullopt);
+    // Smaller than one step already: it never grows from a shrink.
+    EXPECT_EQ(threecol::floatingStepResize("resize narrower", threecol::Rect{1000, 200, 100, 600}, area, 0.05), std::nullopt);
+}
+
+TEST(FloatingStepResize, OtherMessagesAreNoStepResize) {
+    constexpr threecol::Rect area{0, 0, 5120, 1440};
+
+    EXPECT_EQ(threecol::floatingStepResize("reset", threecol::Rect{0, 0, 800, 600}, area, 0.05), std::nullopt);
+    EXPECT_EQ(threecol::floatingStepResize("focus l", threecol::Rect{0, 0, 800, 600}, area, 0.05), std::nullopt);
+}

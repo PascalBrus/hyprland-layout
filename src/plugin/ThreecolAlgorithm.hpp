@@ -46,6 +46,19 @@ namespace threecol {
         Config::ErrorResult             layoutMsg(const std::string_view& sv) override;
         std::optional<Vector2D>         predictSizeForNewTarget() override;
 
+        // For the hooks on Hyprland's dispatchers (DispatcherHooks.cpp).
+        // The instance that tiles `window`, with nothing fullscreen on its
+        // workspace and no tile being dragged; nullptr otherwise.
+        static CThreecolAlgorithm*      tiling(const PHLWINDOW& window);
+
+        // The window focus in `direction` goes to from `window`, one of this
+        // instance's tiles, as Workspace::inDirection says; nullptr if none.
+        PHLWINDOW                       inDirection(const PHLWINDOW& window, Direction direction) const;
+
+        // The window after `window` on the Chain, or before it, as
+        // Workspace::next says; nullptr if none.
+        PHLWINDOW                       next(const PHLWINDOW& window, bool forward, bool wrap) const;
+
       private:
         Workspace                                          m_model;
         std::vector<std::pair<WindowId, WP<Layout::ITarget>>> m_targets;

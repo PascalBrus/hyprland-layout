@@ -56,6 +56,13 @@ namespace threecol {
     // and `reset` don't, so they work with a floating window focused too.
     bool needsFocusedTile(std::string_view message);
 
+    // Step resize on a floating window `window`: `resize wider` / `narrower`
+    // change its width, `resize taller` / `shorter` its height, by `step`
+    // of `area`'s, half on each side, so its centre stays put. It shrinks
+    // no smaller than one step. Nothing for any other message, or when the
+    // window can shrink no further.
+    std::optional<Rect> floatingStepResize(std::string_view message, Rect window, Rect area, double step);
+
     // What a settings change did.
     struct SettingsChange {
         std::vector<std::string> warnings; // what was ignored or adjusted
@@ -126,7 +133,28 @@ namespace threecol {
         // `move` does, focus staying on it. `swapwithmaster` swaps the focused
         // window with Master, the old Master taking its Row, or moves it into
         // a Hole; it does nothing on Master.
-        MessageResult       layoutMessage(std::string_view message, std::optional<WindowId> focused);
+        //
+        // The master layout's messages take its arguments: `focusmaster
+        // [auto|master|previous]` and `swapwithmaster [auto|master|child]
+        // [ignoremaster]`, where on Master the other window is the first one
+        // after Master in Fill order. `cyclenext` / `cycleprev` focus, and
+        // `swapnext` / `swapprev` swap with, the next or previous window on
+        // the Chain, focus staying on the swapped one; they wrap only with
+        // `wrap`, and never with `noloop`. The master and dwindle messages
+        // threecol has no use for, e.g. `addmaster`, `mfact`, `togglesplit`,
+        // do nothing like any unknown message.
+        MessageResult       layoutMessage(std::string_view message, std::optional<WindowId> focused, bool wrap = false);
+
+        // The window after `id` on the Chain (`forward`) or before it.
+        // Nothing at an end, unless `wrap`: then the far end leads back to
+        // the start. Nothing if `id` is alone or isn't here.
+        std::optional<WindowId> next(WindowId id, bool forward, bool wrap) const;
+
+        // The window focus in `direction` goes to from `id`: along the Chain
+        // for `Left` / `Right`, the Row above or below inside its side zone
+        // for `Up` / `Down`. Nothing past the Chain's ends or the zone's
+        // edges, and up or down on Master.
+        std::optional<WindowId> inDirection(WindowId id, Direction direction) const;
 
         // Moves `id` one step along the Chain (`Left`, `Right`) or inside its
         // zone (`Up`, `Down`), stopping at the Chain's ends and the zone's
@@ -269,7 +297,20 @@ namespace threecol {
         // The Zone `id` is in, or nothing if it isn't on this workspace.
         std::optional<Zone>     zoneOf(WindowId id) const;
 
-        MessageResult           applyLayoutMessage(std::string_view message, std::optional<WindowId> focused);
+        MessageResult           applyLayoutMessage(std::string_view message, std::optional<WindowId> focused, bool wrap);
+
+        // The first window after Master in Fill order: the top Row of the
+        // fill_first side, else of the other. Nothing if both are empty.
+        std::optional<WindowId> firstAfterMaster() const;
+
+        // Where `focusmaster <mode>` sends focus from `focused`, as the master
+        // layout does: Master from any other window; on Master nothing for
+        // `master`, the window `focusmaster previous` last left for
+        // `previous`, else the first window after Master.
+        std::optional<WindowId> focusMaster(std::optional<WindowId> focused, std::string_view mode);
+
+        // The tile `focusmaster previous` last left, to go back to.
+        std::optional<WindowId> m_beforeMaster;
 
         // The next window from `id` along the Chain, one way or the other.
         std::optional<WindowId> chainNeighbour(WindowId id, bool right) const;
