@@ -49,7 +49,7 @@ A vertical boundary between Master and a side zone that isn't missing: Left|Mast
 _Avoid_: edge, border, split
 
 **Chain**:
-The order H/L focus and moves walk through a workspace's windows: Left top to bottom, then Master, then Right top to bottom, as they sit on screen. It has two ends and doesn't wrap; an empty zone counts as one step, and a missing zone isn't in it.
+The order H/L focus and moves walk through a workspace's windows: Left top to bottom, then Master, then Right top to bottom, as they sit on screen. It has two ends and doesn't wrap, unless wrapping is turned on: then the next and previous dispatchers go from the far end back to the start. An empty zone counts as one step, and a missing zone isn't in it.
 _Avoid_: cycle, focus order, walk
 
 **Row**:
@@ -73,5 +73,13 @@ A resize by a given amount in pixels, from a bind or command that names the amou
 _Avoid_: resizeactive, gesture resize
 
 **Step resize**:
-A resize by one step, a fixed share of the screen set in the settings, from the resize keys or the resize layout message. It makes the focused zone wider or narrower, or the focused Row taller or shorter. The new sizes are kept straight away.
+A resize by one step, a fixed share of the screen set in the settings, from the resize keys or the resize layout message. It makes the focused zone wider or narrower, or the focused Row taller or shorter. The new sizes are kept straight away. A floating window grows or shrinks by one step on both sides, so its centre stays put.
 _Avoid_: keyboard resize, resize wider
+
+**Hyprland dispatcher**:
+One of Hyprland's own bind targets, such as focus, move or swap by direction. On a window threecol tiles, threecol gives some of them its own meaning. Where Hyprland has a behaviour of its own for one, a switch can give it back; where Hyprland leaves it to the layout, there is nothing to give back and it is always threecol's.
+_Avoid_: stock bind, Hyprland action, default bind
+
+**threecol dispatcher**:
+A bind target threecol adds through the layout message, such as Chain focus, Step resize and reset. It always behaves the threecol way and has no switch.
+_Avoid_: threecol action, custom bind, layout command
