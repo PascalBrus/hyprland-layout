@@ -365,10 +365,10 @@ TEST(SwapWithMaster, OnAHoleTheWindowMovesIn) {
     EXPECT_TRUE(near(ws.rectOf(4), RIGHT_ZONE));
 }
 
-TEST(SwapWithMaster, DoesNothingOnMasterOrWithNoFocus) {
+TEST(SwapWithMaster, DoesNothingOnMasterWithIgnoremasterOrWithNoFocus) {
     Workspace ws = filled(1, 3);
 
-    EXPECT_FALSE(ws.layoutMessage("swapwithmaster", 1));
+    EXPECT_FALSE(ws.layoutMessage("swapwithmaster auto ignoremaster", 1));
     EXPECT_FALSE(ws.layoutMessage("swapwithmaster", std::nullopt));
     EXPECT_TRUE(near(ws.rectOf(1), MASTER_ZONE));
 }

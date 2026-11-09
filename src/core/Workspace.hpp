@@ -132,7 +132,7 @@ namespace threecol {
         // without a focused window. `move l|r|u|d` moves the focused window as
         // `move` does, focus staying on it. `swapwithmaster` swaps the focused
         // window with Master, the old Master taking its Row, or moves it into
-        // a Hole; it does nothing on Master.
+        // a Hole; on Master it acts as its arguments below say.
         //
         // The master layout's messages take its arguments: `focusmaster
         // [auto|master|previous]` and `swapwithmaster [auto|master|child]
