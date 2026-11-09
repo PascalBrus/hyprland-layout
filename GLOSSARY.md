@@ -49,8 +49,12 @@ A vertical boundary between Master and a side zone that isn't missing: Left|Mast
 _Avoid_: edge, border, split
 
 **Chain**:
-The order H/L focus and moves walk through a workspace's windows: Left top to bottom, then Master, then Right top to bottom, as they sit on screen. It has two ends and doesn't wrap, unless wrapping is turned on: then the next and previous dispatchers go from the far end back to the start. An empty zone counts as one step, and a missing zone isn't in it.
+The order H/L focus and moves walk through a workspace's windows: Left top to bottom, then Master, then Right top to bottom, as they sit on screen. It has two ends, and focus, swaps and moves go from one end back to the other, as Hyprland's own dispatchers loop. Up and down loop the same way inside a side zone. Looping can be turned off, and a bind can ask not to loop. Nothing leaves the Chain for another monitor. For a move, an empty zone counts as one step; focus skips it. A missing zone isn't in it.
 _Avoid_: cycle, focus order, walk
+
+**Cycle**:
+The order `cycle_next` walks through a workspace's windows: the Chain, then the floating windows in Hyprland's order, then back to the start of the Chain. Only `cycle_next` walks it; every other next and previous dispatcher stays on the Chain.
+_Avoid_: loop, window order, focus order
 
 **Row**:
 One window's slot in a side zone, counted from the top. A height belongs to the Row, not the window: a window moved into a Row takes that Row's height.
