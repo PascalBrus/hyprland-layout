@@ -87,3 +87,7 @@ _Avoid_: stock bind, Hyprland action, default bind
 **threecol dispatcher**:
 A bind target threecol adds through the layout message, such as Chain focus, Step resize and reset. It always behaves the threecol way and has no switch.
 _Avoid_: threecol action, custom bind, layout command
+
+**Settings app**:
+The graphical program, `threecol-settings`, for setting every threecol setting, workspace override and bind without reading the README. Each entry shows what it does, as a picture and in words, and changes take effect when saved.
+_Avoid_: GUI, visual manager, configurator, overlay
