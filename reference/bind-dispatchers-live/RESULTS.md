@@ -94,16 +94,16 @@ No bugs found in the plugin. A first run expected T4 left (after swapping into t
 
 Not checked: the drag and mouse-resize rows (`window.drag`, `window.resize` as a mouse bind). They move the real pointer, so they wait for the author's yes.
 
-## #85: the #81 rows, focus after close, One-off resize, drag and Drag resize (2026-11-10, in progress)
+## #85: the #81 rows, focus after close, One-off resize, drag and Drag resize (2026-11-10)
 
-- Keyboard checks: Hyprland 0.57.2 (`11cbc6c5`) nested, threecol built from `fd66dfe` plus this branch's uncommitted #85 work (no plugin changes), run with [`live85.py`](live85.py). Setup as in #83: Chain T2, T1, T3, T4; F and G floating, opened after them, so the Cycle is T2, T1, T3, T4, F, G and Hyprland's window order T1, T2, T3, T4, F, G.
+- Keyboard checks: Hyprland 0.57.2 (`11cbc6c5`) nested, threecol built at `10dd222` (no plugin changes since `fd66dfe`), run with [`live85.py`](live85.py): `python3 -I live85.py all` once, 15 of 15 pass. Setup as in #83: Chain T2, T1, T3, T4; F and G floating, opened after them, so the Cycle is T2, T1, T3, T4, F, G and Hyprland's window order T1, T2, T3, T4, F, G.
 - Mouse checks: in the author's real session on its workspace 9 (Hyprland 0.57.1, `acc1aa0b`, with the hyprpm threecol build it has loaded, `centre_master = false`), with the author's own SUPER + left / right button binds, run with [`outer85.py`](outer85.py). This branch changes no drop or Drag resize code, so that build tests the same code. The nested harness can't run them: the outer session owns SUPER + mouse.
 
 | Check | Dispatcher | Switches | Seen | Result |
 |---|---|---|---|---|
 | `swap_next_loops` | `window.swap({ next \| prev })`, 8 in a row | `binds.swap_next`, `wrap.swap_next` on | Each swaps with the next / previous on the Chain, looping; focus stays on the swapped window | PASS |
 | `swap_next_no_wrap` | the same 8 | `wrap.swap_next` off | No swap past an end | PASS |
-| `swap_next_hyprland` | swap next / prev | `binds.swap_next` off, `wrap.swap_next` on and off | Hyprland's: from T1 next swaps with T2 (window order), not T3 (Chain) | PASS once, FAIL once: see below |
+| `swap_next_hyprland` | swap next / prev | `binds.swap_next` off, `wrap.swap_next` on and off | Hyprland's, the same either way: from T1 next swaps with T2 (window order), not T3 (Chain) | PASS |
 | `cycle_next_loops` | `window.cycle_next()`, both ways from all 6 windows | `binds.cycle_next`, `wrap.cycle_next` on | One step along the Cycle, from tiles and floating windows; G next → T2, T2 back → G | PASS |
 | `cycle_next_no_wrap` | the same 12 | `wrap.cycle_next` off | Stops at T2 back and G next | PASS |
 | `cycle_next_tiled_only` | `cycle_next({ tiled = true })` | `wrap.cycle_next` on and off | From a tile: the Chain alone, looping or not; from F / G: Hyprland's (T1, T4), the same with `binds.cycle_next` off | PASS |
@@ -124,11 +124,16 @@ Not checked: the drag and mouse-resize rows (`window.drag`, `window.resize` as a
 
 Found:
 
-1. The glossary said a positive One-off resize makes the window bigger. It moves the Divider or Row edge by the amount instead, as a drag would, so `x > 0` narrows a Right window. The unit tests already expect this, and Hyprland's master layout does the same (`MasterAlgorithm.cpp:351`). The glossary and the README row now say so; no plugin change.
+1. The glossary said a positive One-off resize makes the window bigger. It moves the Divider or Row edge by the amount instead, as a drag would, so `x > 0` narrows a Right window. The unit tests already expect this, and Hyprland's master layout does the same (`MasterAlgorithm.cpp:351-353`). The glossary and the README row now say so; no plugin change.
 2. The README's `cycle_next` row said `next` / `prev`; Lua's `cycle_next` takes `{ next = false }`, with no `prev` (`LuaBindingsDispatchers.cpp:955-969`). Fixed.
 3. Citations checked at `acc1aa0b`; fixed: `inDirection` pointed at the wrapper (`WindowQuery.cpp:23-47`, now `:49-257`), the dwindle range stopped at `preselect`'s first line (now `:681-768`), the three master-message cells shared one link (now one each), and `cyclenext` / `cycleprev` are known to the monocle layout too. The ignored table now lists `rollnext` / `rollprev`, `rotatesplit`, `movetoroot` and `splitratio`, which threecol ignored already.
 
-Still to do (next session):
+4. `swap_next_hyprland` failed once in an earlier run, and that was the check, not Hyprland. Both runs made the same swap; only the tiles' heights differed, 0.98 against 0.99 of the output. The nested output's size had changed between the runs, and as gaps and borders are fixed pixels, a tile's share of it moved across a rounding step. `live85.py` now compares shares to within 0.02 (`alike`) instead of rounding them. Hyprland's own swap is the same on fresh windows: the last-swapped window it counts from (`ConfigActions.cpp:747-759`) is set only by `swapNext`, and nothing raises a tile in the window order. Run 15 times after the fix (6 alone, 3 after the other swap checks, then `all`): no failure.
+5. Citations: `swapNext` now cites `:747-759`, which includes where it records the last-swapped window, and `masterResize` `:351-353`, the sign flip. The `cycle_next` row now says that `tiled` and `floating` both give the Cycle.
 
-- `swap_next_hyprland` passed once and failed once: in the failing run, Hyprland's swap next from T1 gave a different first step with `wrap.swap_next` on and off. Hyprland's `swapNext` counts from the window it last swapped with (`ConfigActions.cpp:747-753`), and the nested output size flips after some reloads; either may explain it. Find out, then run `python3 -I live85.py all` once clean on the final code.
-- Not checked: the drop highlight in the real session (`outer85.py` doesn't take screenshots there).
+Left for the author:
+
+- The drop highlight in the real session: `outer85.py` doesn't take screenshots there.
+- Hook failure is checked live only for `moveFocus` (#83 `hook_failure`). The swap in direction, `swapNext` and `cycleNext` hooks share the code path but weren't failed live.
+- `live85.py`'s Hyprland comparisons leave floating windows' places out (only their state counts), so they don't catch a floating window that moves.
+- This section says the nested harness can't run the drop checks, but `live85.py --mouse` has them, with the nested ALT binds. They weren't run for #85; decide whether to keep them.

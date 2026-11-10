@@ -7,15 +7,16 @@ plus focus after a window closes and the One-off resize.
 
 The drop checks move the author's real pointer (see
 ../since-46-live/README.md, "(mouse) checks"): ask the author first. `all`
-leaves them out; the Drag resize rows are the harness's own c1-c3, c6, c7.
+leaves them out. The #85 drop and Drag resize results came from outer85.py,
+in the author's real session, instead.
 
 Default settings: four() gives Master T1, Left T2, Stack T3 above T4, so the
 Chain is T2, T1, T3, T4, while Hyprland's window order is T1, T2, T3, T4 (the
 order they opened). Floating F and G open after them, so the Cycle is T2, T1,
 T3, T4, F, G. Switches change with runtime hl.config (c.setting), never a
 reload. What threecol should do is worked out from the tiles' positions; where
-Hyprland's behaviour runs, runs with the wrap switch on and off must match. No
-check moves the mouse or presses a key.
+Hyprland's behaviour runs, runs with the wrap switch on and off must match.
+Only the drop checks move the mouse; no check presses a key.
 """
 import os, sys, time
 
@@ -133,16 +134,36 @@ def trace(steps, focus_only=False):
         if who:
             n.focus(who)
         act()
-        # Tiles' places as shares of the output, rounded: its size can change
-        # after a reload (it follows the nested window), which isn't a
-        # difference. Floating windows open at a size that follows it too, and
-        # no step moves them, so only their state counts.
+        # Tiles' places as shares of the output: its size can change after a
+        # reload (it follows the nested window), which isn't a difference.
+        # Floating windows open at a size that follows it too, and no step
+        # moves them, so only their state counts.
         W, H = c.width(), c.height()
-        frac = lambda xy: (round(xy[0] / W, 2), round(xy[1] / H, 2))
+        frac = lambda xy: (round(xy[0] / W, 3), round(xy[1] / H, 3))
         place = lambda x: ((), ()) if x["floating"] else (frac(x["at"]), frac(x["size"]))
         cs = [] if focus_only else sorted((x["title"], *place(x), x["floating"], x["fullscreen"]) for x in n.clients())
         out.append((who, n.active(), cs))
     return out
+
+
+# Gaps and borders are fixed pixels, so a tile's share of the output moves a
+# little when the output's size does: 0.98 of the height at one size is 0.99
+# at another. Shares closer than this are the same place.
+SHARE = 0.02
+
+
+def alike(x, y):
+    """Two trace steps: the same focus and windows, each in the same place give or take SHARE."""
+    (who, on, cs), (who2, on2, cs2) = x, y
+    if (who, on, len(cs)) != (who2, on2, len(cs2)):
+        return False
+    for a, b in zip(cs, cs2):
+        if (a[0], a[3], a[4]) != (b[0], b[3], b[4]):
+            return False
+        shares = [v for pair in a[1:3] for v in pair], [v for pair in b[1:3] for v in pair]
+        if len(shares[0]) != len(shares[1]) or any(abs(p - q) > SHARE for p, q in zip(*shares)):
+            return False
+    return True
 
 
 def compare(setup, steps, what, combos, focus_only=False):
@@ -156,7 +177,7 @@ def compare(setup, steps, what, combos, focus_only=False):
         traces.append(trace(steps, focus_only))
     for combo, t in zip(combos[1:], traces[1:]):
         for i, (x, y) in enumerate(zip(traces[0], t)):
-            if x != y:
+            if not alike(x, y):
                 expect(False, f"{what}: {combo} differs from {combos[0]} at step {i} ({x[0]}): {x[1:]} vs {y[1:]}")
                 break
     return traces
@@ -172,7 +193,7 @@ def swap_next_hyprland():
     off, _ = compare(four, SWAP_STEPS, "swap next, binds off",
                      [dict(swap_next=False), dict(swap_next=False, wrap_swap_next=False)])
     on, = compare(four, SWAP_STEPS, "swap next, binds on", [dict()])
-    expect(on != off, "binds.swap_next off changed nothing")
+    expect(not all(alike(x, y) for x, y in zip(on, off)), "binds.swap_next off changed nothing")
     # From T1, the Chain's next is T3; Hyprland's window order gives T2.
     c.reset()
     start = four()
