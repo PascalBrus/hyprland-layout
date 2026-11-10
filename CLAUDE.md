@@ -1,0 +1,2 @@
+- Terms (Zone, Chain, Row, Hole, Stack): `GLOSSARY.md`.
+- Live checks run in a nested Hyprland on workspace 9: `reference/bind-dispatchers-live/README.md`. Write a new issue's checks there as `live<issue>.py`.

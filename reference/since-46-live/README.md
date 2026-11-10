@@ -18,33 +18,35 @@ Everything except G1 runs in a **nested Hyprland** with its own config and `XDG_
 | `checks.py` | The checks, and the runner |
 | `nest.py` | Drives the nested instance through `hyprctl` (the #52 one, extended) |
 | `mouse.py` | Mouse input for the (mouse) checks: extends [`../uinput.py`](../uinput.py) with the safety rules below |
-| `launch.sh` | Starts the nested Hyprland |
+| `up.sh`, `down.sh` | Set up a harness directory and start the nested Hyprland in it; stop it again |
+| `launch.sh` | Starts the nested Hyprland (`up.sh` runs it) |
 | `nest/hyprland.lua` | Its config: output 2560x720, gaps 5, borders 2, animations off, `examples/binds.lua` recorded in `BINDS`, ALT + mouse for drag and Drag resize, and `nest/extra.lua` (written by each check) |
 
 ## Set up
 
-1. Copy this folder to a working directory and fill in the placeholders. `<HARNESS>` is that directory, `<REPO>` this checkout:
+```sh
+reference/since-46-live/up.sh "$H" [threecol.so]   # default: build/threecol.so
+reference/since-46-live/down.sh "$H"               # when done
+```
 
-   ```sh
-   H=~/tmp/since-46; R=~/Projects/work/hyprland-layout
-   cp -r "$R/reference/since-46-live" "$H"
-   sed -i "s|<HARNESS>|$H|g; s|<REPO>|$R|g" "$H/launch.sh" "$H/nest/hyprland.lua" "$H/nest.py"
-   cd "$H"
-   ```
+`up.sh` copies this folder into `$H` and links the [`../bind-dispatchers-live/`](../bind-dispatchers-live/) checks there, so an edit to one runs without copying it again (an empty directory or an earlier harness), fills in `<HARNESS>` and `<REPO>`, and copies the plugin to `$H/build/threecol.so`. Then it launches the nested Hyprland silently on the outer workspace 9, so nothing on the author's workspaces moves, and writes its signature to `$H/sig.txt`. It returns once threecol is loaded and the output size has settled after one reload. `down.sh` stops that instance only.
 
+For the #66 checklist, test a fixed commit instead of the current build:
+
+1. Run `up.sh`, then `down.sh`, to fill in `$H`.
 2. Run G1 first. It builds the commit under test (`BUILD_REF` in `checks.py`, `7041cc8`) from a clean `git archive` into `build/`, runs the unit suite, and leaves `build/threecol.so` for the nested instance to load:
 
    ```sh
    python3 -I checks.py g1
    ```
 
-3. Launch the nested Hyprland silently on the outer workspace 9, so nothing on the author's workspaces moves:
+3. Start the nested Hyprland on that build with `launch.sh` alone: `up.sh` would copy `build/threecol.so` over it.
 
    ```sh
    hyprctl dispatch "hl.dsp.exec_cmd('$H/launch.sh', { workspace = '9 silent' })"
    ```
 
-   `checks.py` targets the instance whose signature is in `sig.txt`, or else the newest live one in `hyprctl instances` that isn't the outer session. It refuses to run without `HYPRLAND_INSTANCE_SIGNATURE`, as it then can't tell the outer session apart. Its log is `nest/log.txt`.
+`checks.py` targets the instance whose signature is in `sig.txt`, or else the newest live one in `hyprctl instances` that isn't the outer session. It refuses to run without `HYPRLAND_INSTANCE_SIGNATURE`, as it then can't tell the outer session apart. Its log is `nest/log.txt`.
 
 The nested output may not be exactly 2560x720: it follows the window it runs in (and is the outer monitor's size when fullscreen). The checks measure in fractions of the output, so this doesn't matter.
 

@@ -13,4 +13,17 @@ namespace threecol {
     // The global values as currently set.
     Settings globalSettings();
 
+    // The switches for Hyprland's dispatchers threecol changes, and wrap,
+    // as currently set. Global only, read each time a dispatcher runs.
+    struct SBindSwitches {
+        // Each covers every direction or both ways of its dispatcher.
+        bool focus     = true;
+        bool swap      = true;
+        bool swapNext  = true;
+        bool cycleNext = true;
+        // Which dispatchers loop. Only threecol's behaviour reads them.
+        Wrap wrap      = {};
+    };
+    SBindSwitches bindSwitches();
+
 }

@@ -49,8 +49,12 @@ A vertical boundary between Master and a side zone that isn't missing: Left|Mast
 _Avoid_: edge, border, split
 
 **Chain**:
-The order H/L focus and moves walk through a workspace's windows: Left top to bottom, then Master, then Right top to bottom, as they sit on screen. It has two ends and doesn't wrap; an empty zone counts as one step, and a missing zone isn't in it.
+The order H/L focus and moves walk through a workspace's windows: Left top to bottom, then Master, then Right top to bottom, as they sit on screen. It has two ends, and focus, swaps and moves go from one end back to the other, as Hyprland's own dispatchers loop. Up and down loop the same way inside a side zone. Looping can be turned off, and a bind can ask not to loop. Nothing leaves the Chain for another monitor. For a move, an empty zone counts as one step; focus skips it. A missing zone isn't in it.
 _Avoid_: cycle, focus order, walk
+
+**Cycle**:
+The order `cycle_next` walks through a workspace's windows: the Chain, then the floating windows in Hyprland's order, then back to the start of the Chain. Only `cycle_next` walks it; every other next and previous dispatcher stays on the Chain.
+_Avoid_: loop, window order, focus order
 
 **Row**:
 One window's slot in a side zone, counted from the top. A height belongs to the Row, not the window: a window moved into a Row takes that Row's height.
@@ -69,9 +73,17 @@ A resize with the mouse. The Divider or Row edge nearest the grabbed point follo
 _Avoid_: mouse resize
 
 **One-off resize**:
-A resize by a given amount in pixels, from a bind or command that names the amount, or from a trackpad gesture. A positive amount makes the window bigger, a negative one smaller. The new sizes are kept straight away.
+A resize by a given amount in pixels, from a bind or command that names the amount, or from a trackpad gesture. The amount moves the window's Divider and Row edge as a drag by that much would: a positive x to the right, a positive y down. So a positive x makes a Left window wider and a Right window narrower, as in Hyprland's master layout. The new sizes are kept straight away.
 _Avoid_: resizeactive, gesture resize
 
 **Step resize**:
-A resize by one step, a fixed share of the screen set in the settings, from the resize keys or the resize layout message. It makes the focused zone wider or narrower, or the focused Row taller or shorter. The new sizes are kept straight away.
+A resize by one step, a fixed share of the screen set in the settings, from the resize keys or the resize layout message. It makes the focused zone wider or narrower, or the focused Row taller or shorter. The new sizes are kept straight away. A floating window grows or shrinks by one step on both sides, so its centre stays put.
 _Avoid_: keyboard resize, resize wider
+
+**Hyprland dispatcher**:
+One of Hyprland's own bind targets, such as focus, move or swap by direction. On a window threecol tiles, threecol gives some of them its own meaning. Where Hyprland has a behaviour of its own for one, a switch can give it back; where Hyprland leaves it to the layout, there is nothing to give back and it is always threecol's.
+_Avoid_: stock bind, Hyprland action, default bind
+
+**threecol dispatcher**:
+A bind target threecol adds through the layout message, such as Chain focus, Step resize and reset. It always behaves the threecol way and has no switch.
+_Avoid_: threecol action, custom bind, layout command

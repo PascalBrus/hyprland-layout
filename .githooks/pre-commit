@@ -1,0 +1,35 @@
+#!/bin/sh
+# Checks the docs and the style of the staged lines, then builds with warnings
+# as errors, runs the unit suite and syntax-checks the Lua examples. Turned on
+# per clone with: git config core.hooksPath .githooks
+# The build and the docs check read the working tree, not only what is staged.
+set -e
+cd "$(git rev-parse --show-toplevel)"
+
+# Code names in the docs still exist in the code.
+python3 -I .githooks/doc-names.py
+
+# Staged C++ lines follow .clang-format. Fix them with: git clang-format
+git clang-format --staged --diff -q -- src tests > /dev/null || {
+    git clang-format --staged --diff -q -- src tests | head -40
+    echo "pre-commit: staged lines aren't formatted; run git clang-format, then git add" >&2; exit 1
+}
+
+# New comment lines wrap at 80 columns, like the comments around them.
+long=$(git diff --cached -U0 -- src tests | grep -E '^\+[[:space:]]*//' | awk 'length($0) > 81' | cut -c2-)
+[ -z "$long" ] || { echo "$long"; echo "pre-commit: comment lines over 80 columns; rewrap them" >&2; exit 1; }
+
+# No two blank lines in a row in a staged C++ file, e.g. where a deleted function was.
+for f in $(git diff --cached --name-only --diff-filter=AM -- src tests); do
+    git show ":$f" | awk -v f="$f" 'prev == "" && $0 == "" && NR > 1 { print f ":" NR ": two blank lines"; bad = 1 } { prev = $0 } END { exit bad }' ||
+        { echo "pre-commit: remove the extra blank line" >&2; exit 1; }
+done
+
+# Commits that touch no code, build file or example skip the build.
+git diff --cached --name-only | grep -qE '^(src|tests|cmake|examples)/|^CMakeLists\.txt$' || exit 0
+
+B=build-check
+[ -f "$B/CMakeCache.txt" ] || cmake -S . -B "$B" -DTHREECOL_WERROR=ON > /dev/null
+cmake --build "$B" -j > "$B/build.log" 2>&1 || { grep -E 'error' "$B/build.log" | head -20; echo "pre-commit: build failed, see $B/build.log" >&2; exit 1; }
+ctest --test-dir "$B" --output-on-failure > "$B/ctest.log" 2>&1 || { tail -30 "$B/ctest.log"; echo "pre-commit: tests failed" >&2; exit 1; }
+luac -p examples/*.lua

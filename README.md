@@ -25,10 +25,10 @@ Either side can be the Stack, or both: `left_rows = "unlimited"` with `right_row
 - **No room.** With both sides limited, a window that finds no room (Master taken and both sides full) floats at its own size, centred. It stays floating when room frees up.
 - **Holes.** Close the Master window and its place stays empty; nothing slides in. The next new window fills it.
 - **Rows.** Each side holds one window per **Row**. A Stack holds any number; a side with a Row limit (`left_rows`, `right_rows`) holds up to that many. By default Left holds one and Right is the Stack; mirrored, it's the other way round.
-- **Resizing.** Dragging with `window.resize` moves the **Dividers** between zones and the edges between Rows. The keyboard `resize` actions do the same in steps, and `reset` puts them back. By default Master stays in the middle (**Centred Master**): every sideways resize moves both Dividers, equal and opposite. Each workspace keeps its own Dividers, saved across reboots.
+- **Resizing.** Dragging with `window.resize` moves the **Dividers** between zones and the edges between Rows. The `resize` and `reset` [dispatchers](#threecol-dispatchers) do the same in steps and put them back. By default Master stays in the middle (**Centred Master**): every sideways resize moves both Dividers, equal and opposite. Each workspace keeps its own Dividers, saved across reboots.
 - **Drag-and-drop.** Drag a window (`window.drag`) onto another to swap them, onto the bottom quarter of a zone to add it there, or into an empty zone to move it. A highlight shows where it will land.
 - **Per workspace.** Zone widths, Row limits, `fill_first` and Centred Master can each be set for one workspace with a workspace rule: three columns on the ultrawide, two on a laptop screen, one on a vertical monitor. See [Workspace overrides](#workspace-overrides).
-- **Chain focus.** `focus l` / `focus r` walk the windows left to right on screen: Left top → bottom, Master, Right top → bottom, whichever side is the Stack. `focus u` / `focus d` move up and down inside Left or Right. See [Binds](#binds).
+- **Your binds, the threecol way.** Hyprland's own focus, swap and cycle dispatchers follow the **Chain** on threecol windows: Left top → bottom, Master, Right top → bottom. The master layout's `focusmaster` and `swapwithmaster` work too. See [Binds](#binds) for what each dispatcher does.
 
 The words in **bold** are defined in [`GLOSSARY.md`](GLOSSARY.md).
 
@@ -111,34 +111,96 @@ require("custom.mylayout") -- calls hl.layout.register(...)
 
 ## Binds
 
-threecol binds no keys. You bind its actions to whatever keys you like, the same way as any Hyprland action:
+threecol binds no keys, and the binds you already have keep working. Everything here is a **dispatcher**, as Hyprland calls its bind targets, and works the same from `hyprctl dispatch`, e.g. `hyprctl dispatch "hl.dsp.layout('reset')"`.
 
-```lua
-hl.bind("<your keys>", hl.dsp.layout("reset"))
-```
+- **Hyprland dispatchers** are Hyprland's own. On a window threecol tiles, with nothing fullscreen, some behave the threecol way. Everywhere else (floating windows, fullscreen, other layouts) they behave exactly as in Hyprland.
+- **threecol dispatchers** are new, sent with `hl.dsp.layout("…")`. Add the ones you want.
 
-**Binds you already have keep working.** Rows marked *Hyprland* are Hyprland's own actions, which threecol follows. Rows marked *threecol* are new: add the ones you want.
+Hyprland's behaviour below is cited at Hyprland 0.57.1 ([`acc1aa0b`](https://github.com/hyprwm/Hyprland/tree/acc1aa0bfd4bd575dcb0f76c35ccf12b660a1ab9); the same lines in 0.57.0).
 
-| Action | What to bind | From |
-|---|---|---|
-| Move a window | `hl.dsp.window.move({ direction = "left" })`<br>`left` / `right` / `up` / `down` | Hyprland |
-| Drag-and-drop a window | `hl.dsp.window.drag()`, as a mouse bind | Hyprland |
-| Resize with the mouse | `hl.dsp.window.resize()`, as a mouse bind | Hyprland |
-| Swap two windows | `hl.dsp.window.swap({ next = true })` | Hyprland |
-| Focus the nearest window on screen | `hl.dsp.focus({ direction = "left" })`<br>`left` / `right` / `up` / `down` | Hyprland |
-| Focus along the **Chain**<br>(Left → Master → Right) | `hl.dsp.layout("focus l")`<br>`l` / `r` / `u` / `d` | threecol |
-| Focus Master | `hl.dsp.layout("focusmaster")` | Hyprland (master layout) |
-| Swap with Master | `hl.dsp.layout("swapwithmaster")` | Hyprland (master layout) |
-| Make the focused window wider / narrower | `hl.dsp.layout("resize wider")`<br>`wider` / `narrower` | threecol |
-| Make the focused Row taller / shorter | `hl.dsp.layout("resize taller")`<br>`taller` / `shorter` | threecol |
-| Reset Dividers and Row heights | `hl.dsp.layout("reset")` | threecol |
+### Hyprland dispatchers threecol changes
+
+| Dispatcher | Hyprland's behaviour | threecol's behaviour | Switch, `true` by default |
+|---|---|---|---|
+| `hl.dsp.focus({ direction = "left" })`<br>`left` / `right` | Focuses the nearest window in that direction, which can be on another monitor ([`ConfigActions.cpp:465`][moveFocus], [`WindowQuery.cpp:49-257`][inDirection]), else the next monitor ([`:484-485`][monitorFallback]), else wraps: the window nearest the screen's far edge, unless `general:no_focus_fallback` ([`:487-534`][focusWrap]) | One step along the **Chain**, looping from one end to the other. With `wrap.focus = false`, at an end it does nothing ([edges](#edges), [looping](#looping)) | `binds.focus` |
+| `hl.dsp.focus({ direction = "up" })`<br>`up` / `down` | The same, up or down | The Row above or below, inside the same side zone, looping from the bottom Row to the top. With `wrap.focus = false`, on the top or bottom Row it does nothing. On Master and on a lone Row it does nothing | `binds.focus` |
+| `hl.dsp.window.swap({ direction = "left" })`<br>`left` / `right` / `up` / `down` | Swaps with the window focus would find in that direction, else does nothing ([`ConfigActions.cpp:583-586`][swapInDirection]) | Swaps with the window focus in that direction goes to, looping as focus does. With `wrap.swap = false`, at an end it does nothing. Where there is none, e.g. up or down on Master, it does nothing | `binds.swap` |
+| `hl.dsp.window.swap({ next = true })`<br>`next` / `prev` | Swaps with the next or previous window in Hyprland's window order, counted from the window it last swapped with ([`ConfigActions.cpp:747-759`][swapNext]) | Swaps with the next or previous window on the Chain, focus staying on the swapped one. It loops from one end of the Chain to the other; with `wrap.swap_next = false`, at an end it does nothing ([looping](#looping)) | `binds.swap_next` |
+| `hl.dsp.window.cycle_next()`<br>`{ next = false }` for previous, optional `tiled` / `floating` ([`LuaBindingsDispatchers.cpp:955-969`][cycleNextArgs]) | Focuses the next window in Hyprland's window order, floating ones too ([`ConfigActions.cpp:1794-1800`][cycleNext], [`WindowQuery.cpp:310-314`][cycleOrder]) | One step along the **Cycle**: the Chain, then the workspace's floating windows in Hyprland's window order, then back to the start of the Chain. From a tile or a floating window. It loops; with `wrap.cycle_next = false`, at either end of the Cycle it does nothing ([looping](#looping)). With only `tiled = true`, the Chain alone, and from a floating window Hyprland's. With only `floating = true`, Hyprland's. With both, the Cycle, as Hyprland reads both as neither ([`ConfigActions.cpp:1789-1792`][cycleNextFilter]) | `binds.cycle_next` |
+| `hl.dsp.window.move({ direction = "left" })`<br>`left` / `right` / `up` / `down` | Leaves the move to the layout ([`LayoutManager.cpp:136-147`][moveInDirection]) | Moves between Zones and Rows along the Chain: swaps only where there is no room. It loops: past one end of the Chain it comes in past the other, joining that side zone's far end as a new Row, swapping with the Row there if the zone is full, or with that side missing, going to Master. Up / down at a zone's edge swap with the Row at the other edge. With `wrap.move = false`, at an end it does nothing ([looping](#looping)) | none: Hyprland leaves it to the layout |
+| `hl.dsp.window.drag()`, as a mouse bind | Leaves the drop to the layout ([`DragController.cpp:311-314`][dragDrop], [`LayoutManager.cpp:32-43`][floatingMode]) | Drops onto another window to swap, onto the bottom quarter of a zone to add a Row, or into an empty zone. A highlight shows where it will land | none: Hyprland leaves it to the layout |
+| `hl.dsp.window.resize()`, as a mouse bind, and `hl.dsp.window.resize({ x = …, y = … })` | Leaves the resize to the layout ([`LayoutManager.cpp:63-82`][resizeTarget]) | **Drag resize** and **One-off resize**: moves the Dividers and Row edges. A One-off resize moves them by the amount, as a drag would: `x > 0` to the right and `y > 0` down, so it narrows a Right window, as the master layout does ([`MasterAlgorithm.cpp:351-353`][masterResize]) | none: Hyprland leaves it to the layout |
+| Focus after a window closes (not a dispatcher) | Asks the layout, with `input:focus_on_close = 0` ([`Window.cpp:1690-1697`][closeFocus]) | The window after it on the Chain, or before it if it was last | none: not a dispatcher |
+| `hl.dsp.layout("focusmaster")`<br>`auto` (default) / `master` / `previous` | Only the master layout knows it ([`MasterAlgorithm.cpp:594-640`][focusmaster]) | As in the master layout. From any other window, focuses Master. On Master, `auto` focuses the first window after Master in **Fill order**, `master` stays, and `previous` goes back to the window `focusmaster previous` came from (else as `auto`). Works from a floating window too | none |
+| `hl.dsp.layout("swapwithmaster")`<br>`auto` (default) / `master` / `child`, and `ignoremaster` | Only the master layout knows it ([`MasterAlgorithm.cpp:546-592`][swapwithmaster]) | As in the master layout. From another window, swaps it with Master (into a Hole, it moves there); focus stays on it, or with `child` goes to the old Master. On Master, swaps with the first window after Master in Fill order; focus stays on the old Master, or with `master` goes to the new one. `ignoremaster` does nothing on Master | none |
+| `hl.dsp.layout("cyclenext")`, `"cycleprev"`<br>optional `noloop` | Only the master and monocle layouts know them ([`MasterAlgorithm.cpp:641-654`][cyclenext], [`MonocleAlgorithm.cpp:192-197`][monocleCycle]) | Focuses the next or previous tile on the Chain, looping from one end to the other. With `wrap.cycle_next = false` or `noloop`, at an end it does nothing | none |
+| `hl.dsp.layout("swapnext")`, `"swapprev"`<br>optional `noloop` | Only the master layout knows them ([`MasterAlgorithm.cpp:655-688`][swapnextMsg]) | Swaps with the next or previous tile on the Chain, focus staying on the swapped one, looping from one end to the other. With `wrap.swap_next = false` or `noloop`, at an end it does nothing | none |
+
+Set a switch to `false` to get Hyprland's behaviour back for that dispatcher (see [Settings](#bind-switches)). Only dispatchers where Hyprland has a behaviour of its own have a switch: move, drop and resize are always threecol's, since Hyprland leaves them to the layout.
+
+- <a id="edges"></a>**Edges.** threecol never hands over to Hyprland at its edges. Where focus, a direction swap or a move can't go further on a threecol tile (up or down on Master, a lone Row, or an end with looping off), it does nothing. So on a threecol workspace the direction keys don't reach another monitor; Hyprland's own would ([`WindowQuery.cpp:49-257`][inDirection], [`ConfigActions.cpp:484-485`][monitorFallback]). This is untested with several monitors.
+- **Hooks.** Hyprland never asks threecol about direction focus, the swap partner or `cycle_next`: it picks the window itself ([`ConfigActions.cpp:465`][moveFocus], [`:583-586`][swapInDirection], [`:747-759`][swapNext], [`:1794-1800`][cycleNext]), and only the master and monocle layouts get `cycle_next({ tiled = true })` as `layout("cyclenext")` ([`:1770-1784`][cycleNextLayouts]). So threecol hooks four Hyprland functions to change them (see [ADR 0001](docs/adr/0001-hook-hyprland-dispatchers.md)). Hooks work on x86_64 only ([`HookSystem.cpp:147-149`][hookArch]), and only one plugin can hook a function ([`:151-155`][hookOnce]). If a hook can't be installed, threecol shows one notification at load and that dispatcher keeps Hyprland's behaviour. The threecol dispatchers below work without hooks.
+- <a id="looping"></a>**Looping.** threecol's dispatchers loop by default: left / right from one end of the Chain to the other, up / down from a side zone's bottom Row to its top, the next / previous dispatchers from the far end of the Chain back to its start, and `cycle_next` from the last floating window back to the start of the Chain. threecol loops in more places than Hyprland: its direction swap and move loop too, where Hyprland's swap stops when it finds no window ([`ConfigActions.cpp:583-586`][swapInDirection]) and its move is the layout's. A looping move follows the normal move rules from the far end, so it fills a Hole only when the Hole is the next step. Global switches turn it off: `wrap.focus` for `focus({ direction })` and the `focus l` / `r` / `u` / `d` dispatchers, `wrap.swap` for `window.swap({ direction })`, `wrap.move` for `window.move({ direction })` and the `move l` / `r` / `u` / `d` dispatchers, `wrap.cycle_next` for `window.cycle_next()` and the `cyclenext` / `cycleprev` dispatchers, `wrap.swap_next` for `window.swap({ next | prev })` and `swapnext` / `swapprev`. Then at an end they do nothing. `noloop` on a `layout("…")` dispatcher stops just that bind; Hyprland's own dispatchers take no `noloop` ([`LuaBindingsDispatchers.cpp:930-944`][swapNextArgs], [`:955-969`][cycleNextArgs]). The `wrap` switches only change threecol's behaviour: with a `binds` switch `false`, under fullscreen or on another layout, Hyprland's runs unchanged.
+- **Floating windows.** `window.cycle_next()` is the way to reach floating windows on a threecol workspace: it walks the tiles, then the floating windows. Every other next / previous dispatcher stays on the tiles.
+
+### Ignored dispatchers
+
+These master and dwindle layout dispatchers do nothing on threecol, with no warning:
+
+| Dispatcher | From |
+|---|---|
+| `hl.dsp.layout("addmaster")`, `"removemaster"` | master layout ([`MasterAlgorithm.cpp:689-751`][masterAdd]) |
+| `hl.dsp.layout("orientationleft")` and the other `orientation…` ones | master layout ([`MasterAlgorithm.cpp:752-775`][masterOrientation]) |
+| `hl.dsp.layout("mfact …")` | master layout ([`MasterAlgorithm.cpp:776-796`][masterMfact]) |
+| `hl.dsp.layout("rollnext")`, `"rollprev"` | master layout ([`MasterAlgorithm.cpp:797-876`][masterRoll]) |
+| `hl.dsp.layout("togglesplit")`, `"swapsplit"`, `"rotatesplit"`, `"movetoroot"`, `"preselect …"`, `"splitratio …"` | dwindle layout ([`DwindleAlgorithm.cpp:681-768`][dwindleMsgs]) |
+
+### threecol dispatchers
+
+| Dispatcher | What it does |
+|---|---|
+| `hl.dsp.layout("focus l")`<br>`l` / `r` / `u` / `d` | Chain focus without hooks: `l` / `r` one step along the Chain, `u` / `d` the Row above or below in a side zone, looping as `focus({ direction })` does. With `wrap.focus = false` or `noloop` (`"focus l noloop"`), it stops at the Chain's ends and the zone's edges. On a floating or fullscreen window, it runs Hyprland's direction focus |
+| `hl.dsp.layout("move l")`<br>`l` / `r` / `u` / `d` | Moves the focused tile as `window.move({ direction })` does, looping the same way. With `wrap.move = false` or `noloop` (`"move l noloop"`), it stops at the Chain's ends and the zone's edges. On a floating or fullscreen window, it does nothing |
+| `hl.dsp.layout("resize wider")`<br>`wider` / `narrower` | **Step resize**: the focused zone one `step` wider or narrower. On a floating window, its width grows or shrinks by one `step` share of the workspace, half on each side, so its centre stays put; it shrinks no smaller than one step, so the last shrink can be less than a step, and a window already smaller is left alone |
+| `hl.dsp.layout("resize taller")`<br>`taller` / `shorter` | Step resize of the focused Row; the other Rows give way. On a floating window, its height, the same way |
+| `hl.dsp.layout("reset")` | Puts the workspace's Dividers back to the settings and makes the Rows equal, even with a floating or fullscreen window focused |
+
+`hl.dsp.layout("…")` only reaches the layout of the focused monitor's workspace, or of its special workspace when one is open ([`LayoutManager.cpp:91-104`][layoutMsg]), so on a workspace with another layout these do nothing.
 
 - **Resize keys** feel best with `{ repeating = true }`, so holding the key keeps resizing.
-- **Focus: Chain or screen position?** Hyprland's focus picks the nearest window on screen, so around Holes and between Rows it can land somewhere unexpected. Chain focus walks the windows in order. It only acts on tiled threecol windows; [`examples/binds.lua`](examples/binds.lua) shows how to fall back to Hyprland's focus everywhere else.
-- **From a script:** anything in *What to bind* also works with `hyprctl dispatch`, e.g. `hyprctl dispatch "hl.dsp.layout('reset')"`.
-- **No effect:** a threecol action that doesn't apply (e.g. `resize taller` on Master) does nothing. So do actions for other layouts, such as dwindle's `togglesplit` or master's `addmaster` and `mfact`.
+- **A ready-made set.** [`examples/binds.lua`](examples/binds.lua) binds the Step resize keys and `reset`, with Chain focus by `focus l` as a commented-out alternative. Pick your keys in its `keys` list at the top. It replaces whatever is on those keys, so read its header first.
 
-**A ready-made set.** [`examples/binds.lua`](examples/binds.lua) binds every action above except the mouse ones, if you'd rather start from that. Pick your keys in its `keys` list at the top, or set one to `false` to skip it. It replaces whatever is on those keys, so read its header first.
+[moveFocus]: https://github.com/hyprwm/Hyprland/blob/acc1aa0bfd4bd575dcb0f76c35ccf12b660a1ab9/src/config/shared/actions/ConfigActions.cpp#L465
+[monitorFallback]: https://github.com/hyprwm/Hyprland/blob/acc1aa0bfd4bd575dcb0f76c35ccf12b660a1ab9/src/config/shared/actions/ConfigActions.cpp#L484-L485
+[focusWrap]: https://github.com/hyprwm/Hyprland/blob/acc1aa0bfd4bd575dcb0f76c35ccf12b660a1ab9/src/config/shared/actions/ConfigActions.cpp#L487-L534
+[inDirection]: https://github.com/hyprwm/Hyprland/blob/acc1aa0bfd4bd575dcb0f76c35ccf12b660a1ab9/src/desktop/state/WindowQuery.cpp#L49-L257
+[swapInDirection]: https://github.com/hyprwm/Hyprland/blob/acc1aa0bfd4bd575dcb0f76c35ccf12b660a1ab9/src/config/shared/actions/ConfigActions.cpp#L583-L586
+[swapNext]: https://github.com/hyprwm/Hyprland/blob/acc1aa0bfd4bd575dcb0f76c35ccf12b660a1ab9/src/config/shared/actions/ConfigActions.cpp#L747-L759
+[cycleNext]: https://github.com/hyprwm/Hyprland/blob/acc1aa0bfd4bd575dcb0f76c35ccf12b660a1ab9/src/config/shared/actions/ConfigActions.cpp#L1794-L1800
+[cycleNextFilter]: https://github.com/hyprwm/Hyprland/blob/acc1aa0bfd4bd575dcb0f76c35ccf12b660a1ab9/src/config/shared/actions/ConfigActions.cpp#L1789-L1792
+[cycleNextLayouts]: https://github.com/hyprwm/Hyprland/blob/acc1aa0bfd4bd575dcb0f76c35ccf12b660a1ab9/src/config/shared/actions/ConfigActions.cpp#L1770-L1784
+[cycleNextArgs]: https://github.com/hyprwm/Hyprland/blob/acc1aa0bfd4bd575dcb0f76c35ccf12b660a1ab9/src/config/lua/bindings/LuaBindingsDispatchers.cpp#L955-L969
+[swapNextArgs]: https://github.com/hyprwm/Hyprland/blob/acc1aa0bfd4bd575dcb0f76c35ccf12b660a1ab9/src/config/lua/bindings/LuaBindingsDispatchers.cpp#L930-L944
+[cycleOrder]: https://github.com/hyprwm/Hyprland/blob/acc1aa0bfd4bd575dcb0f76c35ccf12b660a1ab9/src/desktop/state/WindowQuery.cpp#L310-L314
+[moveInDirection]: https://github.com/hyprwm/Hyprland/blob/acc1aa0bfd4bd575dcb0f76c35ccf12b660a1ab9/src/layout/LayoutManager.cpp#L136-L147
+[dragDrop]: https://github.com/hyprwm/Hyprland/blob/acc1aa0bfd4bd575dcb0f76c35ccf12b660a1ab9/src/layout/supplementary/DragController.cpp#L311-L314
+[floatingMode]: https://github.com/hyprwm/Hyprland/blob/acc1aa0bfd4bd575dcb0f76c35ccf12b660a1ab9/src/layout/LayoutManager.cpp#L32-L43
+[resizeTarget]: https://github.com/hyprwm/Hyprland/blob/acc1aa0bfd4bd575dcb0f76c35ccf12b660a1ab9/src/layout/LayoutManager.cpp#L63-L82
+[closeFocus]: https://github.com/hyprwm/Hyprland/blob/acc1aa0bfd4bd575dcb0f76c35ccf12b660a1ab9/src/desktop/view/window/Window.cpp#L1690-L1697
+[focusmaster]: https://github.com/hyprwm/Hyprland/blob/acc1aa0bfd4bd575dcb0f76c35ccf12b660a1ab9/src/layout/algorithm/tiled/master/MasterAlgorithm.cpp#L594-L640
+[swapwithmaster]: https://github.com/hyprwm/Hyprland/blob/acc1aa0bfd4bd575dcb0f76c35ccf12b660a1ab9/src/layout/algorithm/tiled/master/MasterAlgorithm.cpp#L546-L592
+[cyclenext]: https://github.com/hyprwm/Hyprland/blob/acc1aa0bfd4bd575dcb0f76c35ccf12b660a1ab9/src/layout/algorithm/tiled/master/MasterAlgorithm.cpp#L641-L654
+[swapnextMsg]: https://github.com/hyprwm/Hyprland/blob/acc1aa0bfd4bd575dcb0f76c35ccf12b660a1ab9/src/layout/algorithm/tiled/master/MasterAlgorithm.cpp#L655-L688
+[masterResize]: https://github.com/hyprwm/Hyprland/blob/acc1aa0bfd4bd575dcb0f76c35ccf12b660a1ab9/src/layout/algorithm/tiled/master/MasterAlgorithm.cpp#L351-L353
+[monocleCycle]: https://github.com/hyprwm/Hyprland/blob/acc1aa0bfd4bd575dcb0f76c35ccf12b660a1ab9/src/layout/algorithm/tiled/monocle/MonocleAlgorithm.cpp#L192-L197
+[masterAdd]: https://github.com/hyprwm/Hyprland/blob/acc1aa0bfd4bd575dcb0f76c35ccf12b660a1ab9/src/layout/algorithm/tiled/master/MasterAlgorithm.cpp#L689-L751
+[masterOrientation]: https://github.com/hyprwm/Hyprland/blob/acc1aa0bfd4bd575dcb0f76c35ccf12b660a1ab9/src/layout/algorithm/tiled/master/MasterAlgorithm.cpp#L752-L775
+[masterMfact]: https://github.com/hyprwm/Hyprland/blob/acc1aa0bfd4bd575dcb0f76c35ccf12b660a1ab9/src/layout/algorithm/tiled/master/MasterAlgorithm.cpp#L776-L796
+[masterRoll]: https://github.com/hyprwm/Hyprland/blob/acc1aa0bfd4bd575dcb0f76c35ccf12b660a1ab9/src/layout/algorithm/tiled/master/MasterAlgorithm.cpp#L797-L876
+[dwindleMsgs]: https://github.com/hyprwm/Hyprland/blob/acc1aa0bfd4bd575dcb0f76c35ccf12b660a1ab9/src/layout/algorithm/tiled/dwindle/DwindleAlgorithm.cpp#L681-L768
+[hookArch]: https://github.com/hyprwm/Hyprland/blob/acc1aa0bfd4bd575dcb0f76c35ccf12b660a1ab9/src/plugins/HookSystem.cpp#L147-L149
+[hookOnce]: https://github.com/hyprwm/Hyprland/blob/acc1aa0bfd4bd575dcb0f76c35ccf12b660a1ab9/src/plugins/HookSystem.cpp#L151-L155
+[layoutMsg]: https://github.com/hyprwm/Hyprland/blob/acc1aa0bfd4bd575dcb0f76c35ccf12b660a1ab9/src/layout/LayoutManager.cpp#L91-L104
 
 ## Settings
 
@@ -177,6 +239,14 @@ hl.config({
 
             -- Save Divider positions across reloads and reboots (global only)
             persist          = true,
+
+            -- Dispatchers loop at the Chain's ends and a zone's edges;
+            -- false stops them there (global only)
+            wrap = { focus = true, swap = true, move = true },
+
+            -- Hyprland dispatchers threecol changes; false gives one back to
+            -- Hyprland (global only). Every switch: examples/bind-settings.lua
+            binds = { focus = true, swap = true },
         },
     },
 })
@@ -220,6 +290,33 @@ hl.workspace_rule({
 | `min_row_height` | float | 0.10 | no | yes | Smallest Row height (Left and Right); also caps both Row limits |
 | `step` | float | 0.05 | no | yes, acts differently ([how](#centred-master)) | Keyboard resize step |
 | `persist` | bool | true | no | yes | Save Divider positions across reloads and reboots |
+| `wrap.focus` | bool | true | no | yes | `hl.dsp.focus({ direction })` and `focus l` / `r` / `u` / `d` loop along the Chain and inside a side zone (see [looping](#looping)) |
+| `wrap.swap` | bool | true | no | yes | `hl.dsp.window.swap({ direction })` loops the same way |
+| `wrap.move` | bool | true | no | yes | `hl.dsp.window.move({ direction })` and `move l` / `r` / `u` / `d` loop the same way: past one end, a window comes in past the other (see [looping](#looping)) |
+| `wrap.swap_next` | bool | true | no | yes | `hl.dsp.window.swap({ next \| prev })` and `swapnext` / `swapprev` loop from the Chain's end back to its start (see [looping](#looping)) |
+| `wrap.cycle_next` | bool | true | no | yes | `hl.dsp.window.cycle_next()` loops along the Cycle, and `cyclenext` / `cycleprev` along the Chain |
+| `binds.focus` | bool | true | no | yes | `hl.dsp.focus({ direction })` behaves the threecol way, in every direction ([Binds](#hyprland-dispatchers-threecol-changes)) |
+| `binds.swap` | bool | true | no | yes | `hl.dsp.window.swap({ direction })` behaves the threecol way, in every direction |
+| `binds.swap_next` | bool | true | no | yes | `hl.dsp.window.swap({ next \| prev })` follows the Chain |
+| `binds.cycle_next` | bool | true | no | yes | `hl.dsp.window.cycle_next()` walks the Cycle |
+
+### Bind switches
+
+Each switch in `binds` gives one of the [Hyprland dispatchers threecol changes](#hyprland-dispatchers-threecol-changes) back to Hyprland when it's `false`, in every direction; its `wrap` switch then has no effect on it. They're all `true` by default, so you need none of them in your config. They're global only, and take effect straight away, with no reload.
+
+Paste the switches you want into `plugin.threecol` in your `hl.config`. For example, Hyprland's direction focus and swap, but threecol's next and cycle:
+
+```lua
+hl.config({
+    plugin = {
+        threecol = {
+            binds = { focus = false, swap = false },
+        },
+    },
+})
+```
+
+[`examples/bind-settings.lua`](examples/bind-settings.lua) holds the full block, every switch with the dispatcher it changes.
 
 ### Centred Master
 
@@ -229,7 +326,7 @@ hl.workspace_rule({
 
 What changes when Centred Master is on. Settings not listed (`fill_first`, `min_row_height`, Row limits other than `0`, Row edge resizes) work the same either way. The examples use a 1000 px screen at 250 | 500 | 250:
 
-| Setting or action | Centred Master on | Centred Master off |
+| Setting or dispatcher | Centred Master on | Centred Master off |
 |---|---|---|
 | Mouse resize (`window.resize`) | The grabbed Divider follows the cursor and the other mirrors it, whichever window or half of Master is grabbed. Master's left half dragged 100 px left: 150 \| 700 \| 150. A Left window dragged 100 px right: 350 \| 300 \| 350 | Only the grabbed Divider moves (on Master, the one nearer the grabbed half). Master's left half dragged 100 px left: 150 \| 600 \| 250 |
 | Keyboard resize and `step` (`resize wider` / `narrower`) | On Left or Right, both sides change by `step`, so Master changes by twice that: `resize wider` on Left gives 300 \| 400 \| 300. On Master, each Divider moves half a step: 225 \| 550 \| 225 | On Left or Right, only that side's Divider moves: 300 \| 450 \| 250. On Master, each Divider moves half a step too, as Master has no side to grow towards |
@@ -475,7 +572,7 @@ hl.config({
               ¾ wide              ¼ wide
 ```
 
-New windows go to Master, then the Right Stack. Centred Master needs both sides, hence `centre_master = false` (left on, it warns and is turned off for you). Resizing Master moves only the Master|Right Divider, `move l` from Master does nothing, and a window dropped where Left would be lands on Master. The missing side's width setting is ignored: it isn't raised to `min_width`, counted against `min_master_width` or warned about. Its saved Divider is kept, so if the side comes back (by a reload or a `layout_opts` change) it returns where you left it. With both sides at `0`, Master fills the workspace, resizing does nothing, and every other window floats.
+New windows go to Master, then the Right Stack. Centred Master needs both sides, hence `centre_master = false` (left on, it warns and is turned off for you). Resizing Master moves only the Master|Right Divider, `move l` from Master loops round to the bottom of the Stack (with `wrap.move = false` it does nothing), and a window dropped where Left would be lands on Master. The missing side's width setting is ignored: it isn't raised to `min_width`, counted against `min_master_width` or warned about. Its saved Divider is kept, so if the side comes back (by a reload or a `layout_opts` change) it returns where you left it. With both sides at `0`, Master fills the workspace, resizing does nothing, and every other window floats.
 
 **Both sides limited.** Neither side has to be a Stack. Give both a Row limit and windows that find no room float instead:
 
@@ -546,7 +643,9 @@ cmake --build build -j
 ctest --test-dir build
 ```
 
-The unit tests need GoogleTest. Turn them off with `-DTHREECOL_TESTS=OFF`.
+The unit tests need GoogleTest. Turn them off with `-DTHREECOL_TESTS=OFF`. `-DTHREECOL_WERROR=ON` makes compiler warnings errors.
+
+Before committing, turn on the pre-commit hook once per clone with `git config core.hooksPath .githooks`. On every commit, it checks that code names in backticks in the docs still exist, that staged C++ lines follow `.clang-format` (fix them with `git clang-format`), that new comment lines fit 80 columns, and that no staged C++ file has two blank lines in a row. When a commit touches code, CMake files or examples, the hook builds in `build-check/` with warnings as errors, runs the unit tests, and checks `examples/*.lua` with `luac -p`.
 
 To try a build on your live session, point `hl.plugin.load` at `build/threecol.so` (see [Manual install](#manual-install)).
 

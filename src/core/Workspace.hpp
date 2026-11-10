@@ -52,9 +52,29 @@ namespace threecol {
         }
     };
 
+    // A `<command> l|r|u|d` message, optionally followed by `noloop`.
+    struct DirectionMessage {
+        Direction direction;
+        bool      noloop = false;
+
+        friend bool operator==(const DirectionMessage&, const DirectionMessage&) = default;
+    };
+
+    // `message` read as a `command` (`focus`, `move`) message, or nothing if
+    // it's another one. Exactly `<command> <d>` or `<command> <d> noloop`:
+    // tiles and floating windows read it the same way.
+    std::optional<DirectionMessage> parseDirectionMessage(std::string_view message, std::string_view command);
+
     // Whether a layout message needs a focused tile to apply. `focusmaster`
     // and `reset` don't, so they work with a floating window focused too.
     bool needsFocusedTile(std::string_view message);
+
+    // Step resize on a floating window `window`: `resize wider` / `narrower`
+    // change its width, `resize taller` / `shorter` its height, by `step`
+    // of `area`'s, half on each side, so its centre stays put. It shrinks
+    // no smaller than one step, so the last shrink can be less. Nothing for
+    // any other message, or when the window can shrink no further.
+    std::optional<Rect> floatingStepResize(std::string_view message, Rect window, Rect area, double step);
 
     // What a settings change did.
     struct SettingsChange {
@@ -107,7 +127,8 @@ namespace threecol {
         // find no room.
         std::optional<Rect> nextWindowRect() const;
 
-        // A layout message from the user; `focused` is the focused window.
+        // A layout message from the user; `focused` is the focused tile, or
+        // nothing when a floating window has focus.
         // Unknown messages, or ones that don't apply, do nothing. Returns
         // whether the layout changed and where focus goes.
         //
@@ -119,26 +140,59 @@ namespace threecol {
         // Row's height, the other Rows giving way in proportion; `reset` puts the
         // Dividers back to the settings and makes the Rows equal.
         //
-        // `focus l` / `focus r` walk the Chain, stopping at its ends and
-        // skipping empty zones; `focus u` / `focus d` move inside a side
-        // zone, never leaving it. `focusmaster` focuses Master, with or
-        // without a focused window. `move l|r|u|d` moves the focused window as
-        // `move` does, focus staying on it. `swapwithmaster` swaps the focused
+        // `focus l` / `focus r` walk the Chain, skipping empty zones;
+        // `focus u` / `focus d` move inside a side zone, never leaving it.
+        // Both loop as inDirection says, unless `wrap` turns that off or the
+        // message says `noloop`. `focusmaster` focuses Master, from a
+        // tile or a floating window. `move l|r|u|d` moves the focused window as
+        // `move` does, focus staying on it, looping unless `wrap` turns that
+        // off or the message says `noloop`. `swapwithmaster` swaps the focused
         // window with Master, the old Master taking its Row, or moves it into
-        // a Hole; it does nothing on Master.
-        MessageResult       layoutMessage(std::string_view message, std::optional<WindowId> focused);
+        // a Hole; on Master it acts as its arguments below say.
+        //
+        // The master layout's messages take its arguments: `focusmaster
+        // [auto|master|previous]` and `swapwithmaster [auto|master|child]
+        // [ignoremaster]`, where on Master the other window is the first one
+        // after Master in Fill order. `cyclenext` / `cycleprev` focus, and
+        // `swapnext` / `swapprev` swap with, the next or previous window on
+        // the Chain, focus staying on the swapped one. They loop from one end
+        // of the Chain to the other unless `wrap` turns that off for them, or
+        // the message says `noloop`. The master and dwindle messages
+        // threecol has no use for, e.g. `addmaster`, `mfact`, `togglesplit`,
+        // do nothing like any unknown message.
+        MessageResult       layoutMessage(std::string_view message, std::optional<WindowId> focused, Wrap wrap = {});
+
+        // The window after `id` on the Chain (`forward`) or before it.
+        // Nothing at an end, unless `wrap`: then the far end leads back to
+        // the start. Nothing if `id` is alone or isn't here.
+        std::optional<WindowId> next(WindowId id, bool forward, bool wrap) const;
+
+        // The windows in Chain order: Left, Master, then Right, each side top
+        // to bottom. Unlike the Chain itself, Holes are skipped.
+        std::vector<WindowId> windowsInChainOrder() const;
+
+        // The window focus in `direction` goes to from `id`: along the Chain
+        // for `Left` / `Right`, the Row above or below inside its side zone
+        // for `Up` / `Down`. Past the Chain's ends it loops to the other end
+        // if `wrap`, else nothing. Nothing up or down on Master.
+        std::optional<WindowId> inDirection(WindowId id, Direction direction, bool wrap) const;
 
         // Moves `id` one step along the Chain (`Left`, `Right`) or inside its
-        // zone (`Up`, `Down`), stopping at the Chain's ends and the zone's
-        // edges. Between Master and a side zone it steps at the side's end
-        // nearest Master: the bottom of Left, the top of Right. It swaps only
+        // zone (`Up`, `Down`). Past the Chain's ends and the zone's edges it
+        // loops if `wrap`, else does nothing. Between Master and a side zone
+        // it steps at the side's end nearest Master: the bottom of Left, the
+        // top of Right. It swaps only
         // when there is no room: with an occupied Master, the Row nearest
         // Master of a full Bounded zone, or a neighbouring Row in the same
         // zone. Otherwise it moves: into a Hole, or from Master into a Stack
         // or a Bounded zone below its Row limit as a new Row at its end
         // nearest Master, leaving a Hole. A moved window takes its new Row's
-        // height. Returns whether the layout changed.
-        bool                move(WindowId id, Direction direction);
+        // height. Looping, it arrives past the other end under the same
+        // rules: as a new Row at the far end of that end's side zone, or
+        // swapping with the Row there when it is full, or, with that side
+        // missing, into Master. Up and down at a zone's edge swap with the
+        // Row at its other edge. Returns whether the layout changed.
+        bool                move(WindowId id, Direction direction, bool wrap);
 
         // `a` and `b` trade places, each taking the other's Row, as asked
         // for outright, e.g. by Hyprland's swap. Returns whether they did.
@@ -230,6 +284,9 @@ namespace threecol {
         // top of Right. The Chain steps between Master and `side` there.
         static End              endNearestMaster(Zone side);
 
+        // The end of side zone `side` farthest from Master: the Chain's end.
+        static End              farEnd(Zone side);
+
         // Which way along the Chain Master lies from side zone `side`:
         // forward (right) from Left, back from Right.
         static bool             masterIsForwardOf(Zone side);
@@ -269,15 +326,27 @@ namespace threecol {
         // The Zone `id` is in, or nothing if it isn't on this workspace.
         std::optional<Zone>     zoneOf(WindowId id) const;
 
-        MessageResult           applyLayoutMessage(std::string_view message, std::optional<WindowId> focused);
+        MessageResult           applyLayoutMessage(std::string_view message, std::optional<WindowId> focused, Wrap wrap);
 
-        // The next window from `id` along the Chain, one way or the other.
-        std::optional<WindowId> chainNeighbour(WindowId id, bool right) const;
+        // The first window after Master in Fill order: the top Row of the
+        // fill_first side, else of the other. Nothing if both are empty.
+        std::optional<WindowId> firstAfterMaster() const;
 
-        // The Row above or below `id` in its zone; nothing on Master.
-        std::optional<WindowId> rowNeighbour(WindowId id, bool down) const;
+        // Where `focusmaster <mode>` sends focus from `focused`, as the master
+        // layout does: Master from any other window; on Master nothing for
+        // `master`, the window `focusmaster previous` last left for
+        // `previous`, else the first window after Master.
+        std::optional<WindowId> focusMaster(std::optional<WindowId> focused, std::string_view mode);
 
-        bool                    applyMove(WindowId id, Direction direction);
+        // The window `focusmaster previous` last left, to go back to: nothing
+        // when it left a floating window.
+        std::optional<WindowId> m_beforeMaster;
+
+        // The Row above or below `id` in its zone, looping past its top and
+        // bottom Rows if `wrap`; nothing on Master or a lone Row.
+        std::optional<WindowId> rowNeighbour(WindowId id, bool down, bool wrap = false) const;
+
+        bool                    applyMove(WindowId id, Direction direction, bool wrap);
 
         // Where `id` is kept: Master or its Row. Nothing if it isn't here.
         WindowId*               slotOf(WindowId id);
@@ -294,9 +363,16 @@ namespace threecol {
         // `rows` as a new Row.
         void                    joinBottom(Rows& rows, WindowId id);
 
-        // `id` leaves its place under the close rules and joins side zone
-        // `side` as a new Row at its end nearest Master.
-        void                    joinNearMaster(Zone side, WindowId id);
+        // `id` arrives at side zone `side`'s end `end`: it leaves its place
+        // under the close rules and joins there as a new Row if `side` has
+        // room, else swaps with the Row at that end. False if `side` takes
+        // no window at all.
+        bool                    arriveAt(Zone side, End end, WindowId id);
+
+        // `id` past the Chain's end going `forward`, as if it came in past the
+        // other end: into that end's side zone as arriveAt says, or with that
+        // side missing, to Master. False if Master is both ends and `id` is on it.
+        bool                    loopAround(WindowId id, bool forward);
 
         // `id` swaps with Master, or moves into a Master Hole.
         void                    toMaster(WindowId id);
@@ -366,10 +442,6 @@ namespace threecol {
         // Left up to its Row limit, then Right up to its own. Nothing if
         // there's no room anywhere.
         std::optional<Zone>     nextZone() const;
-
-        // The windows in Chain order: Left, Master, then Right, each side top
-        // to bottom. Unlike the Chain itself, Holes are skipped.
-        std::vector<WindowId>   windowsInChainOrder() const;
 
         Rect                    leftZone() const;
         Rect                    masterZone() const;

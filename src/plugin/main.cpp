@@ -1,4 +1,5 @@
 #include "plugin/Config.hpp"
+#include "plugin/DispatcherHooks.hpp"
 #include "plugin/DropIndicator.hpp"
 #include "plugin/SavedDividers.hpp"
 #include "plugin/SettingsReporting.hpp"
@@ -45,6 +46,7 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
     if (!registered)
         HyprlandAPI::addNotification(g_handle, "[threecol] could not register the threecol layout; is it loaded twice?", ERROR_COLOR, 10000);
 
+    threecol::installDispatcherHooks(g_handle);
     threecol::startSavingDividers();
     threecol::startSettingsReporting(g_handle);
     threecol::startDropIndicator();
@@ -57,4 +59,5 @@ APICALL EXPORT void PLUGIN_EXIT() {
     threecol::stopSettingsReporting();
     threecol::stopSavingDividers();
     HyprlandAPI::removeAlgo(g_handle, "threecol");
+    // Hyprland removes the dispatcher hooks itself when a plugin unloads.
 }

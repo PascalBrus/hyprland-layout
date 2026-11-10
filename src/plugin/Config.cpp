@@ -33,6 +33,27 @@ namespace threecol {
             SP<CBoolValue>   centreMaster;
         } g_values;
 
+        const SBindSwitches BIND_DEFAULTS{};
+
+        // binds.*, then wrap.*.
+        struct SBindValues {
+            SP<CBoolValue> focus;
+            SP<CBoolValue> swap;
+            SP<CBoolValue> swapNext;
+            SP<CBoolValue> cycleNext;
+            SP<CBoolValue> wrapFocus;
+            SP<CBoolValue> wrapSwap;
+            SP<CBoolValue> wrapMove;
+            SP<CBoolValue> wrapSwapNext;
+            SP<CBoolValue> wrapCycleNext;
+        } g_binds;
+
+        // Read when a dispatcher runs, so nothing needs laying out again.
+        // Hyprland keeps the name and description pointers: literals only.
+        SP<CBoolValue> bindSwitch(const char* name, const char* description, bool def) {
+            return makeShared<CBoolValue>(name, description, def);
+        }
+
         // False until every value is registered. An unregistered value never
         // reads the config, so until then the defaults are used.
         bool g_registered = false;
@@ -87,8 +108,29 @@ namespace threecol {
             g_values.centreMaster,
         };
 
+        g_binds = {
+            .focus         = bindSwitch("plugin:threecol:binds:focus", "focus({ direction }) walks the Chain and a side zone's Rows on threecol tiles", BIND_DEFAULTS.focus),
+            .swap          = bindSwitch("plugin:threecol:binds:swap", "swap({ direction }) swaps with the window focus in that direction goes to", BIND_DEFAULTS.swap),
+            .swapNext      = bindSwitch("plugin:threecol:binds:swap_next", "swap next / prev follows the Chain on threecol tiles", BIND_DEFAULTS.swapNext),
+            .cycleNext     = bindSwitch("plugin:threecol:binds:cycle_next", "cycle_next walks the Cycle on threecol workspaces", BIND_DEFAULTS.cycleNext),
+            .wrapFocus     = bindSwitch("plugin:threecol:wrap:focus", "focus({ direction }) and focus l / r / u / d loop along the Chain and inside a side zone",
+                                        BIND_DEFAULTS.wrap.focus),
+            .wrapSwap      = bindSwitch("plugin:threecol:wrap:swap", "swap({ direction }) loops along the Chain and inside a side zone", BIND_DEFAULTS.wrap.swap),
+            .wrapMove      = bindSwitch("plugin:threecol:wrap:move", "move({ direction }) and move l / r / u / d loop along the Chain and inside a side zone",
+                                        BIND_DEFAULTS.wrap.move),
+            .wrapSwapNext  = bindSwitch("plugin:threecol:wrap:swap_next", "swap next / prev and swapnext / swapprev loop along the Chain", BIND_DEFAULTS.wrap.swapNext),
+            .wrapCycleNext = bindSwitch("plugin:threecol:wrap:cycle_next", "cycle_next loops along the Cycle, cyclenext / cycleprev along the Chain",
+                                        BIND_DEFAULTS.wrap.cycleNext),
+        };
+
+        const std::initializer_list<SP<Config::Values::IValue>> binds{
+            g_binds.focus, g_binds.swap, g_binds.swapNext, g_binds.cycleNext, g_binds.wrapFocus, g_binds.wrapSwap, g_binds.wrapMove, g_binds.wrapSwapNext, g_binds.wrapCycleNext,
+        };
+
         bool ok = true;
         for (const auto& value : all)
+            ok = HyprlandAPI::addConfigValueV2(handle, value) && ok;
+        for (const auto& value : binds)
             ok = HyprlandAPI::addConfigValueV2(handle, value) && ok;
         g_registered = ok;
         return ok;
@@ -110,6 +152,26 @@ namespace threecol {
             .fillFirst      = parseSide(g_values.fillFirst->value()).value_or(DEFAULTS.fillFirst),
             .persist        = g_values.persist->value(),
             .centreMaster   = g_values.centreMaster->value(),
+        };
+    }
+
+    SBindSwitches bindSwitches() {
+        if (!g_registered)
+            return BIND_DEFAULTS;
+
+        return {
+            .focus     = g_binds.focus->value(),
+            .swap      = g_binds.swap->value(),
+            .swapNext  = g_binds.swapNext->value(),
+            .cycleNext = g_binds.cycleNext->value(),
+            .wrap =
+                {
+                    .focus     = g_binds.wrapFocus->value(),
+                    .swap      = g_binds.wrapSwap->value(),
+                    .move      = g_binds.wrapMove->value(),
+                    .cycleNext = g_binds.wrapCycleNext->value(),
+                    .swapNext  = g_binds.wrapSwapNext->value(),
+                },
         };
     }
 

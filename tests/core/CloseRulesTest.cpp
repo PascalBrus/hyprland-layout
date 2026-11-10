@@ -28,7 +28,6 @@ namespace {
         return ws;
     }
 
-
     // A mirrored layout: Left a Stack, Right bounded to `rightRows` (or a
     // second Stack). Windows land through Fill order and moves: `right` top
     // to bottom, then `master`, then `left` top to bottom.
@@ -38,7 +37,7 @@ namespace {
         // Each joins Right at its top, so the bottom one goes first.
         for (auto id = right.rbegin(); id != right.rend(); ++id) {
             ws.addWindow(*id);
-            ws.move(*id, Direction::Right);
+            ws.move(*id, Direction::Right, false);
         }
         ws.addWindow(master);
         for (const WindowId id : left)
