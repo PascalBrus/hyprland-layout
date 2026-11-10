@@ -68,3 +68,28 @@ Found and fixed in the #83 commit:
 2. With one hook failing, the notification read "focus({ direction }) keep Hyprland's behaviour: threecol could not hook them". It now says "keeps" and "it" for one; `hook_failure` was run again on the fixed build.
 
 Not checked: several real monitors (the `edges` check uses one headless monitor).
+
+## #84: threecol dispatchers off tiles, floating Step resize, looping moves (2026-11-10)
+
+- Hyprland 0.57.2, commit `11cbc6c577b84ffb1edf4df3fc5b6128c3ae6947`, nested instance.
+- threecol built from `2d283da`, loaded from `build/threecol.so`. Default `plugin:threecol:*` values; `wrap.move` and `binds.focus` changed at runtime with `hl.config` and read back with `hyprctl getoption`; one check sets `left_rows = 0`.
+- Run with [`live84.py`](live84.py). Setup: Master T1, Left T2 (Row limit 1), Stack T3 above T4 (Chain T2, T1, T3, T4); F (and G) floating. Positions and sizes from `hyprctl clients -j`. Expected places written out by hand from the README rules.
+- `move_loops` and `move_no_wrap` send the same moves and expect opposite results, so each one shows the other's checks can fail.
+
+**Result: 9 of 9 pass.**
+
+| Check | Dispatcher | Seen | Result |
+|---|---|---|---|
+| `rows_on_a_tile` | `focus l/r/u/d`, `resize wider/narrower/taller/shorter`, `reset`, on tiles | Focus walks the Chain and loops (T2 left → T4, T4 right → T2, T3 up → T4); wider / taller change the zone or Row by one step (128 / 36 px), the other Row giving way; narrower / shorter undo them; `reset` puts everything back | PASS |
+| `rows_on_a_floating_window` | the same, from floating F | `focus l` is Hyprland's (to floating G); each Step resize changes F by one step share (128 px wide, 36 px tall) with its centre kept to the pixel, tiles untouched, F still floating and focused; `reset` from F resets a resized tile layout | PASS |
+| `floating_shrinks_to_one_step` | `resize narrower` ×12 on F, 800 px wide | Stops at 128 px (one step of 2560), centre kept: (1124, 173, 800, 300) → (1460, 173, 128, 300); one more does nothing | PASS |
+| `focus_under_fullscreen` | `focus l/r/u/d` messages, T2 fullscreen | The same as Hyprland's `focus({ direction })` with `binds.focus` off, in every direction: focus stays on fullscreen T2, which stays fullscreen; not the Chain | PASS |
+| `move_loops` | `window.move({ direction })`, `wrap.move` on | T2 left → bottom of the Stack, a Left Hole; T2 right → back into that Hole; T4 right → swaps with T2 (Left full); T4 left → bottom of the Stack (it has room), not a swap back; T4 down / T3 up swap with the other edge; up / down on Master and the lone Left Row do nothing; focus stays on the moved window | PASS |
+| `move_no_wrap` | the same at the ends, `wrap.move` off | Nothing moves at the ends; T3 down inside the Stack still swaps | PASS |
+| `move_message_loops` | `move l/r/u/d`, then with `noloop`, then `wrap.move` off | The same as `window.move` looping; `noloop` and `wrap.move` off each stop it at the ends | PASS |
+| `move_left_missing` | `window.move`, `left_rows = 0` | Master T1 left → bottom of the Stack, a Master Hole; T1 right (Chain's right end) → fills the Master Hole; T3 right → swaps with Master | PASS |
+| `move_floating_and_fullscreen` | `move l/r/u/d` on F; `window.move` and `move` under fullscreen | Tiles and F untouched; fullscreen holds | PASS |
+
+No bugs found in the plugin. A first run expected T4 left (after swapping into the full Left) to swap back; it joins the Stack's bottom instead, as the rules say, since the Stack has room. The check was wrong and now expects that.
+
+Not checked: the drag and mouse-resize rows (`window.drag`, `window.resize` as a mouse bind). They move the real pointer, so they wait for the author's yes.

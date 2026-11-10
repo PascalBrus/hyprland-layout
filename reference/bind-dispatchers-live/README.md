@@ -6,6 +6,7 @@ Checks for the #79 sub-issues, run in the nested Hyprland of [`../since-46-live/
 |---|---|
 | `live82.py` | #82: `focusmaster` / `swapwithmaster` arguments, ignored messages |
 | `live83.py` | #83: direction focus and swap, `binds.focus` / `binds.swap`, `wrap.focus` / `wrap.swap`, `noloop`, edges, a hook that fails |
+| `live84.py` | #84: the threecol dispatchers on tiles, floating and fullscreen windows, floating Step resize, looping `window.move` and `move l/r/u/d`, `wrap.move`, `noloop` |
 | `hookblocker.cpp` | For `live83.py hook_failure`: a test plugin that holds the `moveFocus` hook. Build it as its header says, into the harness directory |
 
 ## Run
