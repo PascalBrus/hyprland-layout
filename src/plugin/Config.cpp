@@ -5,7 +5,6 @@
 #include <expected>
 #include <initializer_list>
 #include <string>
-#include <vector>
 
 namespace threecol {
 
@@ -36,14 +35,16 @@ namespace threecol {
 
         const SBindSwitches BIND_DEFAULTS{};
 
-        // binds.focus.*, binds.swap.*, by Direction; then the rest.
+        // binds.*, then wrap.*.
         struct SBindValues {
-            std::array<SP<CBoolValue>, 4> focus;
-            std::array<SP<CBoolValue>, 4> swap;
-            SP<CBoolValue>                swapNext;
-            SP<CBoolValue>                cycleNext;
-            SP<CBoolValue>                wrapSwapNext;
-            SP<CBoolValue>                wrapCycleNext;
+            SP<CBoolValue> focus;
+            SP<CBoolValue> swap;
+            SP<CBoolValue> swapNext;
+            SP<CBoolValue> cycleNext;
+            SP<CBoolValue> wrapFocus;
+            SP<CBoolValue> wrapSwap;
+            SP<CBoolValue> wrapSwapNext;
+            SP<CBoolValue> wrapCycleNext;
         } g_binds;
 
         // Read when a dispatcher runs, so nothing needs laying out again.
@@ -106,32 +107,22 @@ namespace threecol {
             g_values.centreMaster,
         };
 
-        // By Direction: Left, Right, Up, Down.
         g_binds = {
-            .focus =
-                {
-                    bindSwitch("plugin:threecol:binds:focus:left", "focus left walks the Chain on threecol tiles", BIND_DEFAULTS.focus[0]),
-                    bindSwitch("plugin:threecol:binds:focus:right", "focus right walks the Chain on threecol tiles", BIND_DEFAULTS.focus[1]),
-                    bindSwitch("plugin:threecol:binds:focus:up", "focus up goes to the Row above on threecol tiles", BIND_DEFAULTS.focus[2]),
-                    bindSwitch("plugin:threecol:binds:focus:down", "focus down goes to the Row below on threecol tiles", BIND_DEFAULTS.focus[3]),
-                },
-            .swap =
-                {
-                    bindSwitch("plugin:threecol:binds:swap:left", "swap left swaps with the window focus left goes to", BIND_DEFAULTS.swap[0]),
-                    bindSwitch("plugin:threecol:binds:swap:right", "swap right swaps with the window focus right goes to", BIND_DEFAULTS.swap[1]),
-                    bindSwitch("plugin:threecol:binds:swap:up", "swap up swaps with the window focus up goes to", BIND_DEFAULTS.swap[2]),
-                    bindSwitch("plugin:threecol:binds:swap:down", "swap down swaps with the window focus down goes to", BIND_DEFAULTS.swap[3]),
-                },
+            .focus         = bindSwitch("plugin:threecol:binds:focus", "focus({ direction }) walks the Chain and a side zone's Rows on threecol tiles", BIND_DEFAULTS.focus),
+            .swap          = bindSwitch("plugin:threecol:binds:swap", "swap({ direction }) swaps with the window focus in that direction goes to", BIND_DEFAULTS.swap),
             .swapNext      = bindSwitch("plugin:threecol:binds:swap_next", "swap next / prev follows the Chain on threecol tiles", BIND_DEFAULTS.swapNext),
             .cycleNext     = bindSwitch("plugin:threecol:binds:cycle_next", "cycle_next walks the Cycle on threecol workspaces", BIND_DEFAULTS.cycleNext),
+            .wrapFocus     = bindSwitch("plugin:threecol:wrap:focus", "focus({ direction }) and focus l / r / u / d loop along the Chain and inside a side zone",
+                                        BIND_DEFAULTS.wrap.focus),
+            .wrapSwap      = bindSwitch("plugin:threecol:wrap:swap", "swap({ direction }) loops along the Chain and inside a side zone", BIND_DEFAULTS.wrap.swap),
             .wrapSwapNext  = bindSwitch("plugin:threecol:wrap:swap_next", "swap next / prev and swapnext / swapprev loop along the Chain", BIND_DEFAULTS.wrap.swapNext),
             .wrapCycleNext = bindSwitch("plugin:threecol:wrap:cycle_next", "cycle_next loops along the Cycle, cyclenext / cycleprev along the Chain",
                                         BIND_DEFAULTS.wrap.cycleNext),
         };
 
-        std::vector<SP<Config::Values::IValue>> binds{g_binds.swapNext, g_binds.cycleNext, g_binds.wrapSwapNext, g_binds.wrapCycleNext};
-        binds.insert(binds.end(), g_binds.focus.begin(), g_binds.focus.end());
-        binds.insert(binds.end(), g_binds.swap.begin(), g_binds.swap.end());
+        const std::initializer_list<SP<Config::Values::IValue>> binds{
+            g_binds.focus, g_binds.swap, g_binds.swapNext, g_binds.cycleNext, g_binds.wrapFocus, g_binds.wrapSwap, g_binds.wrapSwapNext, g_binds.wrapCycleNext,
+        };
 
         bool ok = true;
         for (const auto& value : all)
@@ -165,15 +156,19 @@ namespace threecol {
         if (!g_registered)
             return BIND_DEFAULTS;
 
-        SBindSwitches switches;
-        for (std::size_t i = 0; i < switches.focus.size(); ++i) {
-            switches.focus[i] = g_binds.focus[i]->value();
-            switches.swap[i]  = g_binds.swap[i]->value();
-        }
-        switches.swapNext  = g_binds.swapNext->value();
-        switches.cycleNext = g_binds.cycleNext->value();
-        switches.wrap      = {.cycleNext = g_binds.wrapCycleNext->value(), .swapNext = g_binds.wrapSwapNext->value()};
-        return switches;
+        return {
+            .focus     = g_binds.focus->value(),
+            .swap      = g_binds.swap->value(),
+            .swapNext  = g_binds.swapNext->value(),
+            .cycleNext = g_binds.cycleNext->value(),
+            .wrap =
+                {
+                    .focus     = g_binds.wrapFocus->value(),
+                    .swap      = g_binds.wrapSwap->value(),
+                    .cycleNext = g_binds.wrapCycleNext->value(),
+                    .swapNext  = g_binds.wrapSwapNext->value(),
+                },
+        };
     }
 
 }

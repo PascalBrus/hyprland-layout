@@ -58,32 +58,38 @@ namespace threecol {
         }
 
         // focus({ direction }): left / right walk the Chain, up / down the
-        // Rows of a side zone. Where threecol can't go further, Hyprland's.
+        // Rows of a side zone, looping unless wrap.focus is off. Where it
+        // can't go further it does nothing: it never hands over to Hyprland,
+        // so no other monitor.
         ActionResult hkMoveFocus(Math::eDirection dir) {
             const auto window    = Desktop::focusState()->window();
             const auto direction = toDirection(dir);
-            if (direction && bindSwitches().focus[static_cast<std::size_t>(*direction)]) {
+            const auto switches  = bindSwitches();
+            if (direction && switches.focus) {
                 if (const auto* algo = CThreecolAlgorithm::tiling(window)) {
-                    if (const auto to = algo->inDirection(window, *direction))
+                    if (const auto to = algo->inDirection(window, *direction, switches.wrap.focus))
                         return focusWindow(to);
+                    return {};
                 }
             }
             return reinterpret_cast<FnMoveFocus>(g_moveFocus->m_original)(dir);
         }
 
         // window.swap({ direction }): swaps with the window focus in that
-        // direction would go to, as Hyprland's does with its own pick
-        // (ConfigActions.cpp:575-593 at 0.57.1).
+        // direction would go to, looping unless wrap.swap is off, as
+        // Hyprland's does with its own pick (ConfigActions.cpp:575-593 at
+        // 0.57.1). Where there is none it does nothing, as focus does.
         ActionResult hkSwapInDirection(Math::eDirection dir, std::optional<PHLWINDOW> w) {
             const auto window    = windowFor(w);
             const auto direction = toDirection(dir);
-            if (direction && bindSwitches().swap[static_cast<std::size_t>(*direction)]) {
+            const auto switches  = bindSwitches();
+            if (direction && switches.swap) {
                 if (const auto* algo = CThreecolAlgorithm::tiling(window)) {
-                    if (const auto to = algo->inDirection(window, *direction)) {
+                    if (const auto to = algo->inDirection(window, *direction, switches.wrap.swap)) {
                         g_layoutManager->switchTargets(window->layoutTarget(), to->layoutTarget(), true);
                         window->warpCursor();
-                        return {};
                     }
+                    return {};
                 }
             }
             return reinterpret_cast<FnSwapInDirection>(g_swapInDirection->m_original)(dir, std::move(w));
@@ -185,7 +191,10 @@ namespace threecol {
         std::string list;
         for (const auto& dispatcher : failed)
             list += (list.empty() ? "" : ", ") + dispatcher;
-        HyprlandAPI::addNotification(handle, std::format("[threecol] {} keep Hyprland's behaviour: threecol could not hook them (x86_64 only, one plugin per hook)", list),
+        const bool one = failed.size() == 1;
+        HyprlandAPI::addNotification(handle,
+                                     std::format("[threecol] {} {} Hyprland's behaviour: threecol could not hook {} (x86_64 only, one plugin per hook)", list, one ? "keeps" : "keep",
+                                                 one ? "it" : "them"),
                                      WARNING_COLOR, 10000);
     }
 

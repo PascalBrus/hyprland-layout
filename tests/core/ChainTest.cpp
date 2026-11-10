@@ -12,8 +12,12 @@ using threecol::RowLimit;
 using threecol::Settings;
 using threecol::WindowId;
 using threecol::Workspace;
+using threecol::Wrap;
 
 namespace {
+
+    // Every dispatcher stops at the Chain's ends and a zone's edges.
+    constexpr Wrap NO_LOOPING{.focus = false, .swap = false, .cycleNext = false, .swapNext = false};
 
     // One 5120x1440 ultrawide, no gaps, default widths 0.25 / 0.5 / 0.25.
     constexpr Rect AREA{0, 0, 5120, 1440};
@@ -86,11 +90,11 @@ TEST(ChainFocus, RightWalksFromLeftToMasterToTheStack) {
     EXPECT_EQ(focusAfter(ws, "focus r", 1), 3u);
 }
 
-TEST(ChainFocus, StopsAtTheEndsInsteadOfWrapping) {
+TEST(ChainFocus, LoopsFromOneEndOfTheChainToTheOtherByDefault) {
     Workspace ws = filled(1, 3); // 1 Master, 2 Left, 3 Stack
 
-    EXPECT_EQ(focusAfter(ws, "focus l", 2), std::nullopt);
-    EXPECT_EQ(focusAfter(ws, "focus r", 3), std::nullopt);
+    EXPECT_EQ(focusAfter(ws, "focus l", 2), 3u);
+    EXPECT_EQ(focusAfter(ws, "focus r", 3), 2u);
 }
 
 TEST(ChainFocus, SkipsAMasterHole) {
@@ -115,11 +119,105 @@ TEST(ChainFocus, UpAndDownStayInsideLeftOrTheStack) {
     Workspace ws = filled(2, 5); // 1 Master, 2 3 Left, 4 5 Stack
 
     EXPECT_EQ(focusAfter(ws, "focus d", 2), 3u);
-    EXPECT_EQ(focusAfter(ws, "focus d", 3), std::nullopt);
     EXPECT_EQ(focusAfter(ws, "focus u", 3), 2u);
-    EXPECT_EQ(focusAfter(ws, "focus u", 4), std::nullopt);
     EXPECT_EQ(focusAfter(ws, "focus d", 4), 5u);
     EXPECT_EQ(focusAfter(ws, "focus u", 5), 4u);
+}
+
+TEST(ChainFocus, UpAndDownLoopInsideTheSideZoneByDefault) {
+    Workspace ws = filled(2, 6); // 1 Master, 2 3 Left, 4 5 6 Stack
+
+    EXPECT_EQ(focusAfter(ws, "focus d", 3), 2u);
+    EXPECT_EQ(focusAfter(ws, "focus u", 2), 3u);
+    EXPECT_EQ(focusAfter(ws, "focus d", 6), 4u);
+    EXPECT_EQ(focusAfter(ws, "focus u", 4), 6u);
+}
+
+TEST(ChainFocus, NoloopStopsAtTheChainsEndsAndTheZonesEdges) {
+    Workspace ws = filled(2, 5); // 1 Master, 2 3 Left, 4 5 Stack
+
+    EXPECT_EQ(focusAfter(ws, "focus l noloop", 2), std::nullopt);
+    EXPECT_EQ(focusAfter(ws, "focus r noloop", 5), std::nullopt);
+    EXPECT_EQ(focusAfter(ws, "focus u noloop", 2), std::nullopt);
+    EXPECT_EQ(focusAfter(ws, "focus d noloop", 5), std::nullopt);
+    // Short of an end it steps as usual.
+    EXPECT_EQ(focusAfter(ws, "focus r noloop", 3), 1u);
+    EXPECT_EQ(focusAfter(ws, "focus d noloop", 4), 5u);
+}
+
+// inDirection is what the focus and swap hooks ask, with wrap.focus or
+// wrap.swap.
+
+TEST(ChainFocus, InDirectionLoopsAtTheChainsEndsOnlyWithWrap) {
+    const Workspace ws = filled(1, 3); // Chain 2, 1, 3
+
+    EXPECT_EQ(ws.inDirection(3, Direction::Right, /*wrap=*/true), 2u);
+    EXPECT_EQ(ws.inDirection(2, Direction::Left, true), 3u);
+    EXPECT_EQ(ws.inDirection(3, Direction::Right, /*wrap=*/false), std::nullopt);
+    EXPECT_EQ(ws.inDirection(2, Direction::Left, false), std::nullopt);
+}
+
+TEST(ChainFocus, InDirectionLoopsAtAZonesTopAndBottomRowOnlyWithWrap) {
+    const Workspace ws = filled(2, 6); // 1 Master, 2 3 Left, 4 5 6 Stack
+
+    EXPECT_EQ(ws.inDirection(6, Direction::Down, /*wrap=*/true), 4u);
+    EXPECT_EQ(ws.inDirection(4, Direction::Up, true), 6u);
+    EXPECT_EQ(ws.inDirection(3, Direction::Down, true), 2u);
+    EXPECT_EQ(ws.inDirection(6, Direction::Down, /*wrap=*/false), std::nullopt);
+    EXPECT_EQ(ws.inDirection(4, Direction::Up, false), std::nullopt);
+    EXPECT_EQ(ws.inDirection(2, Direction::Up, false), std::nullopt);
+}
+
+TEST(ChainFocus, InDirectionUpOrDownOnMasterOrALoneRowIsNothingEvenWithWrap) {
+    const Workspace ws = filled(1, 3); // 1 Master, 2 Left, 3 Stack
+
+    for (const Direction d : {Direction::Up, Direction::Down}) {
+        EXPECT_EQ(ws.inDirection(1, d, true), std::nullopt);
+        EXPECT_EQ(ws.inDirection(2, d, true), std::nullopt);
+        EXPECT_EQ(ws.inDirection(3, d, true), std::nullopt);
+    }
+}
+
+TEST(ChainFocus, InDirectionLoopsPastAMasterHoleAndAloneIsNothing) {
+    Workspace ws = filled(1, 3);
+    ws.removeWindow(1); // Master Hole: Chain 2, 3
+
+    EXPECT_EQ(ws.inDirection(3, Direction::Right, true), 2u);
+    EXPECT_EQ(ws.inDirection(2, Direction::Left, true), 3u);
+
+    Workspace lone = filled(1, 1);
+    EXPECT_EQ(lone.inDirection(1, Direction::Right, true), std::nullopt);
+    EXPECT_EQ(lone.inDirection(1, Direction::Left, true), std::nullopt);
+}
+
+TEST(ChainFocus, WrapFocusOffStopsTheMessageAtTheEnds) {
+    Workspace ws = filled(2, 5); // 1 Master, 2 3 Left, 4 5 Stack
+
+    EXPECT_EQ(ws.layoutMessage("focus l", 2, NO_LOOPING).focus, std::nullopt);
+    EXPECT_EQ(ws.layoutMessage("focus r", 5, NO_LOOPING).focus, std::nullopt);
+    EXPECT_EQ(ws.layoutMessage("focus d", 5, NO_LOOPING).focus, std::nullopt);
+    EXPECT_EQ(ws.layoutMessage("focus u", 4, NO_LOOPING).focus, std::nullopt);
+}
+
+TEST(ChainFocus, OtherWrapSwitchesLeaveFocusLooping) {
+    Workspace ws = filled(1, 3);
+
+    EXPECT_EQ(ws.layoutMessage("focus r", 3, Wrap{.swap = false, .cycleNext = false, .swapNext = false}).focus, 2u);
+}
+
+TEST(ChainFocus, FocusMessageIsADirectionThenOptionallyNoloop) {
+    using threecol::parseFocusMessage;
+
+    EXPECT_EQ(parseFocusMessage("focus l"), (threecol::FocusMessage{Direction::Left, false}));
+    EXPECT_EQ(parseFocusMessage("focus d noloop"), (threecol::FocusMessage{Direction::Down, true}));
+    for (const auto* other : {"focus", "focus x", "focus lr", "focus l x", "focus  l", "focus l noloop x", "move l", "focusmaster"})
+        EXPECT_EQ(parseFocusMessage(other), std::nullopt) << other;
+}
+
+TEST(ChainFocus, AFocusMessageWithOtherWordsDoesNothing) {
+    Workspace ws = filled(1, 3);
+
+    EXPECT_EQ(focusAfter(ws, "focus r x", 2), std::nullopt);
 }
 
 TEST(ChainFocus, UpAndDownDoNothingOnMaster) {
@@ -401,7 +499,7 @@ TEST(ChainFocusMirrored, WalksTheLeftStackTopToBottomThenMasterThenRight) {
     EXPECT_EQ(focusAfter(ws, "focus r", 2), 3u);
     EXPECT_EQ(focusAfter(ws, "focus r", 3), 4u);
     EXPECT_EQ(focusAfter(ws, "focus r", 4), 1u);
-    EXPECT_EQ(focusAfter(ws, "focus r", 1), std::nullopt);
+    EXPECT_EQ(focusAfter(ws, "focus r", 1), 2u); // loops
     EXPECT_EQ(focusAfter(ws, "focus l", 4), 3u);
 }
 
@@ -488,7 +586,7 @@ TEST(ChainFocusTwoStacks, WalksLeftMasterThenRight) {
 TEST(Chain, AMissingLeftZoneIsNoStepAndMasterIsTheChainsLeftEnd) {
     Workspace ws = filled(0, 3); // 1 Master, Right 2 3
 
-    EXPECT_EQ(ws.layoutMessage("focus l", 1).focus, std::nullopt);
+    EXPECT_EQ(ws.layoutMessage("focus l", 1, NO_LOOPING).focus, std::nullopt);
     EXPECT_EQ(ws.layoutMessage("focus r", 1).focus, 2u);
     EXPECT_EQ(ws.layoutMessage("focus l", 2).focus, 1u);
 }
@@ -509,7 +607,7 @@ TEST(Chain, MovingMasterTowardAMissingRightZoneDoesNothing) {
     ws.addWindow(1);
     ws.addWindow(2); // Left
 
-    EXPECT_EQ(ws.layoutMessage("focus r", 1).focus, std::nullopt);
+    EXPECT_EQ(ws.layoutMessage("focus r", 1, NO_LOOPING).focus, std::nullopt);
     EXPECT_FALSE(ws.layoutMessage("move r", 1));
 
     EXPECT_EQ(ws.rectOf(1), (Rect{1280, 0, 3840, 1440}));

@@ -58,7 +58,7 @@ namespace threecol {
 
         // The window focus in `direction` goes to from `window`, one of this
         // instance's tiles, as Workspace::inDirection says; nullptr if none.
-        PHLWINDOW                       inDirection(const PHLWINDOW& window, Direction direction) const;
+        PHLWINDOW                       inDirection(const PHLWINDOW& window, Direction direction, bool wrap) const;
 
         // The window after `window` on the Chain, or before it, as
         // Workspace::next says; nullptr if none.

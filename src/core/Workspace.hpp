@@ -52,6 +52,19 @@ namespace threecol {
         }
     };
 
+    // A `focus l|r|u|d` message, optionally followed by `noloop`.
+    struct FocusMessage {
+        Direction direction;
+        bool      noloop = false;
+
+        friend bool operator==(const FocusMessage&, const FocusMessage&) = default;
+    };
+
+    // `message` read as a focus message, or nothing if it's another one.
+    // Exactly `focus <d>` or `focus <d> noloop`: tiles and floating windows
+    // read it the same way.
+    std::optional<FocusMessage> parseFocusMessage(std::string_view message);
+
     // Whether a layout message needs a focused tile to apply. `focusmaster`
     // and `reset` don't, so they work with a floating window focused too.
     bool needsFocusedTile(std::string_view message);
@@ -127,9 +140,10 @@ namespace threecol {
         // Row's height, the other Rows giving way in proportion; `reset` puts the
         // Dividers back to the settings and makes the Rows equal.
         //
-        // `focus l` / `focus r` walk the Chain, stopping at its ends and
-        // skipping empty zones; `focus u` / `focus d` move inside a side
-        // zone, never leaving it. `focusmaster` focuses Master, from a
+        // `focus l` / `focus r` walk the Chain, skipping empty zones;
+        // `focus u` / `focus d` move inside a side zone, never leaving it.
+        // Both loop as inDirection says, unless `wrap` turns that off or the
+        // message says `noloop`. `focusmaster` focuses Master, from a
         // tile or a floating window. `move l|r|u|d` moves the focused window as
         // `move` does, focus staying on it. `swapwithmaster` swaps the focused
         // window with Master, the old Master taking its Row, or moves it into
@@ -158,9 +172,9 @@ namespace threecol {
 
         // The window focus in `direction` goes to from `id`: along the Chain
         // for `Left` / `Right`, the Row above or below inside its side zone
-        // for `Up` / `Down`. Nothing past the Chain's ends or the zone's
-        // edges, and up or down on Master.
-        std::optional<WindowId> inDirection(WindowId id, Direction direction) const;
+        // for `Up` / `Down`. Past the Chain's ends it loops to the other end
+        // if `wrap`, else nothing. Nothing up or down on Master.
+        std::optional<WindowId> inDirection(WindowId id, Direction direction, bool wrap) const;
 
         // Moves `id` one step along the Chain (`Left`, `Right`) or inside its
         // zone (`Up`, `Down`), stopping at the Chain's ends and the zone's
@@ -319,11 +333,9 @@ namespace threecol {
         // when it left a floating window.
         std::optional<WindowId> m_beforeMaster;
 
-        // The next window from `id` along the Chain, one way or the other.
-        std::optional<WindowId> chainNeighbour(WindowId id, bool right) const;
-
-        // The Row above or below `id` in its zone; nothing on Master.
-        std::optional<WindowId> rowNeighbour(WindowId id, bool down) const;
+        // The Row above or below `id` in its zone, looping past its top and
+        // bottom Rows if `wrap`; nothing on Master or a lone Row.
+        std::optional<WindowId> rowNeighbour(WindowId id, bool down, bool wrap = false) const;
 
         bool                    applyMove(WindowId id, Direction direction);
 

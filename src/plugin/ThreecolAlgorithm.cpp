@@ -665,9 +665,9 @@ namespace threecol {
         return cycleStep(chain, floating, window, forward, wrap).value_or(PHLWINDOW{});
     }
 
-    PHLWINDOW CThreecolAlgorithm::inDirection(const PHLWINDOW& window, Direction direction) const {
+    PHLWINDOW CThreecolAlgorithm::inDirection(const PHLWINDOW& window, Direction direction, bool wrap) const {
         const auto id     = idOf(window->layoutTarget());
-        const auto to     = id ? m_model.inDirection(*id, direction) : std::nullopt;
+        const auto to     = id ? m_model.inDirection(*id, direction, wrap) : std::nullopt;
         const auto target = to ? targetOf(*to) : nullptr;
         return target ? target->window() : nullptr;
     }
@@ -681,11 +681,19 @@ namespace threecol {
 
     namespace {
 
-        // The direction of `focus l|r|u|d`, or nothing for another message.
+        // The direction of a focus message, as parseFocusMessage reads it, or
+        // nothing for another message.
         std::optional<Math::eDirection> focusDirection(std::string_view message) {
-            if (message.size() != 7 || !message.starts_with("focus ") || !std::string_view{"lrud"}.contains(message.back()))
+            const auto focus = parseFocusMessage(message);
+            if (!focus)
                 return std::nullopt;
-            return Math::fromChar(message.back());
+            switch (focus->direction) {
+                case Direction::Left: return Math::DIRECTION_LEFT;
+                case Direction::Right: return Math::DIRECTION_RIGHT;
+                case Direction::Up: return Math::DIRECTION_UP;
+                case Direction::Down: return Math::DIRECTION_DOWN;
+            }
+            return std::nullopt;
         }
 
     }

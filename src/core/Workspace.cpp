@@ -9,20 +9,6 @@
 
 namespace threecol {
 
-    namespace {
-
-        // The window after `id` in `windows`, or before it; nothing at the
-        // ends or if it isn't there.
-        std::optional<WindowId> neighbour(const std::vector<WindowId>& windows, WindowId id, bool after) {
-            const auto it = std::ranges::find(windows, id);
-            if (it == windows.end())
-                return std::nullopt;
-            if (after)
-                return std::next(it) == windows.end() ? std::nullopt : std::optional{*std::next(it)};
-            return it == windows.begin() ? std::nullopt : std::optional{*std::prev(it)};
-        }
-
-    }
 
     Workspace::Workspace(Rect area) : m_area(area) {}
 
@@ -186,9 +172,9 @@ namespace threecol {
 
         takeOut(id);
 
-        if (const auto next = neighbour(windows, id, true))
+        if (const auto next = step(windows, id, true, false))
             return next;
-        return neighbour(windows, id, false);
+        return step(windows, id, false, false);
     }
 
     void Workspace::keepOnly(const std::vector<WindowId>& ids) {
@@ -301,6 +287,18 @@ namespace threecol {
             return std::ranges::contains(args, word);
         }
 
+
+    }
+
+    std::optional<FocusMessage> parseFocusMessage(std::string_view message) {
+        for (const char d : {'l', 'r', 'u', 'd'}) {
+            const std::string plain = std::string{"focus "} + d;
+            if (message == plain)
+                return FocusMessage{.direction = toDirection(d)};
+            if (message == plain + " noloop")
+                return FocusMessage{.direction = toDirection(d), .noloop = true};
+        }
+        return std::nullopt;
     }
 
     bool needsFocusedTile(std::string_view message) {
@@ -357,8 +355,8 @@ namespace threecol {
             return {.changed = resizeRow(*focused, m_settings.step)};
         if (message == "resize shorter")
             return {.changed = resizeRow(*focused, -m_settings.step)};
-        if (message == "focus l" || message == "focus r" || message == "focus u" || message == "focus d")
-            return {.focus = inDirection(*focused, toDirection(message.back()))};
+        if (const auto focus = parseFocusMessage(message))
+            return {.focus = inDirection(*focused, focus->direction, wrap.focus && !focus->noloop)};
         if (message == "move l" || message == "move r" || message == "move u" || message == "move d") {
             const bool moved = applyMove(*focused, toDirection(message.back()));
             return {.changed = moved, .focus = moved ? focused : std::nullopt};
@@ -421,18 +419,14 @@ namespace threecol {
         return step(windowsInChainOrder(), id, forward, wrap);
     }
 
-    std::optional<WindowId> Workspace::inDirection(WindowId id, Direction direction) const {
+    std::optional<WindowId> Workspace::inDirection(WindowId id, Direction direction, bool wrap) const {
         switch (direction) {
-            case Direction::Left: return chainNeighbour(id, false);
-            case Direction::Right: return chainNeighbour(id, true);
-            case Direction::Up: return rowNeighbour(id, false);
-            case Direction::Down: return rowNeighbour(id, true);
+            case Direction::Left: return next(id, false, wrap);
+            case Direction::Right: return next(id, true, wrap);
+            case Direction::Up: return rowNeighbour(id, false, wrap);
+            case Direction::Down: return rowNeighbour(id, true, wrap);
         }
         return std::nullopt;
-    }
-
-    std::optional<WindowId> Workspace::chainNeighbour(WindowId id, bool right) const {
-        return neighbour(windowsInChainOrder(), id, right);
     }
 
     bool Workspace::move(WindowId id, Direction direction) {
@@ -521,12 +515,12 @@ namespace threecol {
         return true;
     }
 
-    std::optional<WindowId> Workspace::rowNeighbour(WindowId id, bool down) const {
+    std::optional<WindowId> Workspace::rowNeighbour(WindowId id, bool down, bool wrap) const {
         const auto  zone = zoneOf(id);
         const auto* rows = zone ? rowsOf(*zone) : nullptr;
         if (!rows)
             return std::nullopt;
-        return neighbour(rows->windows, id, down);
+        return step(rows->windows, id, down, wrap);
     }
 
     namespace {

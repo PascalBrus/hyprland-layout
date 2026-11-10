@@ -35,3 +35,36 @@ Bugs found and fixed in `d09ac8a`, both with unit tests:
 2. With no focused window, `focusmaster` focused Master. The master layout does nothing (`:600-601`). threecol now does nothing too.
 
 One small difference is left: if the floating window that `focusmaster previous` came from is tiled later, the master layout goes back to it, but threecol falls back to auto.
+
+## #83: direction focus and swap, switches, looping, edges (2026-11-10)
+
+- **Hyprland 0.57.2**, commit `11cbc6c577b84ffb1edf4df3fc5b6128c3ae6947`, nested instance. The installed package moved to 0.57.2 since #82; the README cites 0.57.1 (`acc1aa0b`), and `moveFocus` (`ConfigActions.cpp:448-536`) is the same at 0.57.0 and 0.57.1.
+- threecol built from the #83 commit, loaded from `build/threecol.so`. Default `plugin:threecol:*` values; every switch changed at runtime with `hl.config`, never a reload, and read back with `hyprctl getoption`.
+- Run with [`live83.py`](live83.py). Setup: Master T1, Left T2, Stack T3 above T4 (Chain T2, T1, T3, T4). Where threecol's behaviour runs, the expected window is worked out from the tiles' positions alone. Where Hyprland's runs, runs with every combination of `binds.focus` / `binds.swap` and `wrap.focus` / `wrap.swap` must match.
+- A negative control (expecting `wrap.focus = false` results with looping on) fails, so the checks can fail.
+
+**Result: 12 of 12 pass.**
+
+| Check | Dispatcher | Switches | Seen | Result |
+|---|---|---|---|---|
+| `focus_loops` | `focus({ direction })`, all 4 directions from all 4 tiles | `binds.focus` on, `wrap.focus` on | left / right one step along the Chain, T4 right → T2 and T2 left → T4; up / down inside the Stack, T4 down → T3, T3 up → T4; up / down on Master and on the lone Left Row stay | PASS |
+| `focus_no_wrap` | the same 16 | `wrap.focus` off | The same, but T4 right, T2 left, T4 down and T3 up stay | PASS |
+| `swap_loops` | `window.swap({ direction })`, 16 in a row | `binds.swap` on, `wrap.swap` on | Each swaps with the window focus would go to from the positions before it, looping; focus stays on the swapped window | PASS |
+| `swap_no_wrap` | the same 16 | `wrap.swap` off | No swap past an end | PASS |
+| `focus_message_noloop` | `layout("focus l/r/u/d")`, with and without `noloop` | `wrap.focus` on, then off | Loops by default; `noloop` stops just that message at an end and steps normally elsewhere; `wrap.focus` off stops it too | PASS |
+| `focus_hyprland` | `focus({ direction })` | `binds.focus` off, `wrap.focus` on and off | Hyprland's: geometry picks, and at the screen edge its own wrap from the far edge (`ConfigActions.cpp:487-534`); `wrap.focus` changes nothing | PASS |
+| `swap_hyprland` | `window.swap({ direction })` | `binds.swap` off, `wrap.swap` on and off | Hyprland's: geometry swaps, nothing at the screen edge; `wrap.swap` changes nothing | PASS |
+| `floating` | focus from two floating windows, swap from one, every direction | all 4 combinations | Identical every time; focus moves between the floating windows | PASS |
+| `fullscreen` | focus and swap, every direction, T2 fullscreen | all 4 combinations | Identical every time, fullscreen holds, focus doesn't follow the Chain | PASS |
+| `other_layout` | focus and swap, every direction, 3 windows on a dwindle workspace | all 4 combinations | Identical every time (windows named by position, as dwindle places them differently run to run) | PASS |
+| `edges` | focus and swap at threecol's edges, with a headless monitor right of the nested one holding window M | looping on, then `wrap.focus` / `wrap.swap` off | Looping: T4 right → T2, not M. Off: T4 right, T4 down, T2 left, up / down on Master and on the lone Left Row: focus stays, nothing swaps, nothing leaves the monitor. Control with `binds.focus` off: T4 right → M | PASS |
+| `hook_failure` | `hookblocker.so` loaded first, holding `moveFocus`; then threecol | defaults | One notification: `[threecol] focus({ direction }) keeps Hyprland's behaviour: threecol could not hook it (x86_64 only, one plugin per hook)`. Focus right from T3 is Hyprland's (T2, its edge wrap), swap right from T3 still threecol's (with T4) | PASS |
+
+Settings reset with `hyprctl reload` in the nested instance at the end; every `binds` and `wrap` switch read back `true`.
+
+Found and fixed in the #83 commit:
+
+1. The README said Hyprland's direction focus goes to the next monitor and stops there. It also wraps: with no window and no monitor that way, it takes the window nearest the screen's far edge, unless `general:no_focus_fallback` (`ConfigActions.cpp:487-534`). The README row now says so. Found when `focus_hyprland` first expected focus to stay at the edges.
+2. With one hook failing, the notification read "focus({ direction }) keep Hyprland's behaviour: threecol could not hook them". It now says "keeps" and "it" for one; `hook_failure` was run again on the fixed build.
+
+Not checked: several real monitors (the `edges` check uses one headless monitor).
