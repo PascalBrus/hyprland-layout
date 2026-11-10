@@ -29,7 +29,7 @@ reference/since-46-live/up.sh "$H" [threecol.so]   # default: build/threecol.so
 reference/since-46-live/down.sh "$H"               # when done
 ```
 
-`up.sh` copies this folder and the [`../bind-dispatchers-live/`](../bind-dispatchers-live/) checks into `$H` (an empty directory or an earlier harness), fills in `<HARNESS>` and `<REPO>`, and copies the plugin to `$H/build/threecol.so`. Then it launches the nested Hyprland silently on the outer workspace 9, so nothing on the author's workspaces moves, and writes its signature to `$H/sig.txt`. It returns once threecol is loaded and the output size has settled after one reload. `down.sh` stops that instance only.
+`up.sh` copies this folder into `$H` and links the [`../bind-dispatchers-live/`](../bind-dispatchers-live/) checks there, so an edit to one runs without copying it again (an empty directory or an earlier harness), fills in `<HARNESS>` and `<REPO>`, and copies the plugin to `$H/build/threecol.so`. Then it launches the nested Hyprland silently on the outer workspace 9, so nothing on the author's workspaces moves, and writes its signature to `$H/sig.txt`. It returns once threecol is loaded and the output size has settled after one reload. `down.sh` stops that instance only.
 
 For the #66 checklist, test a fixed commit instead of the current build:
 

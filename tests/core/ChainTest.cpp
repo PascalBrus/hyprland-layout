@@ -61,7 +61,6 @@ namespace {
         return ws.layoutMessage(message, focused).focus;
     }
 
-
     // A mirrored layout: Left a Stack, Right bounded to `rightRows` (or a
     // second Stack). Windows land through Fill order and moves: `right` top
     // to bottom, then `master`, then `left` top to bottom.

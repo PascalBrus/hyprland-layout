@@ -9,7 +9,6 @@
 
 namespace threecol {
 
-
     Workspace::Workspace(Rect area) : m_area(area) {}
 
     void Workspace::setArea(Rect area) {
@@ -290,7 +289,6 @@ namespace threecol {
         bool has(const std::vector<std::string_view>& args, std::string_view word) {
             return std::ranges::contains(args, word);
         }
-
 
     }
 

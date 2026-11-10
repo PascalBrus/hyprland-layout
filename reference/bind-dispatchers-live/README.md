@@ -11,7 +11,7 @@ Checks for the #79 sub-issues, run in the nested Hyprland of [`../since-46-live/
 
 ## Run
 
-1. `reference/since-46-live/up.sh "$H"` sets up the harness in `$H` with `build/threecol.so` and these check files, and starts the nested Hyprland. See [`../since-46-live/README.md`](../since-46-live/README.md#set-up). For `live83.py hook_failure`, also build `hookblocker.so` into `$H/`.
+1. `reference/since-46-live/up.sh "$H"` sets up the harness in `$H` with `build/threecol.so`, links these check files into it (edit them here; they run there as they are), and starts the nested Hyprland. See [`../since-46-live/README.md`](../since-46-live/README.md#set-up). For `live83.py hook_failure`, also build `hookblocker.so` into `$H/`.
 2. `cd "$H" && python3 -I live82.py all`, or name checks, e.g. `python3 -I live82.py sm_child ignored`. The scripts drive only the instance in `$H/sig.txt`.
 3. `reference/since-46-live/down.sh "$H"` stops it. After a rebuild, run `down.sh` then `up.sh` again to load the new build.
 

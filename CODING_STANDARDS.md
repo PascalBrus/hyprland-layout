@@ -1,6 +1,6 @@
 # Coding standards
 
-Rules for reviewing a threecol diff. Each one is a judgement call. The mechanical rules are enforced by checks instead: warnings as errors and the unit suite run in `.githooks/pre-commit`, and `cmake/CheckCoreIsPure.cmake` keeps Hyprland headers out of `src/core/`.
+Rules for reviewing a threecol diff. Each one is a judgement call. The mechanical rules are enforced by checks instead: warnings as errors, the unit suite, formatting of the changed lines, comment width and stale code names in the docs run in `.githooks/pre-commit`, and `cmake/CheckCoreIsPure.cmake` keeps Hyprland headers out of `src/core/`.
 
 The code layout these rules build on is in [README.md § Building from source](README.md#building-from-source): `src/core/` decides, and `src/plugin/` translates.
 

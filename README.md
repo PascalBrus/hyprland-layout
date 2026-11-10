@@ -633,7 +633,7 @@ ctest --test-dir build
 
 The unit tests need GoogleTest. Turn them off with `-DTHREECOL_TESTS=OFF`. `-DTHREECOL_WERROR=ON` makes compiler warnings errors.
 
-Before committing, turn on the pre-commit hook once per clone with `git config core.hooksPath .githooks`. When a commit touches code, CMake files or examples, the hook builds in `build-check/` with warnings as errors, runs the unit tests, and checks `examples/*.lua` with `luac -p`.
+Before committing, turn on the pre-commit hook once per clone with `git config core.hooksPath .githooks`. On every commit, it checks that code names in backticks in the docs still exist, that staged C++ lines follow `.clang-format` (fix them with `git clang-format`), that new comment lines fit 80 columns, and that no staged C++ file has two blank lines in a row. When a commit touches code, CMake files or examples, the hook builds in `build-check/` with warnings as errors, runs the unit tests, and checks `examples/*.lua` with `luac -p`.
 
 To try a build on your live session, point `hl.plugin.load` at `build/threecol.so` (see [Manual install](#manual-install)).
 

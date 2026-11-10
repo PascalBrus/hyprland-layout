@@ -3,8 +3,8 @@
 #
 #   reference/since-46-live/up.sh <dir> [threecol.so]
 #
-# Copies this folder and the bind-dispatchers-live checks into <dir>, fills in
-# the placeholders, copies the plugin (default: build/threecol.so) to
+# Copies this folder into <dir>, links the bind-dispatchers-live checks there
+# (so an edit to one runs without copying it again), fills in the placeholders, copies the plugin (default: build/threecol.so) to
 # <dir>/build/, launches the nested Hyprland silently on the outer workspace 9,
 # writes its signature to <dir>/sig.txt, and returns once threecol is loaded
 # and the output size has settled. Stop it with down.sh <dir>.
@@ -28,7 +28,7 @@ if [ -e "$H/sig.txt" ] && hyprctl instances | grep -q "$(cat "$H/sig.txt")"; the
 fi
 
 cp -r "$HERE"/. "$H"/
-cp "$R"/reference/bind-dispatchers-live/*.py "$H"/
+for f in "$R"/reference/bind-dispatchers-live/*.py; do ln -sf "$f" "$H"/; done
 rm -rf "$H/__pycache__" "$H/sig.txt"
 sed -i "s|<HARNESS>|$H|g; s|<REPO>|$R|g" "$H/launch.sh" "$H/nest/hyprland.lua" "$H/nest.py"
 mkdir -p "$H/build"
