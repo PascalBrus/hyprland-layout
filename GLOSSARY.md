@@ -91,3 +91,7 @@ _Avoid_: threecol action, custom bind, layout command
 **Settings app**:
 The graphical program, `threecol-settings`, for setting every threecol setting, workspace override and bind without reading the README. Each entry shows what it does, as a picture and in words, and changes take effect when saved.
 _Avoid_: GUI, visual manager, configurator, overlay
+
+**Settings file**:
+The one config file the Settings app writes and owns, loaded after the user's own config so its values win. The user's hand-written files are never changed by the Settings app.
+_Avoid_: generated file, generated config, managed file
