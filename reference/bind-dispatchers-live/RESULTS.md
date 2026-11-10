@@ -93,3 +93,42 @@ Not checked: several real monitors (the `edges` check uses one headless monitor)
 No bugs found in the plugin. A first run expected T4 left (after swapping into the full Left) to swap back; it joins the Stack's bottom instead, as the rules say, since the Stack has room. The check was wrong and now expects that.
 
 Not checked: the drag and mouse-resize rows (`window.drag`, `window.resize` as a mouse bind). They move the real pointer, so they wait for the author's yes.
+
+## #85: the #81 rows, focus after close, One-off resize, drag and Drag resize (2026-11-10, in progress)
+
+- Keyboard checks: Hyprland 0.57.2 (`11cbc6c5`) nested, threecol built from `fd66dfe` plus this branch's uncommitted #85 work (no plugin changes), run with [`live85.py`](live85.py). Setup as in #83: Chain T2, T1, T3, T4; F and G floating, opened after them, so the Cycle is T2, T1, T3, T4, F, G and Hyprland's window order T1, T2, T3, T4, F, G.
+- Mouse checks: in the author's real session on its workspace 9 (Hyprland 0.57.1, `acc1aa0b`, with the hyprpm threecol build it has loaded, `centre_master = false`), with the author's own SUPER + left / right button binds, run with [`outer85.py`](outer85.py). This branch changes no drop or Drag resize code, so that build tests the same code. The nested harness can't run them: the outer session owns SUPER + mouse.
+
+| Check | Dispatcher | Switches | Seen | Result |
+|---|---|---|---|---|
+| `swap_next_loops` | `window.swap({ next \| prev })`, 8 in a row | `binds.swap_next`, `wrap.swap_next` on | Each swaps with the next / previous on the Chain, looping; focus stays on the swapped window | PASS |
+| `swap_next_no_wrap` | the same 8 | `wrap.swap_next` off | No swap past an end | PASS |
+| `swap_next_hyprland` | swap next / prev | `binds.swap_next` off, `wrap.swap_next` on and off | Hyprland's: from T1 next swaps with T2 (window order), not T3 (Chain) | PASS once, FAIL once: see below |
+| `cycle_next_loops` | `window.cycle_next()`, both ways from all 6 windows | `binds.cycle_next`, `wrap.cycle_next` on | One step along the Cycle, from tiles and floating windows; G next → T2, T2 back → G | PASS |
+| `cycle_next_no_wrap` | the same 12 | `wrap.cycle_next` off | Stops at T2 back and G next | PASS |
+| `cycle_next_tiled_only` | `cycle_next({ tiled = true })` | `wrap.cycle_next` on and off | From a tile: the Chain alone, looping or not; from F / G: Hyprland's (T1, T4), the same with `binds.cycle_next` off | PASS |
+| `cycle_next_floating_only` | `cycle_next({ floating = true })`; `tiled` and `floating` both | all switch combinations | `floating` alone: Hyprland's, identical every time. Both: the Cycle (T1 → T3, T4 → F, G → T2), as Hyprland reads both as neither (`ConfigActions.cpp:1789-1792`) | PASS |
+| `cycle_next_hyprland` | `cycle_next()` | `binds.cycle_next` off, `wrap.cycle_next` on and off | Hyprland's, the same either way: from T1 next → T2 (window order), not T3 | PASS |
+| `chain_messages` | `cyclenext` / `cycleprev`, `swapnext` / `swapprev`, with and without `noloop` | `wrap.cycle_next` / `wrap.swap_next` on and off | Step along the Chain, looping; `noloop` or the `wrap` switch off stops them at an end | PASS |
+| `chain_messages_tiles_only` | the same four, from F; `cyclenext` from T4 | defaults | From F nothing happens; from T4 → T2, skipping F and G | PASS |
+| `fullscreen` | cycle next / prev, swap next / prev, T2 fullscreen, each step from a fresh fullscreen | all switch combinations | Identical every time; cycle next → T3, Hyprland's | PASS |
+| `other_layout` | cycle_next (also `tiled`), swap next / prev on a dwindle workspace | all switch combinations | Identical focus every time; swaps trade two windows, focus stays | PASS |
+| `close_focus` | closing the focused window | defaults | T2 → T1, T1 → T3, T3 → T4, T4 (last) → T3 | PASS |
+| `one_off_resize` | `window.resize({ x = 100, relative = true })` on T4, then on T2 | defaults | Moves the Divider right by 100: Right 100 narrower (Left mirrors it, Centred Master), Left 100 wider; `y = 60` on T3: T3 60 taller, T4 shorter | PASS |
+| `ignored_more` | `rollnext`, `rollprev`, `rotatesplit`, `movetoroot`, `splitratio 0.1`, `splitratio exact 0.3`, on T1, T3, F | defaults | Nothing moves, focus stays, `ok`, no notification | PASS |
+| `drop_swap` (`outer85.py`) | `window.drag()`, O4 dropped on O2 | – | They swap | PASS |
+| `drop_new_row` (`outer85.py`) | O2 dropped on the Stack's bottom quarter | – | O2 joins the Stack's bottom; Master stays | PASS |
+| `drop_empty_zone` (`outer85.py`) | O2 closed, O4 dropped into Left | – | O4 takes Left's place | PASS |
+| `drag_resize_divider` (`outer85.py`) | `window.resize()` mouse bind, in Left, 10% right | `centre_master = false` | Left|Master follows the cursor, Right stays; `reset` puts it back | PASS |
+| `drag_resize_row` (`outer85.py`) | `window.resize()` mouse bind, in O3, 60 px down | – | The Row edge follows; O4 gives way | PASS |
+
+Found:
+
+1. The glossary said a positive One-off resize makes the window bigger. It moves the Divider or Row edge by the amount instead, as a drag would, so `x > 0` narrows a Right window. The unit tests already expect this, and Hyprland's master layout does the same (`MasterAlgorithm.cpp:351`). The glossary and the README row now say so; no plugin change.
+2. The README's `cycle_next` row said `next` / `prev`; Lua's `cycle_next` takes `{ next = false }`, with no `prev` (`LuaBindingsDispatchers.cpp:955-969`). Fixed.
+3. Citations checked at `acc1aa0b`; fixed: `inDirection` pointed at the wrapper (`WindowQuery.cpp:23-47`, now `:49-257`), the dwindle range stopped at `preselect`'s first line (now `:681-768`), the three master-message cells shared one link (now one each), and `cyclenext` / `cycleprev` are known to the monocle layout too. The ignored table now lists `rollnext` / `rollprev`, `rotatesplit`, `movetoroot` and `splitratio`, which threecol ignored already.
+
+Still to do (next session):
+
+- `swap_next_hyprland` passed once and failed once: in the failing run, Hyprland's swap next from T1 gave a different first step with `wrap.swap_next` on and off. Hyprland's `swapNext` counts from the window it last swapped with (`ConfigActions.cpp:747-753`), and the nested output size flips after some reloads; either may explain it. Find out, then run `python3 -I live85.py all` once clean on the final code.
+- Not checked: the drop highlight in the real session (`outer85.py` doesn't take screenshots there).

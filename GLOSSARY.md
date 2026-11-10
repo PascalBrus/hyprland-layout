@@ -73,7 +73,7 @@ A resize with the mouse. The Divider or Row edge nearest the grabbed point follo
 _Avoid_: mouse resize
 
 **One-off resize**:
-A resize by a given amount in pixels, from a bind or command that names the amount, or from a trackpad gesture. A positive amount makes the window bigger, a negative one smaller. The new sizes are kept straight away.
+A resize by a given amount in pixels, from a bind or command that names the amount, or from a trackpad gesture. The amount moves the window's Divider and Row edge as a drag by that much would: a positive x to the right, a positive y down. So a positive x makes a Left window wider and a Right window narrower, as in Hyprland's master layout. The new sizes are kept straight away.
 _Avoid_: resizeactive, gesture resize
 
 **Step resize**:

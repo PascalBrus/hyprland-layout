@@ -14,7 +14,7 @@ import sys
 DOCS = ["README.md", "CODING_STANDARDS.md", "GLOSSARY.md", "CLAUDE.md"]
 
 # Hyprland's and git's names, which the docs cite but this code never uses.
-EXTERNAL = {"DwindleAlgorithm", "hooksPath"}
+EXTERNAL = {"DwindleAlgorithm", "LuaBindingsDispatchers", "MonocleAlgorithm", "hooksPath"}
 
 SPAN = re.compile(r"`([^`\n]+)`")
 NAME = re.compile(r"\b([a-z]+[A-Z]\w*|[A-Z][a-z]+[A-Z]\w*)\b")
