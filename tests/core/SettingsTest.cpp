@@ -142,7 +142,7 @@ TEST(Settings, ARightRowsThatIsNotAWholeNumberOrUnlimitedIsIgnored) {
 }
 
 TEST(Settings, LayoutOptsFillFirstWinsOverTheGlobalFillFirst) {
-    for (const auto [text, side, global] : {std::tuple{"right", Side::Right, Side::Left}, std::tuple{"left", Side::Left, Side::Right}}) {
+    for (const auto& [text, side, global] : {std::tuple{"right", Side::Right, Side::Left}, std::tuple{"left", Side::Left, Side::Right}}) {
         Workspace ws{AREA};
 
         const auto warnings = ws.setSettings(Settings{.fillFirst = global, .centreMaster = false}, LayoutOpts{{"fill_first", text}}, "3").warnings;

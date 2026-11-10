@@ -10,6 +10,14 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(THREECOL_TESTS "Build the GoogleTest suite" ON)
+# Off for hyprpm users, whose newer compiler may warn about code we can't see
+# yet; the pre-commit hook (.githooks/pre-commit) builds with it on.
+option(THREECOL_WERROR "Treat compiler warnings as errors" OFF)
+
+set(THREECOL_WARNINGS -Wall -Wextra -Wpedantic)
+if(THREECOL_WERROR)
+    list(APPEND THREECOL_WARNINGS -Werror)
+endif()
 
 # Core module: all layout behaviour, plain C++, no Hyprland headers.
 add_library(threecol_core STATIC
@@ -18,7 +26,7 @@ add_library(threecol_core STATIC
     src/core/Settings.cpp
     src/core/Workspace.cpp)
 target_include_directories(threecol_core PUBLIC src)
-target_compile_options(threecol_core PRIVATE -Wall -Wextra -Wpedantic)
+target_compile_options(threecol_core PRIVATE ${THREECOL_WARNINGS})
 set_target_properties(threecol_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 # Plugin module: translates between Hyprland and the core module.
@@ -35,6 +43,7 @@ add_library(threecol SHARED
     src/plugin/ThreecolAlgorithm.cpp
     src/plugin/VersionGuard.cpp)
 target_link_libraries(threecol PRIVATE threecol_core PkgConfig::HYPRLAND)
+target_compile_options(threecol PRIVATE ${THREECOL_WARNINGS})
 # Hyprland loads the plugin as threecol.so.
 set_target_properties(threecol PROPERTIES PREFIX "")
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
@@ -64,6 +73,7 @@ if(THREECOL_TESTS)
         tests/core/NextPrevTest.cpp
         tests/core/CycleTest.cpp)
     target_link_libraries(threecol_tests PRIVATE threecol_core GTest::gtest_main)
+    target_compile_options(threecol_tests PRIVATE ${THREECOL_WARNINGS})
     gtest_discover_tests(threecol_tests)
 
     add_test(NAME core_includes_no_hyprland_headers

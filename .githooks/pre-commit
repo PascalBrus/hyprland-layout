@@ -1,0 +1,15 @@
+#!/bin/sh
+# Builds with warnings as errors, runs the unit suite and syntax-checks the
+# Lua examples. Turned on per clone with: git config core.hooksPath .githooks
+# It checks the working tree, not only what is staged.
+set -e
+cd "$(git rev-parse --show-toplevel)"
+
+# Commits that touch no code, build file or example skip the checks.
+git diff --cached --name-only | grep -qE '^(src|tests|cmake|examples)/|^CMakeLists\.txt$' || exit 0
+
+B=build-check
+[ -f "$B/CMakeCache.txt" ] || cmake -S . -B "$B" -DTHREECOL_WERROR=ON > /dev/null
+cmake --build "$B" -j > "$B/build.log" 2>&1 || { grep -E 'error' "$B/build.log" | head -20; echo "pre-commit: build failed, see $B/build.log" >&2; exit 1; }
+ctest --test-dir "$B" --output-on-failure > "$B/ctest.log" 2>&1 || { tail -30 "$B/ctest.log"; echo "pre-commit: tests failed" >&2; exit 1; }
+luac -p examples/*.lua

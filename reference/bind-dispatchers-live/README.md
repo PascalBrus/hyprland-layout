@@ -10,9 +10,8 @@ Checks for the #79 sub-issues, run in the nested Hyprland of [`../since-46-live/
 
 ## Run
 
-1. Set up the harness as [`../since-46-live/README.md`](../since-46-live/README.md) says, but copy the build under test to `<HARNESS>/build/threecol.so` instead of running G1.
-2. Copy the check file in: `cp live82.py "$H/"` (or `live83.py`, and for its `hook_failure` check build `hookblocker.so` into `$H/`).
-3. Launch the nested Hyprland, then write its signature to `$H/sig.txt` (the newest `hyprctl instances` entry that isn't the outer session). The script only drives that instance.
-4. `python3 -I live82.py all`, or name checks, e.g. `python3 -I live82.py sm_child ignored`.
+1. `reference/since-46-live/up.sh "$H"` sets up the harness in `$H` with `build/threecol.so` and these check files, and starts the nested Hyprland. See [`../since-46-live/README.md`](../since-46-live/README.md#set-up). For `live83.py hook_failure`, also build `hookblocker.so` into `$H/`.
+2. `cd "$H" && python3 -I live82.py all`, or name checks, e.g. `python3 -I live82.py sm_child ignored`. The scripts drive only the instance in `$H/sig.txt`.
+3. `reference/since-46-live/down.sh "$H"` stops it. After a rebuild, run `down.sh` then `up.sh` again to load the new build.
 
 No check moves the mouse or presses a key.
