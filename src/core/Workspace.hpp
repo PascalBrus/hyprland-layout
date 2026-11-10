@@ -52,18 +52,18 @@ namespace threecol {
         }
     };
 
-    // A `focus l|r|u|d` message, optionally followed by `noloop`.
-    struct FocusMessage {
+    // A `<command> l|r|u|d` message, optionally followed by `noloop`.
+    struct DirectionMessage {
         Direction direction;
         bool      noloop = false;
 
-        friend bool operator==(const FocusMessage&, const FocusMessage&) = default;
+        friend bool operator==(const DirectionMessage&, const DirectionMessage&) = default;
     };
 
-    // `message` read as a focus message, or nothing if it's another one.
-    // Exactly `focus <d>` or `focus <d> noloop`: tiles and floating windows
-    // read it the same way.
-    std::optional<FocusMessage> parseFocusMessage(std::string_view message);
+    // `message` read as a `command` (`focus`, `move`) message, or nothing if
+    // it's another one. Exactly `<command> <d>` or `<command> <d> noloop`:
+    // tiles and floating windows read it the same way.
+    std::optional<DirectionMessage> parseDirectionMessage(std::string_view message, std::string_view command);
 
     // Whether a layout message needs a focused tile to apply. `focusmaster`
     // and `reset` don't, so they work with a floating window focused too.
@@ -72,8 +72,8 @@ namespace threecol {
     // Step resize on a floating window `window`: `resize wider` / `narrower`
     // change its width, `resize taller` / `shorter` its height, by `step`
     // of `area`'s, half on each side, so its centre stays put. It shrinks
-    // no smaller than one step. Nothing for any other message, or when the
-    // window can shrink no further.
+    // no smaller than one step, so the last shrink can be less. Nothing for
+    // any other message, or when the window can shrink no further.
     std::optional<Rect> floatingStepResize(std::string_view message, Rect window, Rect area, double step);
 
     // What a settings change did.
@@ -145,7 +145,8 @@ namespace threecol {
         // Both loop as inDirection says, unless `wrap` turns that off or the
         // message says `noloop`. `focusmaster` focuses Master, from a
         // tile or a floating window. `move l|r|u|d` moves the focused window as
-        // `move` does, focus staying on it. `swapwithmaster` swaps the focused
+        // `move` does, focus staying on it, looping unless `wrap` turns that
+        // off or the message says `noloop`. `swapwithmaster` swaps the focused
         // window with Master, the old Master taking its Row, or moves it into
         // a Hole; on Master it acts as its arguments below say.
         //
@@ -177,16 +178,21 @@ namespace threecol {
         std::optional<WindowId> inDirection(WindowId id, Direction direction, bool wrap) const;
 
         // Moves `id` one step along the Chain (`Left`, `Right`) or inside its
-        // zone (`Up`, `Down`), stopping at the Chain's ends and the zone's
-        // edges. Between Master and a side zone it steps at the side's end
-        // nearest Master: the bottom of Left, the top of Right. It swaps only
+        // zone (`Up`, `Down`). Past the Chain's ends and the zone's edges it
+        // loops if `wrap`, else does nothing. Between Master and a side zone
+        // it steps at the side's end nearest Master: the bottom of Left, the
+        // top of Right. It swaps only
         // when there is no room: with an occupied Master, the Row nearest
         // Master of a full Bounded zone, or a neighbouring Row in the same
         // zone. Otherwise it moves: into a Hole, or from Master into a Stack
         // or a Bounded zone below its Row limit as a new Row at its end
         // nearest Master, leaving a Hole. A moved window takes its new Row's
-        // height. Returns whether the layout changed.
-        bool                move(WindowId id, Direction direction);
+        // height. Looping, it arrives past the other end under the same
+        // rules: as a new Row at the far end of that end's side zone, or
+        // swapping with the Row there when it is full, or, with that side
+        // missing, into Master. Up and down at a zone's edge swap with the
+        // Row at its other edge. Returns whether the layout changed.
+        bool                move(WindowId id, Direction direction, bool wrap);
 
         // `a` and `b` trade places, each taking the other's Row, as asked
         // for outright, e.g. by Hyprland's swap. Returns whether they did.
@@ -278,6 +284,9 @@ namespace threecol {
         // top of Right. The Chain steps between Master and `side` there.
         static End              endNearestMaster(Zone side);
 
+        // The end of side zone `side` farthest from Master: the Chain's end.
+        static End              farEnd(Zone side);
+
         // Which way along the Chain Master lies from side zone `side`:
         // forward (right) from Left, back from Right.
         static bool             masterIsForwardOf(Zone side);
@@ -337,7 +346,7 @@ namespace threecol {
         // bottom Rows if `wrap`; nothing on Master or a lone Row.
         std::optional<WindowId> rowNeighbour(WindowId id, bool down, bool wrap = false) const;
 
-        bool                    applyMove(WindowId id, Direction direction);
+        bool                    applyMove(WindowId id, Direction direction, bool wrap);
 
         // Where `id` is kept: Master or its Row. Nothing if it isn't here.
         WindowId*               slotOf(WindowId id);
@@ -354,9 +363,16 @@ namespace threecol {
         // `rows` as a new Row.
         void                    joinBottom(Rows& rows, WindowId id);
 
-        // `id` leaves its place under the close rules and joins side zone
-        // `side` as a new Row at its end nearest Master.
-        void                    joinNearMaster(Zone side, WindowId id);
+        // `id` arrives at side zone `side`'s end `end`: it leaves its place
+        // under the close rules and joins there as a new Row if `side` has
+        // room, else swaps with the Row at that end. False if `side` takes
+        // no window at all.
+        bool                    arriveAt(Zone side, End end, WindowId id);
+
+        // `id` past the Chain's end going `forward`, as if it came in past the
+        // other end: into that end's side zone as arriveAt says, or with that
+        // side missing, to Master. False if Master is both ends and `id` is on it.
+        bool                    loopAround(WindowId id, bool forward);
 
         // `id` swaps with Master, or moves into a Master Hole.
         void                    toMaster(WindowId id);

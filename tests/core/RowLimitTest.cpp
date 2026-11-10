@@ -66,7 +66,7 @@ namespace {
         // Each joins Right at its top, so the bottom one goes first.
         for (auto id = right.rbegin(); id != right.rend(); ++id) {
             ws.addWindow(*id);
-            ws.move(*id, Direction::Right);
+            ws.move(*id, Direction::Right, false);
         }
         ws.addWindow(master);
         for (const WindowId id : left)

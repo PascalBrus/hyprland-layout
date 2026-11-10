@@ -51,6 +51,10 @@ namespace threecol {
         return side == Zone::Left ? End::Bottom : End::Top;
     }
 
+    Workspace::End Workspace::farEnd(Zone side) {
+        return endNearestMaster(side) == End::Top ? End::Bottom : End::Top;
+    }
+
     bool Workspace::masterIsForwardOf(Zone side) {
         // Along the Chain a side's Rows run top to bottom.
         return endNearestMaster(side) == End::Bottom;
@@ -290,13 +294,13 @@ namespace threecol {
 
     }
 
-    std::optional<FocusMessage> parseFocusMessage(std::string_view message) {
+    std::optional<DirectionMessage> parseDirectionMessage(std::string_view message, std::string_view command) {
         for (const char d : {'l', 'r', 'u', 'd'}) {
-            const std::string plain = std::string{"focus "} + d;
+            const std::string plain = std::string{command} + ' ' + d;
             if (message == plain)
-                return FocusMessage{.direction = toDirection(d)};
+                return DirectionMessage{.direction = toDirection(d)};
             if (message == plain + " noloop")
-                return FocusMessage{.direction = toDirection(d), .noloop = true};
+                return DirectionMessage{.direction = toDirection(d), .noloop = true};
         }
         return std::nullopt;
     }
@@ -355,10 +359,10 @@ namespace threecol {
             return {.changed = resizeRow(*focused, m_settings.step)};
         if (message == "resize shorter")
             return {.changed = resizeRow(*focused, -m_settings.step)};
-        if (const auto focus = parseFocusMessage(message))
+        if (const auto focus = parseDirectionMessage(message, "focus"))
             return {.focus = inDirection(*focused, focus->direction, wrap.focus && !focus->noloop)};
-        if (message == "move l" || message == "move r" || message == "move u" || message == "move d") {
-            const bool moved = applyMove(*focused, toDirection(message.back()));
+        if (const auto move = parseDirectionMessage(message, "move")) {
+            const bool moved = applyMove(*focused, move->direction, wrap.move && !move->noloop);
             return {.changed = moved, .focus = moved ? focused : std::nullopt};
         }
         const bool noloop = has(args, "noloop");
@@ -429,8 +433,8 @@ namespace threecol {
         return std::nullopt;
     }
 
-    bool Workspace::move(WindowId id, Direction direction) {
-        const bool moved = applyMove(id, direction);
+    bool Workspace::move(WindowId id, Direction direction, bool wrap) {
+        const bool moved = applyMove(id, direction, wrap);
         if (moved && m_gesture)
             m_gesture->over = true;
         return moved;
@@ -479,39 +483,57 @@ namespace threecol {
         }
     }
 
-    bool Workspace::applyMove(WindowId id, Direction direction) {
+    bool Workspace::applyMove(WindowId id, Direction direction, bool wrap) {
         const auto zone = zoneOf(id);
         if (!zone)
             return false;
 
         // Along the Chain, a side zone's Rows run top to bottom, so right is
         // down inside them.
-        const bool forward = direction == Direction::Right || direction == Direction::Down;
-        if (const auto other = rowNeighbour(id, forward)) {
+        const bool forward  = direction == Direction::Right || direction == Direction::Down;
+        const bool vertical = direction == Direction::Up || direction == Direction::Down;
+        if (const auto other = rowNeighbour(id, forward, wrap && vertical)) {
             swapPlaces(id, *other);
             return true;
         }
-        if (direction == Direction::Up || direction == Direction::Down)
+        if (vertical)
             return false;
 
         if (*zone != Zone::Master) {
             // Off the end nearest Master is Master; the other ways are the
             // Chain's ends.
             if (masterIsForwardOf(*zone) != forward)
-                return false;
+                return wrap && loopAround(id, forward);
             toMaster(id);
             return true;
         }
 
         const Zone side = forward ? Zone::Right : Zone::Left;
+        if (!exists(side))
+            return wrap && loopAround(id, forward);
+        return arriveAt(side, endNearestMaster(side), id);
+    }
+
+    bool Workspace::loopAround(WindowId id, bool forward) {
+        const Zone side = forward ? Zone::Left : Zone::Right;
+        if (exists(side))
+            return arriveAt(side, farEnd(side), id);
+        if (zoneOf(id) == Zone::Master)
+            return false;
+        toMaster(id);
+        return true;
+    }
+
+    bool Workspace::arriveAt(Zone side, End end, WindowId id) {
+        auto& rows = *rowsOf(side);
         if (hasRoom(side)) {
-            joinNearMaster(side, id);
+            takeOut(id);
+            rows.insert(end == End::Top ? 0 : rows.windows.size(), id);
             return true;
         }
-        const auto& windows = rowsOf(side)->windows;
-        if (windows.empty())
+        if (rows.windows.empty())
             return false;
-        swapPlaces(id, endNearestMaster(side) == End::Top ? windows.front() : windows.back());
+        swapPlaces(id, end == End::Top ? rows.windows.front() : rows.windows.back());
         return true;
     }
 
@@ -850,12 +872,6 @@ namespace threecol {
     void Workspace::joinBottom(Rows& rows, WindowId id) {
         takeOut(id);
         rows.insert(rows.windows.size(), id);
-    }
-
-    void Workspace::joinNearMaster(Zone side, WindowId id) {
-        takeOut(id);
-        auto& rows = *rowsOf(side);
-        rows.insert(endNearestMaster(side) == End::Top ? 0 : rows.windows.size(), id);
     }
 
 }

@@ -25,6 +25,7 @@ hl.config({
             wrap = {
                 focus      = true, -- focus({ direction }), focus l / r / u / d
                 swap       = true, -- swap({ direction })
+                move       = true, -- move({ direction }), move l / r / u / d
                 swap_next  = true, -- swap({ next | prev }), swapnext / swapprev
                 cycle_next = true, -- cycle_next(), cyclenext / cycleprev
             },

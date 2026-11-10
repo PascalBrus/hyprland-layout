@@ -15,6 +15,7 @@ namespace threecol {
     struct Wrap {
         bool focus     = true; // focus({ direction }), focus l / r / u / d
         bool swap      = true; // swap({ direction })
+        bool move      = true; // move({ direction }), move l / r / u / d
         bool cycleNext = true; // cycle_next, cyclenext / cycleprev
         bool swapNext  = true; // swap next / prev, swapnext / swapprev
     };

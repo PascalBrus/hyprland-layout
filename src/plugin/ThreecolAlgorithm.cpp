@@ -600,7 +600,7 @@ namespace threecol {
 
         const bool refreshed   = refreshModel();
         const bool wasResizing = m_model.resizing();
-        const bool moved       = m_model.move(*id, *direction);
+        const bool moved       = m_model.move(*id, *direction, bindSwitches().wrap.move);
         keepDividersIfDragEnded(wasResizing);
         if (moved || refreshed)
             recalculate();
@@ -681,10 +681,10 @@ namespace threecol {
 
     namespace {
 
-        // The direction of a focus message, as parseFocusMessage reads it, or
-        // nothing for another message.
+        // The direction of a focus message, as parseDirectionMessage reads it,
+        // or nothing for another message.
         std::optional<Math::eDirection> focusDirection(std::string_view message) {
-            const auto focus = parseFocusMessage(message);
+            const auto focus = parseDirectionMessage(message, "focus");
             if (!focus)
                 return std::nullopt;
             switch (focus->direction) {

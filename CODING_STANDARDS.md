@@ -8,7 +8,7 @@ The code layout these rules build on is in [README.md § Building from source](R
 
 Each layout message grammar, Chain or Row lookup, and neighbour rule lives once in `src/core/`. The plugin calls it.
 
-- A message the core already parses, like `focus l noloop`, is parsed by the plugin through the same core function (`parseFocusMessage`), never by a second hand-written parser. Two parsers drift: in #83, `focus l junk` moved on a tile and did nothing on a floating window.
+- A message the core already parses, like `focus l noloop`, is parsed by the plugin through the same core function (`parseDirectionMessage`), never by a second hand-written parser. Two parsers drift: in #83, `focus l junk` moved on a tile and did nothing on a floating window.
 - A new helper is checked against the ones in `src/core/` (`Cycle.hpp`'s `step`, and `Workspace`'s `next`, `inDirection` and `rowNeighbour`). When it matches one, reuse that or give it a parameter. Don't copy its body.
 
 ## Hooks stay cheap

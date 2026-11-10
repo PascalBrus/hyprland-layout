@@ -17,7 +17,7 @@ using threecol::Wrap;
 namespace {
 
     // Every dispatcher stops at the Chain's ends and a zone's edges.
-    constexpr Wrap NO_LOOPING{.focus = false, .swap = false, .cycleNext = false, .swapNext = false};
+    constexpr Wrap NO_LOOPING{.focus = false, .swap = false, .move = false, .cycleNext = false, .swapNext = false};
 
     // One 5120x1440 ultrawide, no gaps, default widths 0.25 / 0.5 / 0.25.
     constexpr Rect AREA{0, 0, 5120, 1440};
@@ -71,7 +71,7 @@ namespace {
         // Each joins Right at its top, so the bottom one goes first.
         for (auto id = right.rbegin(); id != right.rend(); ++id) {
             ws.addWindow(*id);
-            ws.move(*id, Direction::Right);
+            ws.move(*id, Direction::Right, false);
         }
         ws.addWindow(master);
         for (const WindowId id : left)
@@ -202,16 +202,20 @@ TEST(ChainFocus, WrapFocusOffStopsTheMessageAtTheEnds) {
 TEST(ChainFocus, OtherWrapSwitchesLeaveFocusLooping) {
     Workspace ws = filled(1, 3);
 
-    EXPECT_EQ(ws.layoutMessage("focus r", 3, Wrap{.swap = false, .cycleNext = false, .swapNext = false}).focus, 2u);
+    EXPECT_EQ(ws.layoutMessage("focus r", 3, Wrap{.swap = false, .move = false, .cycleNext = false, .swapNext = false}).focus, 2u);
 }
 
-TEST(ChainFocus, FocusMessageIsADirectionThenOptionallyNoloop) {
-    using threecol::parseFocusMessage;
+TEST(ChainFocus, FocusAndMoveMessagesAreADirectionThenOptionallyNoloop) {
+    using threecol::DirectionMessage;
+    using threecol::parseDirectionMessage;
 
-    EXPECT_EQ(parseFocusMessage("focus l"), (threecol::FocusMessage{Direction::Left, false}));
-    EXPECT_EQ(parseFocusMessage("focus d noloop"), (threecol::FocusMessage{Direction::Down, true}));
+    EXPECT_EQ(parseDirectionMessage("focus l", "focus"), (DirectionMessage{Direction::Left, false}));
+    EXPECT_EQ(parseDirectionMessage("focus d noloop", "focus"), (DirectionMessage{Direction::Down, true}));
+    EXPECT_EQ(parseDirectionMessage("move r noloop", "move"), (DirectionMessage{Direction::Right, true}));
     for (const auto* other : {"focus", "focus x", "focus lr", "focus l x", "focus  l", "focus l noloop x", "move l", "focusmaster"})
-        EXPECT_EQ(parseFocusMessage(other), std::nullopt) << other;
+        EXPECT_EQ(parseDirectionMessage(other, "focus"), std::nullopt) << other;
+    for (const auto* other : {"move", "move l junk", "move l noloop x", "focus l"})
+        EXPECT_EQ(parseDirectionMessage(other, "move"), std::nullopt) << other;
 }
 
 TEST(ChainFocus, AFocusMessageWithOtherWordsDoesNothing) {
@@ -274,13 +278,13 @@ TEST(ChainMove, DownSwapsWithTheNextRowTakingItsHeightAndKeepingFocus) {
     EXPECT_TRUE(near(ws.rectOf(3), rightRow(792, 648)));
 }
 
-TEST(ChainMove, UpAndDownStopAtTheZoneEdgesAndDoNothingOnMaster) {
+TEST(ChainMove, UpAndDownStopAtTheZoneEdgesWithoutLoopingAndDoNothingOnMaster) {
     Workspace ws = filled(2, 5); // 1 Master, 2 3 Left, 4 5 Stack
 
-    EXPECT_FALSE(ws.layoutMessage("move u", 2));
-    EXPECT_FALSE(ws.layoutMessage("move d", 3));
-    EXPECT_FALSE(ws.layoutMessage("move u", 4));
-    EXPECT_FALSE(ws.layoutMessage("move d", 5));
+    EXPECT_FALSE(ws.layoutMessage("move u", 2, NO_LOOPING));
+    EXPECT_FALSE(ws.layoutMessage("move d", 3, NO_LOOPING));
+    EXPECT_FALSE(ws.layoutMessage("move u noloop", 4));
+    EXPECT_FALSE(ws.layoutMessage("move d noloop", 5));
     EXPECT_FALSE(ws.layoutMessage("move u", 1));
     EXPECT_FALSE(ws.layoutMessage("move d", 1));
 }
@@ -396,13 +400,117 @@ TEST(ChainMove, RightAndLeftSwapNeighbouringRowsInsideAZone) {
     EXPECT_TRUE(near(ws.rectOf(4), rightRow(720, 720)));
 }
 
-TEST(ChainMove, StopsAtTheChainEnds) {
+TEST(ChainMove, StopsAtTheChainEndsWithoutLooping) {
     Workspace ws = filled(1, 3); // 1 Master, 2 Left, 3 Stack
 
-    EXPECT_FALSE(ws.layoutMessage("move l", 2));
-    EXPECT_FALSE(ws.layoutMessage("move r", 3));
+    EXPECT_FALSE(ws.layoutMessage("move l", 2, NO_LOOPING));
+    EXPECT_FALSE(ws.layoutMessage("move r noloop", 3));
+    EXPECT_FALSE(ws.move(2, Direction::Left, false));
     EXPECT_TRUE(near(ws.rectOf(2), LEFT_ZONE));
     EXPECT_TRUE(near(ws.rectOf(3), RIGHT_ZONE));
+}
+
+TEST(ChainMoveLoop, LeftFromTheChainsLeftEndJoinsTheBottomOfTheStackLeavingALeftHole) {
+    Workspace ws = filled(1, 3); // 1 Master, 2 Left, 3 Stack
+
+    EXPECT_TRUE(ws.layoutMessage("move l", 2));
+    EXPECT_TRUE(near(ws.rectOf(3), rightRow(0, 720)));
+    EXPECT_TRUE(near(ws.rectOf(2), rightRow(720, 720)));
+    EXPECT_TRUE(near(ws.rectOf(1), MASTER_ZONE));
+    // Nothing slid into the Hole: the next window fills it.
+    EXPECT_TRUE(near(ws.nextWindowRect(), LEFT_ZONE));
+}
+
+TEST(ChainMoveLoop, RightFromTheChainsRightEndSwapsWithTheTopRowOfAFullBoundedLeft) {
+    Workspace ws = filled(1, 3); // 1 Master, 2 Left (full), 3 Stack
+
+    EXPECT_TRUE(ws.layoutMessage("move r", 3));
+    EXPECT_TRUE(near(ws.rectOf(3), LEFT_ZONE));
+    EXPECT_TRUE(near(ws.rectOf(2), RIGHT_ZONE));
+    EXPECT_TRUE(near(ws.rectOf(1), MASTER_ZONE));
+}
+
+TEST(ChainMoveLoop, RightFromTheChainsRightEndJoinsTheTopOfALeftWithRoom) {
+    Workspace ws = filled(2, 4); // 1 Master, 2 3 Left, 4 Stack
+    ws.removeWindow(3);          // Left keeps one Row of two
+
+    EXPECT_TRUE(ws.layoutMessage("move r", 4));
+    EXPECT_TRUE(near(ws.rectOf(4), leftRow(0, 720)));
+    EXPECT_TRUE(near(ws.rectOf(2), leftRow(720, 720)));
+}
+
+TEST(ChainMoveLoop, RightFromTheChainsRightEndIntoALeftHoleMovesThere) {
+    Workspace ws = filled(1, 3);
+    ws.removeWindow(2); // a Left Hole
+
+    EXPECT_TRUE(ws.layoutMessage("move r", 3));
+    EXPECT_TRUE(near(ws.rectOf(3), LEFT_ZONE));
+    EXPECT_TRUE(near(ws.rectOf(1), MASTER_ZONE));
+    // The Stack it left is empty: the next window goes there.
+    EXPECT_TRUE(near(ws.nextWindowRect(), RIGHT_ZONE));
+}
+
+TEST(ChainMoveLoop, WithLeftMissingMasterIsTheLeftEnd) {
+    Workspace ws = filled(0, 3); // 1 Master, Right 2 3
+
+    // Off the left end, Master joins the bottom of the Stack, leaving a Hole.
+    EXPECT_TRUE(ws.layoutMessage("move l", 1));
+    EXPECT_TRUE(near(ws.rectOf(1), rightRow(960, 480)));
+    EXPECT_TRUE(near(ws.nextWindowRect(), (Rect{0, 0, 3840, 1440})));
+
+    // Off the right end, it fills that Master Hole: the Hole is the next step.
+    EXPECT_TRUE(ws.layoutMessage("move r", 1));
+    EXPECT_TRUE(near(ws.rectOf(1), (Rect{0, 0, 3840, 1440})));
+    EXPECT_TRUE(near(ws.rectOf(3), rightRow(720, 720)));
+
+    // With Master occupied, it swaps with Master.
+    EXPECT_TRUE(ws.layoutMessage("move r", 3));
+    EXPECT_TRUE(near(ws.rectOf(3), (Rect{0, 0, 3840, 1440})));
+    EXPECT_TRUE(near(ws.rectOf(1), rightRow(720, 720)));
+}
+
+TEST(ChainMoveLoop, WithRightMissingMasterIsTheRightEnd) {
+    Workspace ws{AREA};
+    ws.setSettings(Settings{.leftRows = RowLimit::unlimited(), .rightRows = 0});
+    for (WindowId id = 1; id <= 3; ++id)
+        ws.addWindow(id); // 1 Master, Left 2 3
+
+    // Off the right end, Master joins the top of the Left Stack.
+    EXPECT_TRUE(ws.layoutMessage("move r", 1));
+    EXPECT_TRUE(near(ws.rectOf(1), leftRow(0, 480)));
+    EXPECT_TRUE(near(ws.rectOf(3), leftRow(960, 480)));
+}
+
+TEST(ChainMoveLoop, UpAndDownLoopInsideLeftToo) {
+    Workspace ws = filled(2, 4); // 1 Master, 2 3 Left, 4 Stack
+
+    EXPECT_TRUE(ws.layoutMessage("move u", 2));
+    EXPECT_TRUE(near(ws.rectOf(3), leftRow(0, 720)));
+    EXPECT_TRUE(near(ws.rectOf(2), leftRow(720, 720)));
+}
+
+TEST(ChainMoveLoop, UpAndDownSwapWithTheRowAtTheZonesOtherEdge) {
+    Workspace ws = filled(1, 5); // 1 Master, 2 Left, 3 4 5 Stack
+
+    EXPECT_TRUE(ws.layoutMessage("move u", 3));
+    EXPECT_TRUE(near(ws.rectOf(5), rightRow(0, 480)));
+    EXPECT_TRUE(near(ws.rectOf(4), rightRow(480, 480)));
+    EXPECT_TRUE(near(ws.rectOf(3), rightRow(960, 480)));
+
+    EXPECT_TRUE(ws.layoutMessage("move d", 3));
+    EXPECT_TRUE(near(ws.rectOf(3), rightRow(0, 480)));
+    EXPECT_TRUE(near(ws.rectOf(5), rightRow(960, 480)));
+
+    // A lone Row has nothing to loop to.
+    EXPECT_FALSE(ws.layoutMessage("move u", 2));
+}
+
+TEST(ChainMoveLoop, MoveCallsLoopOnlyWithWrap) {
+    Workspace ws = filled(1, 3); // 1 Master, 2 Left, 3 Stack
+
+    EXPECT_FALSE(ws.move(3, Direction::Right, false));
+    EXPECT_TRUE(ws.move(3, Direction::Right, true));
+    EXPECT_TRUE(near(ws.rectOf(3), LEFT_ZONE));
 }
 
 TEST(ChainMove, AWindowJoiningTheStackTopGetsANewRow) {
@@ -418,16 +526,16 @@ TEST(ChainMove, AWindowJoiningTheStackTopGetsANewRow) {
 TEST(ChainMove, MoveCallsRunTheSameRulesAsTheMessage) {
     Workspace ws = filled(1, 3);
 
-    EXPECT_TRUE(ws.move(1, threecol::Direction::Right));
+    EXPECT_TRUE(ws.move(1, threecol::Direction::Right, false));
     EXPECT_TRUE(near(ws.rectOf(1), rightRow(0, 720)));
-    EXPECT_FALSE(ws.move(3, threecol::Direction::Right));
+    EXPECT_FALSE(ws.move(3, threecol::Direction::Right, false));
 }
 
 TEST(ChainMove, AMoveEndsAMouseDrag) {
     Workspace ws = filled(1, 4);
     ws.dragResize(3, 10, 0, threecol::Corner::BottomLeft);
 
-    ws.move(3, threecol::Direction::Down);
+    ws.move(3, threecol::Direction::Down, false);
 
     EXPECT_FALSE(ws.resizing());
 }
@@ -437,7 +545,7 @@ TEST(ChainMove, NothingMovesWithNoFocusOrAWindowNotHere) {
 
     EXPECT_FALSE(ws.layoutMessage("move r", std::nullopt));
     EXPECT_FALSE(ws.layoutMessage("move r", 99));
-    EXPECT_FALSE(ws.move(99, threecol::Direction::Left));
+    EXPECT_FALSE(ws.move(99, threecol::Direction::Left, true));
 }
 
 // swapwithmaster
@@ -552,11 +660,27 @@ TEST(ChainMoveMirrored, RightFromTheBottomOfTheLeftStackSwapsWithMaster) {
     EXPECT_TRUE(near(ws.rectOf(4), leftRow(720, 720)));
 }
 
-TEST(ChainMoveMirrored, StopsAtTheChainEnds) {
+TEST(ChainMoveMirrored, StopsAtTheChainEndsWithoutLooping) {
     Workspace ws = mirrored(1, {2, 3}, 4, {1});
 
-    EXPECT_FALSE(ws.layoutMessage("move l", 2));
-    EXPECT_FALSE(ws.layoutMessage("move r", 1));
+    EXPECT_FALSE(ws.layoutMessage("move l", 2, NO_LOOPING));
+    EXPECT_FALSE(ws.layoutMessage("move r", 1, NO_LOOPING));
+}
+
+TEST(ChainMoveMirrored, LeftFromTheChainsLeftEndSwapsWithTheBottomRowOfAFullRight) {
+    Workspace ws = mirrored(1, {2, 3}, 4, {1}); // Left 2 3, Master 4, Right 1 (full)
+
+    EXPECT_TRUE(ws.layoutMessage("move l", 2));
+    EXPECT_TRUE(near(ws.rectOf(2), RIGHT_ZONE));
+    EXPECT_TRUE(near(ws.rectOf(1), leftRow(0, 720)));
+}
+
+TEST(ChainMoveMirrored, RightFromTheChainsRightEndJoinsTheTopOfTheLeftStack) {
+    Workspace ws = mirrored(1, {2, 3}, 4, {1});
+
+    EXPECT_TRUE(ws.layoutMessage("move r", 1));
+    EXPECT_TRUE(near(ws.rectOf(1), leftRow(0, 480)));
+    EXPECT_TRUE(near(ws.rectOf(3), leftRow(960, 480)));
 }
 
 // Two Stacks: moves off Master join either side, never swapping.
@@ -591,24 +715,24 @@ TEST(Chain, AMissingLeftZoneIsNoStepAndMasterIsTheChainsLeftEnd) {
     EXPECT_EQ(ws.layoutMessage("focus l", 2).focus, 1u);
 }
 
-TEST(Chain, MovingMasterTowardAMissingLeftZoneDoesNothing) {
+TEST(Chain, MovingMasterTowardAMissingLeftZoneDoesNothingWithoutLooping) {
     Workspace ws = filled(0, 2); // 1 Master, Right 2
 
-    EXPECT_FALSE(ws.layoutMessage("move l", 1));
-    EXPECT_FALSE(ws.move(1, Direction::Left));
+    EXPECT_FALSE(ws.layoutMessage("move l", 1, NO_LOOPING));
+    EXPECT_FALSE(ws.move(1, Direction::Left, false));
 
     EXPECT_EQ(ws.rectOf(1), (Rect{0, 0, 3840, 1440}));
     EXPECT_EQ(ws.rectOf(2), RIGHT_ZONE);
 }
 
-TEST(Chain, MovingMasterTowardAMissingRightZoneDoesNothing) {
+TEST(Chain, MovingMasterTowardAMissingRightZoneDoesNothingWithoutLooping) {
     Workspace ws{AREA};
     ws.setSettings(Settings{.leftRows = RowLimit::unlimited(), .rightRows = 0});
     ws.addWindow(1);
     ws.addWindow(2); // Left
 
     EXPECT_EQ(ws.layoutMessage("focus r", 1, NO_LOOPING).focus, std::nullopt);
-    EXPECT_FALSE(ws.layoutMessage("move r", 1));
+    EXPECT_FALSE(ws.layoutMessage("move r", 1, NO_LOOPING));
 
     EXPECT_EQ(ws.rectOf(1), (Rect{1280, 0, 3840, 1440}));
     EXPECT_EQ(ws.rectOf(2), LEFT_ZONE);

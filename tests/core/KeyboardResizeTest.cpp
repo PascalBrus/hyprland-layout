@@ -437,6 +437,23 @@ TEST(FloatingStepResize, StopsShrinkingAtOneStep) {
     EXPECT_EQ(threecol::floatingStepResize("resize narrower", threecol::Rect{1000, 200, 100, 600}, area, 0.05), std::nullopt);
 }
 
+TEST(FloatingStepResize, TheLastShrinkStopsAtOneStepEvenIfThatIsLessThanAStep) {
+    constexpr threecol::Rect area{0, 0, 5120, 1440};
+
+    // A step is 256 px. 520 wide: a full step leaves 264, 128 px off each side.
+    EXPECT_EQ(threecol::floatingStepResize("resize narrower", threecol::Rect{1000, 200, 520, 600}, area, 0.05), (threecol::Rect{1128, 200, 264, 600}));
+    // Exactly two steps: a full step leaves exactly one.
+    EXPECT_EQ(threecol::floatingStepResize("resize narrower", threecol::Rect{1000, 200, 512, 600}, area, 0.05), (threecol::Rect{1128, 200, 256, 600}));
+    // 500 wide: a full step would leave 244, under one step, so it stops at
+    // 256, 122 px off each side.
+    EXPECT_EQ(threecol::floatingStepResize("resize narrower", threecol::Rect{1000, 200, 500, 600}, area, 0.05), (threecol::Rect{1122, 200, 256, 600}));
+
+    // The height the same way: a step is 72 px of 1440.
+    EXPECT_EQ(threecol::floatingStepResize("resize shorter", threecol::Rect{1000, 200, 800, 144}, area, 0.05), (threecol::Rect{1000, 236, 800, 72}));
+    // 140 tall: a full step would leave 68, so it stops at 72, 34 px off each side.
+    EXPECT_EQ(threecol::floatingStepResize("resize shorter", threecol::Rect{1000, 200, 800, 140}, area, 0.05), (threecol::Rect{1000, 234, 800, 72}));
+}
+
 TEST(FloatingStepResize, OtherMessagesAreNoStepResize) {
     constexpr threecol::Rect area{0, 0, 5120, 1440};
 

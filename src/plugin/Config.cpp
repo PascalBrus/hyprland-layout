@@ -43,6 +43,7 @@ namespace threecol {
             SP<CBoolValue> cycleNext;
             SP<CBoolValue> wrapFocus;
             SP<CBoolValue> wrapSwap;
+            SP<CBoolValue> wrapMove;
             SP<CBoolValue> wrapSwapNext;
             SP<CBoolValue> wrapCycleNext;
         } g_binds;
@@ -115,13 +116,15 @@ namespace threecol {
             .wrapFocus     = bindSwitch("plugin:threecol:wrap:focus", "focus({ direction }) and focus l / r / u / d loop along the Chain and inside a side zone",
                                         BIND_DEFAULTS.wrap.focus),
             .wrapSwap      = bindSwitch("plugin:threecol:wrap:swap", "swap({ direction }) loops along the Chain and inside a side zone", BIND_DEFAULTS.wrap.swap),
+            .wrapMove      = bindSwitch("plugin:threecol:wrap:move", "move({ direction }) and move l / r / u / d loop along the Chain and inside a side zone",
+                                        BIND_DEFAULTS.wrap.move),
             .wrapSwapNext  = bindSwitch("plugin:threecol:wrap:swap_next", "swap next / prev and swapnext / swapprev loop along the Chain", BIND_DEFAULTS.wrap.swapNext),
             .wrapCycleNext = bindSwitch("plugin:threecol:wrap:cycle_next", "cycle_next loops along the Cycle, cyclenext / cycleprev along the Chain",
                                         BIND_DEFAULTS.wrap.cycleNext),
         };
 
         const std::initializer_list<SP<Config::Values::IValue>> binds{
-            g_binds.focus, g_binds.swap, g_binds.swapNext, g_binds.cycleNext, g_binds.wrapFocus, g_binds.wrapSwap, g_binds.wrapSwapNext, g_binds.wrapCycleNext,
+            g_binds.focus, g_binds.swap, g_binds.swapNext, g_binds.cycleNext, g_binds.wrapFocus, g_binds.wrapSwap, g_binds.wrapMove, g_binds.wrapSwapNext, g_binds.wrapCycleNext,
         };
 
         bool ok = true;
@@ -165,6 +168,7 @@ namespace threecol {
                 {
                     .focus     = g_binds.wrapFocus->value(),
                     .swap      = g_binds.wrapSwap->value(),
+                    .move      = g_binds.wrapMove->value(),
                     .cycleNext = g_binds.wrapCycleNext->value(),
                     .swapNext  = g_binds.wrapSwapNext->value(),
                 },
