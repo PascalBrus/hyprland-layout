@@ -95,3 +95,11 @@ _Avoid_: GUI, visual manager, configurator, overlay
 **Settings file**:
 The one config file the Settings app writes and owns, loaded after the user's own config so its values win. The user's hand-written files are never changed by the Settings app.
 _Avoid_: generated file, generated config, managed file
+
+**Bind target**:
+A dispatcher with its arguments, the one thing a bind runs, such as focus to the left. A dispatcher has one bind target per argument set, so focus by direction has four.
+_Avoid_: action, bind action, command
+
+**Catalogue**:
+The one list of every threecol setting, dispatcher and bind target, with the facts the Settings app shows about each. The plugin and the README must agree with it.
+_Avoid_: entry list, registry, schema
